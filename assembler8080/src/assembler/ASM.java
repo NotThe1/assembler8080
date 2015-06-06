@@ -92,7 +92,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private boolean isEmptyLine;
 	private int currentPC;
 	private String symbol;
-	private boolean isInstruction; 
+//	private boolean isInstruction; 
 	private Instruction instruction;
 	private Directive directive;
 	private String arguments;
@@ -126,9 +126,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 			memoryImage = new HashMap<Integer, Byte>();
 			String ap = sourceFile.getAbsolutePath();
 			String baseFileName = ap.substring(0, ap.length() - 4);
-			String xrefFilePath = baseFileName + ".xref";
-			File xrefFile = new File(xrefFilePath);
-			FileWriter fw = new FileWriter(xrefFile);
+			String listFilePath = baseFileName + ".list";
+			File listFile = new File(listFilePath);
+			FileWriter fw = new FileWriter(listFile);
 			PrintWriter pw = new PrintWriter(fw);
 			
 		
@@ -139,10 +139,10 @@ public class ASM implements ActionListener, AdjustmentListener {
 			BufferedReader reader = new BufferedReader(source);
 			String line = null;
 			String rawLine = null;
-			SymbolTable s = symbolTable;
+//			SymbolTable s = symbolTable;
 			lineNumber = 0;
 			currentPC = instructionCounter.getCurrentLocation();
-			String outputLine;
+//			String outputLine;
 			// instructionCounter.getCurrentLocation();
 			while ((rawLine = reader.readLine()) != null) {
 				// line = rawLine.replace("\t", " ").toUpperCase();
@@ -173,13 +173,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 				txtLog2.append(logMessage);
 			}// while
 
-			doXref(pw);
+			doList(pw);
 			if (cbSaveToFile.isSelected()) {
 				try {
 					String memoryFilePath = baseFileName + ".mem";
 				File memoryFile = new File(memoryFilePath);
 				FileWriter mfw = new FileWriter(memoryFile);
-				String m = doMemoryFile();
+//				String m = doMemoryFile();
 				mfw.write(doMemoryFile());
 				mfw.close();
 				} catch (Exception e) {
@@ -209,7 +209,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		byte zero = 0;
 		StringBuilder sb = new StringBuilder();
 		StringBuilder thisLine = new StringBuilder();
-		String thisChar;
+//		String thisChar;
 		Byte value;
 		// Scanner sc = new Scanner(txtValues.getText());
 		for (Integer sourceLocation : locationsOrdered) {
@@ -313,7 +313,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 	}// getThischar
 
-	private void doXref(PrintWriter pw) {
+	private void doList(PrintWriter pw) {
 		if (cbSaveToFile.isSelected()) {
 			pw.printf("%n%n%n%n%40s%n%n", "Xref");
 		}// if - file?
@@ -352,7 +352,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			txtLog2.append(logEntry);
 			sb = null;
 		}// for
-	}// doXref
+	}// doList
 
 	// *******************used above
 	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection<T> c) {
@@ -566,7 +566,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 			if (!R16D.matches(r16dPattern)) {
-				int a = 0;
+//				int a = 0;
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 
@@ -601,7 +601,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 			if (!R8.matches(r8Pattern)) {
-				int a = 0;
+//				int a = 0;
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 
@@ -641,9 +641,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 		return (directives.containsKey(token));
 	}// isDirective
 
-	private boolean isComment(String token) {
-		return token.startsWith(";");
-	}
+//	private boolean isComment(String token) {
+//		return token.startsWith(";");
+//	}
 
 	private void parseLine(int lineNumber, String sourceLine) {
 		String workingLine = sourceLine.replaceAll("\t", " ");
@@ -772,7 +772,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 					throw new AssemblerException("DB on line: " + lineNumber + " needs an argument");
 				} else {
 					String arg;
-					int ans;
+//					int ans;
 					scannerComma = new Scanner(arguments);
 					scannerComma.useDelimiter(",");
 					while (scannerComma.hasNext()) {
@@ -792,7 +792,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 					throw new AssemblerException("DW on line: " + lineNumber + " needs an argument");
 				} else {
 					String arg;
-					int ans;
+//					int ans;
 					scannerComma = new Scanner(arguments);
 					scannerComma.useDelimiter(",");
 					while (scannerComma.hasNext()) {
@@ -943,7 +943,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private void clearElements() {
 		isEmptyLine = false; // ?
 		symbol = null;
-		isInstruction = false; // ?
+//		isInstruction = false; // ?
 		directive = null;
 		instruction = null;
 		arguments = null;
@@ -956,7 +956,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		if (((Component) ae.getSource()).getName() == "scrollLog1") {
 			scrollLog2.getVerticalScrollBar().setValue(scrollLog1.getVerticalScrollBar().getValue());
 		}// if - the left scroll pane
-		int x = ae.getValue();
+//		int x = ae.getValue();
 
 	}// adjustmentValueChanged
 
@@ -1077,10 +1077,10 @@ public class ASM implements ActionListener, AdjustmentListener {
 		btnStart.setBounds(10, 25, 89, 23);
 		panel1.add(btnStart);
 
-		JButton btnTest = new JButton("Test");
+		JButton btnTest = new JButton("Xref");
 		btnTest.setActionCommand("btnTest");
 		btnTest.addActionListener(this);
-		btnTest.setBounds(10, 578, 89, 23);
+		btnTest.setBounds(10, 568, 89, 33);
 		panel1.add(btnTest);
 
 		cbSaveToFile = new JCheckBox("Save To File");
@@ -1124,13 +1124,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 		initApplication();
 	}// initialize
 
-	private static final String COMMENT = "Comment";
-	private static final String LABEL = "Label";
-	private static final String NAME = "Name";
-	private static final String INSTRUCTION = "Instruction";
-	private static final String DIRECTIVE = "Directive";
-	private static final String ARGUMENT = "Argument";
-	private static final String NONE = "None";
+//	private static final String COMMENT = "Comment";
+//	private static final String LABEL = "Label";
+//	private static final String NAME = "Name";
+//	private static final String INSTRUCTION = "Instruction";
+//	private static final String DIRECTIVE = "Directive";
+//	private static final String ARGUMENT = "Argument";
+//	private static final String NONE = "None";
 
 	// TODO reserved words STACK and MEMORY pg 4-19 assembler MAY_81 pdf
 	private static HashMap<String, Directive> directives;
@@ -1276,12 +1276,4 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private static final String binaryValuePattern = "[01]B";
 	private static final String decimalValuePattern = "[0-9]{1,4}D?+";
 	private static final String stringValuePattern = "\\A'.*'\\z"; // used for
-																	// argument
-																	// only
-
-	private static final String stringPattern = "'.*'"; // used in parsing the
-														// line
-	private static final String labelPattern = "^[$\\?\\@\\w][\\w$]{1,8}:";
-	private static final String namePattern = "^[$\\?\\@\\w][\\w$]{1,8}\\s|[$\\?\\@\\w][\\w$]{1,8}$";
-	private static final String commentsPattern = ";.*";
 }// class ASM1
