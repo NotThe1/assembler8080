@@ -1,0 +1,674 @@
+0001: 0000 		 
+0002: 0000 		 					; listing starts on page 165/493 FIgure 6-4
+0003: 0000 		 					; in Programmers CPM Handbook by
+0004: 0000 		 					; Andy Johnston-Laird
+0005: 0000 		 
+0006: 0000 		 INopCode	EQU		0DBH
+0007: 0000 		 OUTopCode	EQU		0D3H
+0008: 0000 		 ; programmers CPM Handbook by Andy Johnson
+0009: 0000 		 
+0010: 0000 		 VERSION	EQU	3030H
+0011: 0000 		 MONTH	EQU	3730H
+0012: 0000 		 DAY	EQU 3531H
+0013: 0000 		 Year	EQU	3238H
+0014: 0000 		 
+0015: 0000 		 MemorySize	EQU 64
+0016: 0000 		 
+0017: 0000 		 BIOSLength	EQU 0900H
+0018: 0000 		 
+0019: 0000 		 CCPLength	EQU 0800H	; Constant
+0020: 0000 		 BDOSLength	EQU 0E00H	; Constant
+0021: 0000 		 
+0022: 0000 		 OverallLength	EQU ((CCPLength + BDOSLength + BIOSLength) /1024) + 1
+0023: 0000 		 ;CCPEntry	EQU 0800H
+0024: 0000 		 CCPEntry	EQU	((MemorySize - OverallLength) * (0 + 1024))
+0025: 0000 		 BDOSEntry	EQU	CCPEntry + CCPLength + 6
+0026: 0000 		 BIOSEntry	EQU	CCPENtry + CCPLength + BDOSLength
+0027: 0000 		 
+0028: 0000 		 PageZero:	ORG 0000H		; Start of page Zero
+0029: 0000 	C303F6	 	JMP		WarmBootEntry	; warm start
+0030: 0003 		 IOBYTE:
+0031: 0003 	01	 	DB		01H				; IOBYTE- Console is assigned the CRT device
+0032: 0004 	00	 	DB		00H				; Current default drive (A)
+0033: 0005 	C306E8	 	JMP		BDOSEntry		; jump to BDOS entry
+0034: 0008 		 	DS		028H			; interrupt locations 1-5 not used
+0035: 0030 		 	DS		008H			; interrupt location 6 is reserved
+0036: 0038 	C30000	 	JMP		0000H			; rst 7 used only by DDT & SID programs
+0037: 003B 		 	DS		005H			; not currently used
+0038: 0040 		 	DS		010H			; reserved for scratch by CBIOS- not used by CP/M
+0039: 0050 		 	DS		00CH			; not currently used
+0040: 005C 		 FCB:
+0041: 005C 		 	DS		021H			; Default FCB for transient programs
+0042: 007D 		 RandomRecordPosition:
+0043: 007D 		 	DS		003H			; optional random record position
+0044: 0080 		 DefaultDiskBuffer:
+0045: 0080 		 	DS		080H			; default 128- byte disk buffer,
+0046: 0100 		 							; also filled with the command line from CCP
+0047: 0100 		 	
+0048: 0100 		 
+0049: 0100 		 
+0050: 0100 		 	ORG		BIOSEntry		; Assemble code at BIOS address
+0051: F600 		 		
+0052: F600 		 		; BIOS jum Vector
+0053: F600 		 		
+0054: F600 	C3F9F6	 	JMP	BOOT			; NOT YET CODED
+0055: F603 		 WarmBootEntry:
+0056: F603 	C381F9	 	JMP	WBOOT			; NOT YET CODED
+0057: F606 	C362F8	 	JMP	CONST			; CODED
+0058: F609 	C378F8	 	JMP	CONIN			; CODED
+0059: F60C 	C386F8	 	JMP	CONOUT			; CODED		     495   F95B: OutputStatusPort:
+0060: F60F 	C3ACF8	 	JMP	LIST			; NOT YET CODED
+0061: F612 	C3BCF8	 	JMP	PUNCH			; NOT YET CODED
+0062: F615 	C3CDF8	 	JMP	READER			; NOT YET CODED
+0063: F618 	C381F9	 	JMP	HOME			; NOT YET CODED
+0064: F61B 	C381F9	 	JMP	SELDSK			; NOT YET CODED
+0065: F61E 	C381F9	 	JMP	SETTRK			; NOT YET CODED
+0066: F621 	C381F9	 	JMP	SETSEC			; NOT YET CODED
+0067: F624 	C381F9	 	JMP	SETDMA			; NOT YET CODED
+0068: F627 	C381F9	 	JMP	READ			; NOT YET CODED
+0069: F62A 	C381F9	 	JMP	WRITE			; NOT YET CODED
+0070: F62D 	C394F8	 	JMP	LISTST			; NOT YET CODED
+0071: F630 	C381F9	 	JMP	SECTRAN			; NOT YET CODED
+0072: F633 		 	
+0073: F633 		 PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128, 
+0074: F633 		 DiskBuffer:
+0075: F633 		 	DS	PhysicalSectorSize	
+0076: F833 		 AfterDiskBuffer		EQU	$
+0077: F833 		 
+0078: F833 		 		ORG		DiskBuffer		; wind the location counter back
+0079: F633 		 
+0080: F633 		 InitializeStream:		; used by the initialization subroutine. Layout:
+0081: F633 		 						;	DB	Port number to be initialized
+0082: F633 		 						;	DB	Number of bytes to be output
+0083: F633 		 						;	DB	xx.xx.xx.xx.xx.xx data to be output
+0084: F633 		 						;	:
+0085: F633 		 						;	:
+0086: F633 		 						;	DB	Port numbe of 00H terminator
+0087: F633 		 						;	Console does not need to be initalized. it was done in the PROM
+0088: F633 		 
+0089: F633 	ED	 		DB	CommunicationStatusPort	; intel 8251 ?
+0090: F634 	06	 		DB	06H		; number of bytes
+0091: F635 	00	 		DB	0		; get chip ready by sending data out to it
+0092: F636 	00	 		DB	0
+0093: F637 	00	 		DB	0
+0094: F638 	42	 		DB	042H;	; Reset and raise data terminal ready
+0095: F639 	6E	 		DB	06Eh	; 1 stop bit, no parity, 8bits/char baud rate / 16
+0096: F63A 	25	 		DB	025H	;Raise request to send, and enable transmit and receive
+0097: F63B 		 		
+0098: F63B 	DF	 		DB	CommunicationBaudMode;	Intel 8253 time
+0099: F63C 	01	 		DB	01H		; number of bytes
+0100: F63D 	B6	 		DB	0B6H	; select counter2, load LS Byte
+0101: F63E 		 		
+0102: F63E 	DE	 		DB	CommunicationBaudRate
+0103: F63F 	02	 		DB	02H		; number of bytes
+0104: F640 	3800	 		DW	0038H	; 1200 baud rate
+0105: F642 		 		
+0106: F642 	00	 		DB	0		; port number of 0 terminates
+0107: F643 		 		
+0108: F643 		 ;  Equates for the sign in message
+0109: F643 		 
+0110: F643 		 CR		EQU	0DH		; Carriage Return
+0111: F643 		 LF		EQU	0AH		; Line Feed
+0112: F643 		 
+0113: F643 		 SignOnMessage:		; Main sign on message
+0114: F643 	43502F4D20	 		DB	43H,50H,2FH,4DH,20H		; CP/M 2.2.
+0115: F648 	322E322E	 		DB	32H,2EH,32H,2EH			;(2.2.)
+0116: F64C 	3030	 		DB	30H,30H		; VERSION
+0117: F64E 	20	 		DB	20H
+0118: F64F 	3037	 		DB	30H,37H		; MONTH
+0119: F651 	2F	 		DB	2FH			; /
+0120: F652 	3135	 		DB	31H,35H		; DAY
+0121: F654 	2F	 		DB	2FH			; /
+0122: F655 	3832	 		DB	38H,32H		; YEAR
+0123: F657 	0D0A0A	 		DB	CR,LF,LF
+0124: F65A 		 		
+0125: F65A 	53696D706C	 		DB	53H,69H,6DH,70H,6CH		;Simple BIOS
+0126: F65F 	652042494F53	 		DB	65H,20H,42H,49H,4fH,53H
+0127: F665 	0D0A0A	 		DB	CR,LF,LF
+0128: F668 		 		
+0129: F668 	4469736B20	 		DB	44H,69H,73H,6BH,20H		; Disk configuration :
+0130: F66D 	636F6E6669	 		DB 	63H,6FH,6EH,66H,69H
+0131: F672 	6775726174	 		DB	67H,75H,72H,61H,74H
+0132: F677 	696F6E203A	 		DB	69H,6FH,6EH,20H,3Ah
+0133: F67C 	0D0A0A	 		DB	CR,LF,LF
+0134: F67F 		 		
+0135: F67F 	2020202020	 		DB	20H,20H,20H,20H,20H		; A: 0.35 Mbyte 5" Floppy' 
+0136: F684 	413A20302E3335	 		DB	41H,3AH,20H,30H,2EH,33H,35H
+0137: F68B 	204D62797465	 		DB	20H,4DH,62H,79H,74H,65H
+0138: F691 	20352220	 		DB	20H,35H,22H,20H
+0139: F695 	466C6F707079	 		DB	46H,6CH,6FH,70H,70H,79H
+0140: F69B 	0D0A	 		DB	CR,LF
+0141: F69D 		 		
+0142: F69D 	2020202020	 		DB	20H,20H,20H,20H,20H		; B: 0.35 Mbyte 5" Floppy'
+0143: F6A2 	423A20302E3335	 		DB	42H,3AH,20H,30H,2EH,33H,35H
+0144: F6A9 	204D62797465	 		DB	20H,4DH,62H,79H,74H,65H
+0145: F6AF 	20352220	 		DB	20H,35H,22H,20H
+0146: F6B3 	466C6F707079	 		DB	46H,6CH,6FH,70H,70H,79H
+0147: F6B9 	0D0A0A	 		DB	CR,LF,LF
+0148: F6BC 		 		
+0149: F6BC 	2020202020	 		DB	20H,20H,20H,20H,20H		; C: 0.24 Mbyte 8" Floppy
+0150: F6C1 	433A20302E3234	 		DB	43H,3AH,20H,30H,2EH,32H,34H
+0151: F6C8 	204D62797465	 		DB	20H,4DH,62H,79H,74H,65H
+0152: F6CE 	20352220	 		DB	20H,35H,22H,20H
+0153: F6D2 	466C6F707079	 		DB	46H,6CH,6FH,70H,70H,79H
+0154: F6D8 	0D0A	 		DB	CR,LF
+0155: F6DA 		 		
+0156: F6DA 	2020202020	 		DB	20H,20H,20H,20H,20H		; D: 0.24 Mbyte 8" Floppy
+0157: F6DF 	443A20302E3234	 		DB	44H,3AH,20H,30H,2EH,32H,34H
+0158: F6E6 	204D62797465	 		DB	20H,4DH,62H,79H,74H,65H
+0159: F6EC 	20352220	 		DB	20H,35H,22H,20H
+0160: F6F0 	466C6F707079	 		DB	46H,6CH,6FH,70H,70H,79H
+0161: F6F6 	0D0A	 		DB	CR,LF
+0162: F6F8 		 		
+0163: F6F8 		 ;		DB	20H,20H,20H,20H,20H
+0164: F6F8 		 ;		DB	20H,20H,20H,20H,20H
+0165: F6F8 		 ;		DB	20H,20H,20H,20H,20H
+0166: F6F8 		 ;		DB	20H,20H,20H,20H,20H
+0167: F6F8 		 		
+0168: F6F8 		 ;		DS	84H		; 132  sign on message goes here
+0169: F6F8 		 		
+0170: F6F8 	00	 		DB	00
+0171: F6F9 		 		
+0172: F6F9 		 	DefaultDisk	EQU	0004H
+0173: F6F9 		 	
+0174: F6F9 		 ;219--------------------BOOT-----------------------------	
+0175: F6F9 		 	
+0176: F6F9 		 	BOOT:		; entered directly from the BIOS JMP vector
+0177: F6F9 		 				; Control transfered by the CP/M bootstrap loader
+0178: F6F9 		 				; initial state will be determined by the PROM
+0179: F6F9 		 				
+0180: F6F9 		 				; setting up 8251 & 8253 --
+0181: F6F9 	F3	 	DI
+0182: F6FA 	2133F6	 	LXI	H,InitializeStream		;HL-> Data stream
+0183: F6FD 		 ;
+0184: F6FD 		 InitializeLoop:
+0185: F6FD 	7E	 	MOV	A,M		; get port #
+0186: F6FE 	B7	 	ORA A		; if 00H then done
+0187: F6FF 	CA13F7	 	JZ	InitializeComplete
+0188: F702 		 	
+0189: F702 	320AF7	 	STA	InitializePort	; set up OUT instruction
+0190: F705 	23	 	INX	H		; HL -> count # of bytes to output
+0191: F706 	4E	 	MOV	C,M		; get byte count
+0192: F707 		 	
+0193: F707 		 InitializeNextByte:
+0194: F707 	23	 	INX	H	
+0195: F708 	7E	 	MOV	A,M		; get next byte
+0196: F709 	D3	 	DB OUTopCode		; OUT instruction output to correct port
+0197: F70A 		 	
+0198: F70A 		 InitializePort:
+0199: F70A 	00	 	DB	0		; set by above code (self modifying code!!!!!)
+0200: F70B 	0D	 	DCR	C		; Count down
+0201: F70C 	C207F7	 	JNZ	InitializeNextByte
+0202: F70F 	23	 	INX	H		; HL-> next port number
+0203: F710 	C3FDF6	 	JMP InitializeLoop	; go back for more
+0204: F713 		 	
+0205: F713 		 InitializeComplete:
+0206: F713 	3E01	 	MVI	A,01H	; set up for terminal to be console
+0207: F715 	320300	 	STA	IOBYTE
+0208: F718 		 	
+0209: F718 	2143F6	 	LXI	H,SignonMessage
+0210: F71B 	CD33F8	 	CALL	DisplayMessage
+0211: F71E 		 	
+0212: F71E 	AF	 	XRA	A		; Set default disk to A:
+0213: F71F 	320400	 	STA	DefaultDisk
+0214: F722 	FB	 	EI			; enable the interrupts
+0215: F723 		 	
+0216: F723 	C340F8	 	JMP	EnterCPM	; Complete initialization and enter CP/M
+0217: F726 		 					; by going to the Console Command Processor
+0218: F726 		 ;
+0219: F726 		 ;271---------------End of Cold Boot Initialization Code--------------
+0220: F726 		 
+0221: F726 		 		ORG AfterDiskBuffer		; reset Location Counter
+0222: F833 		 DisplayMessage:
+0223: F833 	7E	 	MOV		A,M		; get next message byte
+0224: F834 	B7	 	ORA		A		; check if terminator
+0225: F835 	C8	 	RZ			; Yes, thes return to caller
+0226: F836 		 	
+0227: F836 	4F	 	MOV		C,A		; prepare for output
+0228: F837 	E5	 	PUSH	HL		; save message pointer
+0229: F838 	CD86F8	 	CALL	CONOUT	; go to main console output routine	*********************************************
+0230: F83B 	E1	 	POP		H
+0231: F83C 	23	 	INX		H 		; point at next character
+0232: F83D 	C333F8	 	JMP		DisplayMessage	; loop till done
+0233: F840 		 	
+0234: F840 		 EnterCPM:
+0235: F840 	3EC3	 	MVI		A,0C3H		; JMP op code
+0236: F842 	320000	 	STA		0000H		; set up the jump in location 0000H
+0237: F845 	320500	 	STA		0005H		; and at location 0005H
+0238: F848 		 	
+0239: F848 	2103F6	 	LXI		H,WarmBootEntry	; get BIOS vector address
+0240: F84B 	220100	 	SHLD	0001H		; put address in location 1
+0241: F84E 		 	
+0242: F84E 	2106E8	 	LXI		H,BDOSEntry	; Get BDOS entry point address
+0243: F851 	220600	 	SHLD	0006H		; put address at location 5
+0244: F854 		 	
+0245: F854 	018000	 	LXI		B,80H		; set disk I/O address to default
+0246: F857 	CD81F9	 	CALL	SETDMA		; use normal BIOS routine		****************************************************************
+0247: F85A 		 	
+0248: F85A 	FB	 	EI
+0249: F85B 	3A0400	 	LDA		DefaultDisk		; Transfer current default disk to
+0250: F85E 	4F	 	MOV		C,A			; Console Command Processor
+0251: F85F 	C300E0	 	JMP		CCPEntry	; transfer to CCP
+0252: F862 		 		
+0253: F862 		 		
+0254: F862 		 		
+0255: F862 		 ;IOBYTE	EQU		0003H		;I/O redirection byte
+0256: F862 		 
+0257: F862 		 ;333--------------------CONST----------------------------
+0258: F862 		 	; Entered directly from BIOS JMP vector
+0259: F862 		 	; returns Register A
+0260: F862 		 	; 00H -> No data
+0261: F862 		 	; 0FFH -> there is data
+0262: F862 		 CONST:
+0263: F862 	CD6AF8	 	CALL	GetConsoleStatus	; return A= zero or not zero
+0264: F865 	B7	 	ORA		A
+0265: F866 	C8	 	RZ					; if 0 no returning data
+0266: F867 	3EFF	 	MVI		A,0FFH		; else indicate there is data
+0267: F869 	C9	 	RET
+0268: F86A 		 	
+0269: F86A 		 GetConsoleStatus:
+0270: F86A 	3A0300	 	LDA		IOBYTE		; Get IO redirection byte
+0271: F86D 	CDDCF8	 	CALL	SelectRoutine	; these routines return to the caller of GetConsoleStatus
+0272: F870 	F6F8	 	DW		TTYInStatus				; 00  <- IOBYTE bits 1,0
+0273: F872 	FCF8	 	DW		TerminalInStatus		; 01
+0274: F874 	02F9	 	DW		CommunicationInStatus	; 10
+0275: F876 	08F9	 	DW		DummyInStatus			; 11
+0276: F878 		 	
+0277: F878 		 CONIN:
+0278: F878 		 						; get console Input character
+0279: F878 		 						; entered directly from the BIOS jmp Vector
+0280: F878 		 						; return the character from the console in the A register.
+0281: F878 		 						; most significant bit will be 0. except when "reader" (communication)
+0282: F878 		 						; port has input , all 8 bits are reurned
+0283: F878 		 						;
+0284: F878 		 						; normally this follows a call to CONST. it indicates a char is ready.
+0285: F878 		 						; this is a blocking call
+0286: F878 	3A0300	 	LDA		IOBYTE			; get i/o redirection byte
+0287: F87B 	CDDCF8	 	CALL 	SelectRoutine
+0288: F87E 	20F9	 	DW		TTYInput			; 00 <- IOBYTE bits 1,0
+0289: F880 	26F9	 	DW		TerminalInput		; 01
+0290: F882 	2FF9	 	DW		CommunicationInput	; 10
+0291: F884 	35F9	 	DW		DummyInput			; 11
+0292: F886 		 	
+0293: F886 		 CONOUT:
+0294: F886 		 						; Console output
+0295: F886 		 						; entered directly from BIOS JMP Vector
+0296: F886 		 						; outputs the data character in the C register
+0297: F886 		 						; to the appropriate device according to bits 1,0 of IOBYTE
+0298: F886 	3A0300	 	LDA		IOBYTE			; get i/o redirection byte
+0299: F889 	CDDCF8	 	CALL 	SelectRoutine
+0300: F88C 	38F9	 	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+0301: F88E 	3EF9	 	DW		TerminalOutput		; 01
+0302: F890 	44F9	 	DW		CommunicationOutput	; 10
+0303: F892 	4AF9	 	DW		DummyOutput			; 11
+0304: F894 		 	
+0305: F894 		 LISTST:					; List Device (output) status
+0306: F894 		 						; entered directly from the BIOS JMP Vector
+0307: F894 		 						; returns in A the list device status that indicates
+0308: F894 		 						; if the device will accept another character
+0309: F894 		 						; the IOBYTE's bits 7,6 determin the physical device
+0310: F894 		 						;
+0311: F894 		 						; A = 00H (zero flag set): cannot accpet data
+0312: F894 		 						; A = 0FFH ( zero flag cleared): can accept data
+0313: F894 	CD9CF8	 	CALL	GetListStatus	; return  A = 0 or non-zero
+0314: F897 		 	
+0315: F897 	B7	 	ORA		A				; set flags
+0316: F898 	C8	 	RZ						; exit if not ready
+0317: F899 	3EFF	 	MVI		a,0FFH			; else set retuen value for ok
+0318: F89B 	C9	 	RET	
+0319: F89C 		 	; exit
+0320: F89C 		 GetListStatus:
+0321: F89C 	3A0300	 	LDA		IOBYTE
+0322: F89F 	07	 	RLC						; move bits 7,6
+0323: F8A0 	07	 	RLC						; to 1,0
+0324: F8A1 	CDDCF8	 	CALL	SelectRoutine
+0325: F8A4 	0BF9	 	DW		TTYOutStatus			; 00 <- IOBYTE bits 1,0
+0326: F8A6 	11F9	 	DW		TerminalOutStatus		; 01
+0327: F8A8 	17F9	 	DW		CommunicationOutStatus	; 10
+0328: F8AA 	1DF9	 	DW		DummyOutStatus			; 11
+0329: F8AC 		 	
+0330: F8AC 		 LIST:					; List output
+0331: F8AC 		 						; entered directly from the BIOS JMP Vector
+0332: F8AC 		 						; outputs the data in Register C
+0333: F8AC 	3A0300	 	LDA		IOBYTE
+0334: F8AF 	07	 	RLC						; move bits 7,6
+0335: F8B0 	07	 	RLC						; to 1,0
+0336: F8B1 	CDDCF8	 	CALL	SelectRoutine
+0337: F8B4 	38F9	 	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+0338: F8B6 	3EF9	 	DW		TerminalOutput		; 01
+0339: F8B8 	44F9	 	DW		CommunicationOutput	; 10
+0340: F8BA 	4AF9	 	DW		DummyOutput			; 11
+0341: F8BC 		 	
+0342: F8BC 		 PUNCH:					; Punch output
+0343: F8BC 		 						; entered directly from the BIOS JMP Vector
+0344: F8BC 		 						; outputs the data in Register C
+0345: F8BC 	3A0300	 	LDA		IOBYTE
+0346: F8BF 	07	 	RLC						; move bits 5,4
+0347: F8C0 	07	 	RLC
+0348: F8C1 	07	 	RLC						; to 1,0
+0349: F8C2 	CDDCF8	 	CALL	SelectRoutine
+0350: F8C5 	38F9	 	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+0351: F8C7 	4AF9	 	DW		DummyOutput			; 01
+0352: F8C9 	44F9	 	DW		CommunicationOutput	; 10
+0353: F8CB 	3EF9	 	DW		TerminalOutput		; 11
+0354: F8CD 		 	
+0355: F8CD 		 READER:					; Reader Input
+0356: F8CD 		 						; entered directly from the BIOS JMP Vector
+0357: F8CD 		 						; inputs data into the A register
+0358: F8CD 	3A0300	 	LDA		IOBYTE
+0359: F8D0 	07	 	RLC						; move bits 3,2  to 1,0
+0360: F8D1 	CDDCF8	 	CALL	SelectRoutine
+0361: F8D4 	38F9	 	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+0362: F8D6 	4AF9	 	DW		DummyOutput			; 01
+0363: F8D8 	44F9	 	DW		CommunicationOutput	; 10
+0364: F8DA 	3EF9	 	DW		TerminalOutput		; 11
+0365: F8DC 		 	
+0366: F8DC 		 	
+0367: F8DC 		 		; SelectRoutine
+0368: F8DC 		 		; Transfer control to a specified address following its calling address
+0369: F8DC 		 		; according to the values in bits 1, 0 in A.
+0370: F8DC 		 		
+0371: F8DC 		 SelectRoutine:
+0372: F8DC 	07	 	RLC				; Shift select values into bits 2,1 in order to do word arithmetic
+0373: F8DD 		 SelectRoutine21:	; entry point if bits already in 2,1
+0374: F8DD 	E606	 	ANI		06H		; isolate bits 2 and 1
+0375: F8DF 	E3	 	XTHL			; HL-> first word of address after CALL instruction
+0376: F8E0 	5F	 	MOV		E,A		; Add on selection value to address table base
+0377: F8E1 	1600	 	MVI		D,00H
+0378: F8E3 	19	 	DAD		D		; HL-> now has the selected routine
+0379: F8E4 	7E	 	MOV		A,M		; LS Byte
+0380: F8E5 	23	 	INX		H		; HL-> MS byte
+0381: F8E6 	66	 	MOV		H,M		; MS byte
+0382: F8E7 	6F	 	MOV		L,A		; HL->routine
+0383: F8E8 	E3	 	XTHL			; top of stack -> routine
+0384: F8E9 	C9	 	RET				; transfer to selected routine
+0385: F8EA 		 
+0386: F8EA 		 	
+0387: F8EA 		 ;------------------------- Input/Output Equates---------------------------------------
+0388: F8EA 		 
+0389: F8EA 		 TTYStatusPort				EQU	0EDH
+0390: F8EA 		 TTYDataPort					EQU	0ECH
+0391: F8EA 		 TTYOutputReady				EQU	01H		; Status Mask
+0392: F8EA 		 TTYInputReady				EQU	02H		; Status Mask
+0393: F8EA 		 
+0394: F8EA 		 TerminalStatusPort			EQU	02H
+0395: F8EA 		 TerminalDataPort			EQU	01H
+0396: F8EA 		 TerminalOutputReady			EQU	80H		; Status Mask - ready for output
+0397: F8EA 		 TerminalInputReady			EQU	07FH	; Status Mask - bytes yet to have been read
+0398: F8EA 		 
+0399: F8EA 		 CommunicationStatusPort		EQU	0EDH
+0400: F8EA 		 CommunicationDataPort		EQU	0ECH
+0401: F8EA 		 CommunicationOutputReady	EQU	01H		; Status Mask
+0402: F8EA 		 CommunicationInputReady		EQU	02H		; Status Mask
+0403: F8EA 		 
+0404: F8EA 		 CommunicationBaudMode		EQU	0DFH
+0405: F8EA 		 CommunicationBaudRate		EQU	0DEH
+0406: F8EA 		 
+0407: F8EA 		 TTYTable:
+0408: F8EA 	ED	 		DB		TTYStatusPort
+0409: F8EB 	EC	 		DB		TTYDataPort
+0410: F8EC 	01	 		DB		TTYOutputReady
+0411: F8ED 	02	 		DB		TTYInputReady
+0412: F8EE 		 TerminalTable:
+0413: F8EE 	02	 		DB		TerminalStatusPort
+0414: F8EF 	01	 		DB		TerminalDataPort
+0415: F8F0 	80	 		DB		TerminalOutputReady
+0416: F8F1 	7F	 		DB		TerminalInputReady
+0417: F8F2 		 CommunicationTable:
+0418: F8F2 	ED	 		DB		CommunicationStatusPort
+0419: F8F3 	EC	 		DB		CommunicationDataPort
+0420: F8F4 	01	 		DB		CommunicationOutputReady
+0421: F8F5 	02	 		DB		CommunicationInputReady
+0422: F8F6 		 ;------------------------- Input/Output Equates---------------------------------------
+0423: F8F6 		 
+0424: F8F6 		 
+0425: F8F6 		 ;590----------------------routines called by SelectRoutine----------------------------
+0426: F8F6 		 TTYInStatus:
+0427: F8F6 	21EAF8	 		LXI		H,TTYTable		;HL-> control table
+0428: F8F9 	C34BF9	 		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+0429: F8FC 		 TerminalInStatus:
+0430: F8FC 	21EEF8	 		LXI		H,TerminalTable	;HL-> control table
+0431: F8FF 	C34BF9	 		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+0432: F902 		 CommunicationInStatus:
+0433: F902 	21F2F8	 		LXI		H,CommunicationTable	;HL-> control table
+0434: F905 	C34BF9	 		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+0435: F908 		 DummyInStatus:
+0436: F908 	3EFF	 		MVI		A,0FFH			; Dummy always indicates data ready
+0437: F90A 	C9	 		RET
+0438: F90B 		 		
+0439: F90B 		 TTYOutStatus:
+0440: F90B 	21EAF8	 		LXI		H,TTYTable		;HL-> control table
+0441: F90E 	C356F9	 		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+0442: F911 		 TerminalOutStatus:
+0443: F911 	21EEF8	 		LXI		H,TerminalTable	;HL-> control table
+0444: F914 	C356F9	 		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+0445: F917 		 CommunicationOutStatus:
+0446: F917 	21F2F8	 		LXI		H,CommunicationTable	;HL-> control table
+0447: F91A 	C356F9	 		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+0448: F91D 		 DummyOutStatus:
+0449: F91D 	3EFF	 		MVI		A,0FFH			; Dummy always indicates ready to output data
+0450: F91F 	C9	 		RET
+0451: F920 		 
+0452: F920 		 TTYInput:
+0453: F920 	21EAF8	 		LXI		H,TTYTable		;HL-> control table
+0454: F923 	C360F9	 		JMP		InputData		; use of JMP, InputStatus will execute thr RETurn
+0455: F926 		 TerminalInput:
+0456: F926 	21EEF8	 		LXI		H,TerminalTable	;HL-> control table
+0457: F929 	CD60F9	 		CALL	InputData		;** special **
+0458: F92C 	E67F	 		ANI		07FH			; Strip off high order bit
+0459: F92E 	C9	 		RET	
+0460: F92F 		 CommunicationInput:
+0461: F92F 	21F2F8	 		LXI		H,CommunicationTable	;HL-> control table
+0462: F932 	C360F9	 		JMP		InputData		; use of JMP, InputStatus will execute thr RETurn
+0463: F935 		 DummyInput:
+0464: F935 	3E1A	 		MVI		A,01AH			; Dummy always returns EOF
+0465: F937 	C9	 		RET
+0466: F938 		 		
+0467: F938 		 TTYOutput:
+0468: F938 	21EAF8	 		LXI		H,TTYTable		;HL-> control table
+0469: F93B 	C370F9	 		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+0470: F93E 		 TerminalOutput:
+0471: F93E 	21EEF8	 		LXI		H,TerminalTable	;HL-> control table
+0472: F941 	C370F9	 		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+0473: F944 		 CommunicationOutput:
+0474: F944 	21F2F8	 		LXI		H,CommunicationTable	;HL-> control table
+0475: F947 	C370F9	 		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+0476: F94A 		 DummyOutput:
+0477: F94A 	C9	 		RET						; Dummy always discards the data
+0478: F94B 		 
+0479: F94B 		 ;680---------------------General purpose low-level drivers-------------------
+0480: F94B 		 
+0481: F94B 		 ; On entry, HL points to appropriate control table, for output Register C contains the data to output
+0482: F94B 		 
+0483: F94B 		 InputStatus:				; return- A = 00H no incoming data
+0484: F94B 	7E	 		MOV		A,M			; get status port
+0485: F94C 	3250F9	 		STA		InputStatusPort	;** self modifying code
+0486: F94F 	DB	 		DB		INopCode		; IN opcode
+0487: F950 		 InputStatusPort:
+0488: F950 	00	 		DB		00H			; <- set from above
+0489: F951 	23	 		INX		H			; move HL to point to input data mask
+0490: F952 	23	 		INX		H
+0491: F953 	23	 		INX		H
+0492: F954 	A6	 		ANA		M			; mask with input status
+0493: F955 	C9	 		RET
+0494: F956 		 		
+0495: F956 		 OutputStatus:				; return - A = 00H not ready
+0496: F956 	7E	 		MOV		A,M
+0497: F957 	325BF9	 		STA		OutputStatusPort
+0498: F95A 	DB	 		DB		INopCode		; IN opcode
+0499: F95B 		 OutputStatusPort:
+0500: F95B 	00	 		DB		00H			; <- set from above
+0501: F95C 	23	 		INX		H			;HL , Output status mask
+0502: F95D 	23	 		INX		H
+0503: F95E 	A6	 		ANA		M			; mask with output status
+0504: F95F 	C9	 		RET
+0505: F960 		 		
+0506: F960 		 InputData:					; return with next character
+0507: F960 	E5	 		PUSH	H			; save control table pointer
+0508: F961 	CD4BF9	 		CALL	InputStatus
+0509: F964 	E1	 		POP		H
+0510: F965 	CA60F9	 		JZ		InputData	; wait until incoming data
+0511: F968 	23	 		INX		H			; HL <- data port
+0512: F969 	7E	 		MOV		A,M			; get data port
+0513: F96A 	326EF9	 		STA		InputDataPort
+0514: F96D 	DB	 		DB		INopCode
+0515: F96E 		 InputDataPort:
+0516: F96E 	00	 		DB		00H			; <- set from above
+0517: F96F 	C9	 		RET
+0518: F970 		 		
+0519: F970 		 OutputData:					; data in Register C is output
+0520: F970 	E5	 		PUSH	H			; save control table pointer
+0521: F971 	CD56F9	 		CALL	OutputStatus
+0522: F974 	E1	 		POP		H
+0523: F975 	CA70F9	 		JZ		OutputData	; wait until incoming data
+0524: F978 	23	 		INX		H			; HL <- data port
+0525: F979 	7E	 		MOV		A,M			; get data port
+0526: F97A 	327FF9	 		STA		OutputDataPort
+0527: F97D 	79	 		MOV		A,C			; get the data to output
+0528: F97E 	D3	 		DB		OUTopCode
+0529: F97F 		 OutputDataPort:
+0530: F97F 	00	 		DB		00H			; <- set from above
+0531: F980 	C9	 		RET
+0532: F981 		 		
+0533: F981 		 ;746,795  page 175 -----------------High Level Diskette drivers--------------------		
+0534: F981 		 ;-------------------------------------------- TEMP Labels---------------------
+0535: F981 		 ;BOOT:			; CODED
+0536: F981 		 WBOOT:			; NOT YET CODED
+0537: F981 		 ;CONST:			; CODED
+0538: F981 		 ;CONIN:			; CODED
+0539: F981 		 ;CONOUT:		; CODED     495   F95B: OutputStatusPort:
+0540: F981 		 ;LIST:			; CODED
+0541: F981 		 ;PUNCH:			; CODED
+0542: F981 		 ;READER:		; CODED
+0543: F981 		 HOME:			; NOT YET CODED
+0544: F981 		 SELDSK:			; NOT YET CODED
+0545: F981 		 SETTRK:			; NOT YET CODED
+0546: F981 		 SETSEC:			; NOT YET CODED
+0547: F981 		 SETDMA:			; NOT YET CODED
+0548: F981 		 READ:			; NOT YET CODED
+0549: F981 		 WRITE:			; NOT YET CODED
+0550: F981 		 ;LISTST:		; CODED
+0551: F981 		 SECTRAN:		; NOT YET CODED
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0076	F833	AFTERDISKBUFFER               		  0221,
+
+0025	E806	BDOSENTRY                     		  0033,  0242,
+0020	0E00	BDOSLENGTH                    		  0022,  0026,
+0026	F600	BIOSENTRY                     		  0050,
+0017	0900	BIOSLENGTH                    		  0022,
+0176	F6F9	BOOT                          		  0054,
+
+0024	E000	CCPENTRY                      		  0025,  0026,  0251,
+0019	0800	CCPLENGTH                     		  0022,  0025,  0026,
+0404	00DF	COMMUNICATIONBAUDMODE         		  0098,
+0405	00DE	COMMUNICATIONBAUDRATE         		  0102,
+0400	00EC	COMMUNICATIONDATAPORT         		  0419,
+0460	F92F	COMMUNICATIONINPUT            		  0290,
+0402	0002	COMMUNICATIONINPUTREADY       		  0421,
+0432	F902	COMMUNICATIONINSTATUS         		  0274,
+0473	F944	COMMUNICATIONOUTPUT           		  0302,  0339,  0352,  0363,
+0401	0001	COMMUNICATIONOUTPUTREADY      		  0420,
+0445	F917	COMMUNICATIONOUTSTATUS        		  0327,
+0399	00ED	COMMUNICATIONSTATUSPORT       		  0089,  0418,
+0417	F8F2	COMMUNICATIONTABLE            		  0433,  0446,  0461,  0474,
+0277	F878	CONIN                         		  0058,
+0293	F886	CONOUT                        		  0059,  0229,
+0262	F862	CONST                         		  0057,
+0110	000D	CR                            		  0123,  0127,  0133,  0140,  0147,  0154,  0161,
+
+0012	3531	DAY                           		
+0172	0004	DEFAULTDISK                   		  0213,  0249,
+0044	0080	DEFAULTDISKBUFFER             		
+0074	F633	DISKBUFFER                    		  0078,
+0222	F833	DISPLAYMESSAGE                		  0210,  0232,
+0463	F935	DUMMYINPUT                    		  0291,
+0435	F908	DUMMYINSTATUS                 		  0275,
+0476	F94A	DUMMYOUTPUT                   		  0303,  0340,  0351,  0362,
+0448	F91D	DUMMYOUTSTATUS                		  0328,
+
+0234	F840	ENTERCPM                      		  0216,
+
+0040	005C	FCB                           		
+
+0269	F86A	GETCONSOLESTATUS              		  0263,
+0320	F89C	GETLISTSTATUS                 		  0313,
+
+0543	F981	HOME                          		  0063,
+
+0205	F713	INITIALIZECOMPLETE            		  0187,
+0184	F6FD	INITIALIZELOOP                		  0203,
+0193	F707	INITIALIZENEXTBYTE            		  0201,
+0198	F70A	INITIALIZEPORT                		  0189,
+0080	F633	INITIALIZESTREAM              		  0182,
+0006	00DB	INOPCODE                      		  0486,  0498,  0514,
+0506	F960	INPUTDATA                     		  0454,  0457,  0462,  0510,
+0515	F96E	INPUTDATAPORT                 		  0513,
+0483	F94B	INPUTSTATUS                   		  0428,  0431,  0434,  0508,
+0487	F950	INPUTSTATUSPORT               		  0485,
+0030	0003	IOBYTE                        		  0207,  0270,  0286,  0298,  0321,  0333,  0345,  0358,
+
+0111	000A	LF                            		  0123,  0127,  0133,  0140,  0147,  0154,  0161,
+0330	F8AC	LIST                          		  0060,
+0305	F894	LISTST                        		  0070,
+
+0015	0040	MEMORYSIZE                    		  0024,
+0011	3730	MONTH                         		
+
+0007	00D3	OUTOPCODE                     		  0196,  0528,
+0519	F970	OUTPUTDATA                    		  0469,  0472,  0475,  0523,
+0529	F97F	OUTPUTDATAPORT                		  0526,
+0495	F956	OUTPUTSTATUS                  		  0441,  0444,  0447,  0521,
+0499	F95B	OUTPUTSTATUSPORT              		  0497,
+0022	0008	OVERALLLENGTH                 		  0024,
+
+0028	0000	PAGEZERO                      		
+0073	0200	PHYSICALSECTORSIZE            		  0075,
+0342	F8BC	PUNCH                         		  0061,
+
+0042	007D	RANDOMRECORDPOSITION          		
+0548	F981	READ                          		  0068,
+0355	F8CD	READER                        		  0062,
+
+0551	F981	SECTRAN                       		  0071,
+0544	F981	SELDSK                        		  0064,
+0371	F8DC	SELECTROUTINE                 		  0271,  0287,  0299,  0324,  0336,  0349,  0360,
+0373	F8DD	SELECTROUTINE21               		
+0547	F981	SETDMA                        		  0067,  0246,
+0546	F981	SETSEC                        		  0066,
+0545	F981	SETTRK                        		  0065,
+0113	F643	SIGNONMESSAGE                 		  0209,
+
+0395	0001	TERMINALDATAPORT              		  0414,
+0455	F926	TERMINALINPUT                 		  0289,
+0397	007F	TERMINALINPUTREADY            		  0416,
+0429	F8FC	TERMINALINSTATUS              		  0273,
+0470	F93E	TERMINALOUTPUT                		  0301,  0338,  0353,  0364,
+0396	0080	TERMINALOUTPUTREADY           		  0415,
+0442	F911	TERMINALOUTSTATUS             		  0326,
+0394	0002	TERMINALSTATUSPORT            		  0413,
+0412	F8EE	TERMINALTABLE                 		  0430,  0443,  0456,  0471,
+0390	00EC	TTYDATAPORT                   		  0409,
+0452	F920	TTYINPUT                      		  0288,
+0392	0002	TTYINPUTREADY                 		  0411,
+0426	F8F6	TTYINSTATUS                   		  0272,
+0467	F938	TTYOUTPUT                     		  0300,  0337,  0350,  0361,
+0391	0001	TTYOUTPUTREADY                		  0410,
+0439	F90B	TTYOUTSTATUS                  		  0325,
+0389	00ED	TTYSTATUSPORT                 		  0408,
+0407	F8EA	TTYTABLE                      		  0427,  0440,  0453,  0468,
+
+0010	3030	VERSION                       		
+
+0055	F603	WARMBOOTENTRY                 		  0029,  0239,
+0536	F981	WBOOT                         		  0056,
+0549	F981	WRITE                         		  0069,
+
+0013	3238	YEAR                          		

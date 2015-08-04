@@ -1,0 +1,73 @@
+0001: 0000 		 
+0002: 0000 		 					; listing starts on page 163/493 FIgure 6-2
+0003: 0000 		 					; in Programmers CPM Handbook by
+0004: 0000 		 					; Andy Johnston-Laird
+0005: 0000 		 
+0006: 0000 		 WBOOT	EQU	03H		; WARM BOOT
+0007: 0000 		 CONST	EQU	06H		; CONSOLE STATUS
+0008: 0000 		 CONIN	EQU	09H		; CONSOLE INPUT
+0009: 0000 		 CONOUT	EQU	0CH		; CONSOLE OUT
+0010: 0000 		 LIST	EQU	0FH		; OUTPUT TO LIST DEVICE
+0011: 0000 		 PUNCH	EQU	12H		; OUTPUT TO PUNCH DEVICE
+0012: 0000 		 READER	EQU	15H		; INPUT FROM REAER
+0013: 0000 		 HOME	EQU	18H		; HOME SELECTED DISK TO TRACK 0
+0014: 0000 		 SELDSK	EQU	1BH		; SELECT DISK
+0015: 0000 		 SETTRK	EQU	1EH		; SET TRACK
+0016: 0000 		 SETSEC	EQU	21H		; SET SECTOR
+0017: 0000 		 SETDMA	EQU 24H		; SET DMA ADDRESS
+0018: 0000 		 READ	EQU	27H		; READ 128 BYTE SECTOR
+0019: 0000 		 WRITE	EQU	2AH		; WRITE 128 BYTE SECTOR
+0020: 0000 		 LISTST	EQU	2DH		; RETURN LIST STATUS
+0021: 0000 		 SECTRAN	EQU	30H		; SECTOR TRANSLATE
+0022: 0000 		 
+0023: 0000 		 ;Entry parameters
+0024: 0000 		 ; L = Code number (page-relative address of the correct JMP instruction in the jump vector
+0025: 0000 		 ; all other registers are preserved
+0026: 0000 		 ;
+0027: 0000 		 ;Exit parameters
+0028: 0000 		 ; this routine does not CALL the bios routine, therefore when the BIOS routine RETurns,
+0029: 0000 		 ; it will do so directly to this routine's caller.
+0030: 0000 		 ;
+0031: 0000 		 ;calling sequence:
+0032: 0000 		 ;				MVI		L,Code$Number
+0033: 0000 		 ;				CALL	BIOS
+0034: 0000 		 
+0035: 0000 		 BIOS:
+0036: 0000 	F5	 	PUSH	PSW		; SAVE THE USER'S a REGISTER
+0037: 0001 	3A0200	 	LDA		0002h	; GET BIOS JMP VECTOR PAGE FROM WARM BOOT JMP
+0038: 0004 	67	 	MOV		H,A		; HL-> BIOS JMP VECTOR
+0039: 0005 	F1	 	POP		PSW		; RECOVER THE USER'S A REGISTER
+0040: 0006 	E9	 	PCHL			; TRANSFER CONTROL ONTO THE BIOS ROUTINE
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0035	0000	BIOS                          		
+
+0008	0009	CONIN                         		
+0009	000C	CONOUT                        		
+0007	0006	CONST                         		
+
+0013	0018	HOME                          		
+
+0010	000F	LIST                          		
+0020	002D	LISTST                        		
+
+0011	0012	PUNCH                         		
+
+0018	0027	READ                          		
+0012	0015	READER                        		
+
+0021	0030	SECTRAN                       		
+0014	001B	SELDSK                        		
+0017	0024	SETDMA                        		
+0016	0021	SETSEC                        		
+0015	001E	SETTRK                        		
+
+0006	0003	WBOOT                         		
+0019	002A	WRITE                         		

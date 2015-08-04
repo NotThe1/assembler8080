@@ -1,0 +1,25 @@
+0001: 0000 		 * base for clearing stack and setting up SP
+0002: 0000 		 TOS	EQU 0200H		; top of stack
+0003: 0000 		 	org 0300H
+0004: 0300 	310002	 	LXI	SP,TOS		; make sure it set
+0005: 0303 	3EFF	 	MVI A,0FFH		; size to clear for the stack
+0006: 0305 	210002	 	LXI HL,TOS	;* bottom of the stack
+0007: 0308 		 LOOP:				; Label
+0008: 0308 	3600	 	MVI	M,00H		; store zero in memory
+0009: 030A 	2B	 	DCX H			; decrement the pointer	
+0010: 030B 	3D	 	DCR A
+0011: 030C 	C20803	 	JNZ LOOP
+0012: 030F 	310002	 	LXI	SP,TOS
+0013: 0312 	76	 	HLT
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0007	0308	LOOP                          		  0011,
+
+0002	0200	TOS                           		  0004,  0006,  0012,

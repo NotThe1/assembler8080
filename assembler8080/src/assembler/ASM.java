@@ -21,6 +21,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -959,20 +961,28 @@ public class ASM implements ActionListener, AdjustmentListener {
 //		int x = ae.getValue();
 
 	}// adjustmentValueChanged
+	
+	private JFileChooser getFileChooser(String subDirectory, String filterDescription, String filterExtensions) {
+		Path sourcePath = Paths.get(FILE_LOCATION, subDirectory);
+		String fp = sourcePath.resolve(FILE_LOCATION).toString();
+
+		JFileChooser chooser = new JFileChooser(fp);
+		chooser.setMultiSelectionEnabled(false);
+		chooser.addChoosableFileFilter(new FileNameExtensionFilter(filterDescription, filterExtensions));
+		chooser.setAcceptAllFileFilterUsed(false);
+		return chooser;
+	}// getFileChooser
 
 	@Override
 	public void actionPerformed(ActionEvent ae) {
 		String action = ae.getActionCommand();
 		switch (action) {
 		case "mnuFileOpen":
-			FileFilter filter = new FileNameExtensionFilter("Assembler file", "asm", "asm");
-			// chooser = new JFileChooser("C://work_ASM");
-			chooser = new JFileChooser("C://Users//admin//Dropbox//VirtualMachineProject//SourceCodeASM");// C:\Users\admin\Dropbox\VirtualMachineProject\SandBox_ASM
-			chooser.setFileFilter(filter);
-			chooser.setMultiSelectionEnabled(false);
-			int result = chooser.showOpenDialog(null);
-			if (result == JFileChooser.APPROVE_OPTION) {
-				asmSourceFile = chooser.getSelectedFile();
+			JFileChooser chooserOpen = getFileChooser(CODE, "Assembler Source Code", ASSEMBLER_SUFFIX);
+			if (chooserOpen.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) {
+				System.out.printf("You cancelled the file open%n", "");
+			} else {
+				asmSourceFile = chooserOpen.getSelectedFile();
 				String sourceFileName = asmSourceFile.getName();
 				// String ap = asmSourceFile.getAbsolutePath();
 				// baseFileName = ap.substring(0,ap.length()-4);
@@ -1276,4 +1286,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private static final String binaryValuePattern = "[01]B";
 	private static final String decimalValuePattern = "[0-9]{1,4}D?+";
 	private static final String stringValuePattern = "\\A'.*'\\z"; // used for
+	
+	public final static String FILE_LOCATION = ".";
+	private final static String CODE = "Code";
+	public final static String ASSEMBLER_SUFFIX = "asm";
+
 }// class ASM1
