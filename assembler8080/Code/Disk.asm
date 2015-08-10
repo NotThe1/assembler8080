@@ -394,7 +394,8 @@ DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 ;
 ; If reading from a disk drive using sectors larger than 128 bytes, de-blocking code will be used
 ; to unpack a 128-byte sector from  the physical sector. 
-;************************************************************************************************READ:
+;************************************************************************************************
+READ:
 		LDA		DeblockingRequired
 		ORA		A
 		JZ		ReadNoBlock			; if 0 use normal non-blocked read

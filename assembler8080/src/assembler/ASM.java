@@ -57,6 +57,9 @@ import parser.ParserException;
 import parser.SetVariable;
 import parser.Token;
 import parser.Tokenizer;
+import java.awt.GridBagLayout;
+import java.awt.GridBagConstraints;
+import java.awt.Insets;
 
 public class ASM implements ActionListener, AdjustmentListener {
 
@@ -65,8 +68,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 	private File asmSourceFile = null;
 	private JButton btnStart;
-	private JTextArea txtLog1;
-	private JTextArea txtLog2;
 	private Scanner scanner;
 	private Scanner scannerComma;
 	private Pattern patternForLabel;
@@ -76,8 +77,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private String r16dPattern;
 	private String r8Pattern;
 	private Matcher matcher;
-	private JScrollPane scrollLog1;
-	private JScrollPane scrollLog2;
 	private JCheckBox cbSaveToFile;
 
 	private LinkedList<PassOne> passOneList;
@@ -955,7 +954,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 	@Override
 	public void adjustmentValueChanged(AdjustmentEvent ae) {
 		// ae.getAdjustmentType();
-		if (((Component) ae.getSource()).getName() == "scrollLog1") {
+		String name = ((Component) ae.getSource()).getName();
+		if (((Component) ae.getSource()).getName() == "verticalScrollBar") {
 			scrollLog2.getVerticalScrollBar().setValue(scrollLog1.getVerticalScrollBar().getValue());
 		}// if - the left scroll pane
 //		int x = ae.getValue();
@@ -982,6 +982,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 			if (chooserOpen.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) {
 				System.out.printf("You cancelled the file open%n", "");
 			} else {
+				txtLog1.setText("");
+				txtLog2.setText("");
 				asmSourceFile = chooserOpen.getSelectedFile();
 				String sourceFileName = asmSourceFile.getName();
 				// String ap = asmSourceFile.getAbsolutePath();
@@ -1073,52 +1075,66 @@ public class ASM implements ActionListener, AdjustmentListener {
 		frame = new JFrame();
 		frame.setBounds(100, 100, 1291, 715);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.getContentPane().setLayout(null);
-
-		JPanel panel1 = new JPanel();
-		panel1.setBounds(10, 32, 108, 612);
-		frame.getContentPane().add(panel1);
-		panel1.setLayout(null);
-
-		btnStart = new JButton("Start");
-		btnStart.setEnabled(false);
-		btnStart.setActionCommand("btnStart");
-		btnStart.addActionListener(this);
-		btnStart.setBounds(10, 25, 89, 23);
-		panel1.add(btnStart);
-
-		JButton btnTest = new JButton("Xref");
-		btnTest.setActionCommand("btnTest");
-		btnTest.addActionListener(this);
-		btnTest.setBounds(10, 568, 89, 33);
-		panel1.add(btnTest);
-
-		cbSaveToFile = new JCheckBox("Save To File");
-		cbSaveToFile.setBounds(10, 77, 97, 23);
-		panel1.add(cbSaveToFile);
-
-		JPanel panel2 = new JPanel();
-		panel2.setBounds(170, 32, 1095, 612);
-		frame.getContentPane().add(panel2);
-		panel2.setLayout(null);
-
-		scrollLog1 = new JScrollPane();
-		scrollLog1.setName("scrollLog1");
-		scrollLog1.getVerticalScrollBar().addAdjustmentListener(this);
-		scrollLog1.getVerticalScrollBar().setName("scrollLog1");
-		scrollLog1.setBounds(5, 5, 520, 596);
-		panel2.add(scrollLog1);
-
-		txtLog1 = new JTextArea();
-		scrollLog1.setViewportView(txtLog1);
-
-		scrollLog2 = new JScrollPane();
-		scrollLog2.setName("scrollLog2");
-		scrollLog2.setBounds(540, 5, 545, 596);
-		panel2.add(scrollLog2);
-
-		txtLog2 = new JTextArea();
-		scrollLog2.setViewportView(txtLog2);
+		GridBagLayout gridBagLayout = new GridBagLayout();
+		gridBagLayout.columnWidths = new int[]{108, 520, 520, 0, 0};
+		gridBagLayout.rowHeights = new int[]{32, 612, 0};
+		gridBagLayout.columnWeights = new double[]{0.0, 1.0, 1.0, 0.0, Double.MIN_VALUE};
+		gridBagLayout.rowWeights = new double[]{0.0, 1.0, Double.MIN_VALUE};
+		frame.getContentPane().setLayout(gridBagLayout);
+		
+				JPanel panel1 = new JPanel();
+				GridBagConstraints gbc_panel1 = new GridBagConstraints();
+				gbc_panel1.fill = GridBagConstraints.BOTH;
+				gbc_panel1.insets = new Insets(0, 0, 0, 5);
+				gbc_panel1.gridx = 0;
+				gbc_panel1.gridy = 1;
+				frame.getContentPane().add(panel1, gbc_panel1);
+				panel1.setLayout(null);
+				
+						btnStart = new JButton("Start");
+						btnStart.setEnabled(false);
+						btnStart.setActionCommand("btnStart");
+						btnStart.addActionListener(this);
+						btnStart.setBounds(10, 25, 89, 23);
+						panel1.add(btnStart);
+						
+								JButton btnTest = new JButton("Xref");
+								btnTest.setActionCommand("btnTest");
+								btnTest.addActionListener(this);
+								btnTest.setBounds(10, 568, 89, 33);
+								panel1.add(btnTest);
+								
+										cbSaveToFile = new JCheckBox("Save To File");
+										cbSaveToFile.setBounds(10, 77, 97, 23);
+										panel1.add(cbSaveToFile);
+				
+				scrollLog1 = new JScrollPane();
+				scrollLog1.getVerticalScrollBar().addAdjustmentListener(this);
+				scrollLog1.setName("scrollLog1");
+				scrollLog1.getVerticalScrollBar().setName("verticalScrollBar");
+				GridBagConstraints gbc_scrollLog1 = new GridBagConstraints();
+				gbc_scrollLog1.insets = new Insets(0, 0, 0, 5);
+				gbc_scrollLog1.fill = GridBagConstraints.BOTH;
+				gbc_scrollLog1.gridx = 1;
+				gbc_scrollLog1.gridy = 1;
+				frame.getContentPane().add(scrollLog1, gbc_scrollLog1);
+				
+				txtLog1 = new JTextArea();
+				txtLog1.setEditable(false);
+				scrollLog1.setViewportView(txtLog1);
+				
+				scrollLog2 = new JScrollPane();
+				scrollLog2.setName("scrollLog2");
+				GridBagConstraints gbc_scrollLog2 = new GridBagConstraints();
+				gbc_scrollLog2.insets = new Insets(0, 0, 0, 5);
+				gbc_scrollLog2.fill = GridBagConstraints.BOTH;
+				gbc_scrollLog2.gridx = 2;
+				gbc_scrollLog2.gridy = 1;
+				frame.getContentPane().add(scrollLog2, gbc_scrollLog2);
+				
+				txtLog2 = new JTextArea();
+				txtLog2.setEditable(false);
+				scrollLog2.setViewportView(txtLog2);
 
 		JMenuBar menuBar = new JMenuBar();
 		frame.setJMenuBar(menuBar);
@@ -1290,5 +1306,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 	public final static String FILE_LOCATION = ".";
 	private final static String CODE = "Code";
 	public final static String ASSEMBLER_SUFFIX = "asm";
-
+	private JScrollPane scrollLog1;
+	private JScrollPane scrollLog2;
+	private JTextArea txtLog1;
+	private JTextArea txtLog2;
 }// class ASM1

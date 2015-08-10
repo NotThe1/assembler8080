@@ -352,7 +352,7 @@
 0352: F8C9 	44F9	 	DW		CommunicationOutput	; 10
 0353: F8CB 	3EF9	 	DW		TerminalOutput		; 11
 0354: F8CD 		 	
-0355: F8CD 		 READER:					; Reader Input
+0355: F8CD 		 READER:					; Reader Input  (172/)
 0356: F8CD 		 						; entered directly from the BIOS JMP Vector
 0357: F8CD 		 						; inputs data into the A register
 0358: F8CD 	3A0300	 	LDA		IOBYTE
