@@ -1,0 +1,303 @@
+0001: 0000 		 ;	Page 204  Programmers CPM Handbook by Andy Johnston-Laird
+0002: 0000 		 VERSION		EQU		03130H		;Equates for the sign-on Screen
+0003: 0000 		 MONTH		EQU		03730H		; '08'
+0004: 0000 		 DAY			EQU		03930H		; '09'
+0005: 0000 		 YEAR		EQU		03531H		; '15'
+0006: 0000 		 
+0007: 0000 		 Debug		EQU		00			; Non zero to debug
+0008: 0000 		 
+0009: 0000 		 ;   The layout of the disk is :
+0010: 0000 		 ;	Track 0, Head0	-> Sector 1:BOOT , Sector 2-5: CCP , Sector 6-9: BDOS >  
+0011: 0000 		 ;			 Head1  -> Sector 10-12: BDOS , Sector 13-18: BIOS
+0012: 0000 		 
+0013: 0000 		 ;		Equates for defining memory size and the base address and length
+0014: 0000 		 ;		of the system components
+0015: 0000 		 MemorySize	EQU		64		; size in K
+0016: 0000 		 ;
+0017: 0000 		 ;	The BIOS Length must match that declared in the BIOS
+0018: 0000 		 ;		 
+0019: 0000 		 BIOSLength	EQU 0900H
+0020: 0000 		 ; 		 
+0021: 0000 		 CCPLength	EQU 0800H	; Constant
+0022: 0000 		 BDOSLength	EQU 0E00H	; Constant
+0023: 0000 		 ;
+0024: 0000 		 LengthInK	EQU (((CCPLength + BDOSLength + BIOSLength)/1024) + 1)
+0025: 0000 		 LengthInBytes	EQU (CCPLength + BDOSLength + BIOSLength)
+0026: 0000 		 ;
+0027: 0000 		 ;	IF NOT Debug
+0028: 0000 		 CCPEntry	EQU	(MemorySize - LengthInK) * 1024
+0029: 0000 		 ;	ENDIF
+0030: 0000 		 
+0031: 0000 		 ;	IF Debug
+0032: 0000 		 ;CCPENtry	EQU	3980H	; Read into lower address.
+0033: 0000 		 ;
+0034: 0000 		 ; This address is chosen to be above the area into which DDT initially loads
+0035: 0000 		 ; and the 980H makes the address similar to the SYSGEN values so that
+0036: 0000 		 ; memory Image can be checked with DDT
+0037: 0000 		 ;
+0038: 0000 		 ;	ENDIF
+0039: 0000 		 BDOSEntry	EQU		CCPEntry + CCPLength + 6
+0040: 0000 		 BIOSEntry	EQU		CCPEntry + CCPLength + BDOSLength
+0041: 0000 		 ;
+0042: 0000 		 ;
+0043: 0000 		 ;			DISK Characteristics
+0044: 0000 		 ;
+0045: 0000 		 ;	These equates describes the physical characteristics of the floppy diskette so that
+0046: 0000 		 ; the program can move from one sector to the next, updating the track and resetting
+0047: 0000 		 ; the sector when necessary
+0048: 0000 		 ;
+0049: 0000 		 FirstSectorOnTrack	EQU		1
+0050: 0000 		 LastSectorOnTrack	EQU		18
+0051: 0000 		 LastSectorOnHead0	EQU		9
+0052: 0000 		 SectorSize			EQU		512
+0053: 0000 		 ;
+0054: 0000 		 ;			CONTROLLER Characteristics
+0055: 0000 		 ; On this computer system, the floppy disk controller can read multiple sectors in a single command.
+0056: 0000 		 ; However, in order to produce a more general example it is shown only reading one sector at a time
+0057: 0000 		 ;
+0058: 0000 		 SectorsPerRead 		EQU		1
+0059: 0000 		 ;
+0060: 0000 		 ;		Cold boot characteristics
+0061: 0000 		 ;
+0062: 0000 		 StartTrack			EQU		0		; Initial value for CP/M image
+0063: 0000 		 StartSector			EQU		2		; ="=
+0064: 0000 		 SectorsToRead		EQU		(LengthInBytes + SectorSize-1) / SectorSize
+0065: 0000 		 ;--------------------------------------------------------------------------------------
+0066: 0000 		 
+0067: 0000 		 			ORG		0100H
+0068: 0100 		 ColdBootLoader:
+0069: 0100 	C34001	 			JMP		MainCode
+0070: 0103 		 CR			EQU		0DH		; Carriage Return
+0071: 0103 		 LF			EQU		0AH		; Line Feed
+0072: 0103 		 ;
+0073: 0103 		 SignOnMessage:
+0074: 0103 	0D0A43502F	 			DB		CR,LF,043H,050H,02FH		;CR,LF,CP/
+0075: 0108 	4D20426F6F	 			DB		04DH,020H,042H,06FH,06FH	;M Boo
+0076: 010D 	7473747261	 			DB		074H,073H,074H,072H,061H	;tstra
+0077: 0112 	70204C6F61	 			DB		070H,020H,04CH,06FH,061H		;p Loa
+0078: 0117 	646572	 			DB		064H,065H,072H				;der
+0079: 011A 	0D0A	 			DB		CR,LF
+0080: 011C 	56657273696F6E20	 			DB		056H,065H,072H,073H,069H,06FH,06EH,020H	; version
+0081: 0124 	3031	 			DW		VERSION
+0082: 0126 	20	 			DB		020H
+0083: 0127 	3037	 			DW		MONTH
+0084: 0129 	2F	 			DB		02FH
+0085: 012A 	3039	 			DW		DAY
+0086: 012C 	2F	 			DB		02FH
+0087: 012D 	3135	 			DW		YEAR
+0088: 012F 	0D0A00	 			DB		CR,LF,00
+0089: 0132 		 ;
+0090: 0132 		 ;		Disk Control Tables
+0091: 0132 		 ;
+0092: 0132 		 DiskControl5	EQU		045H		; 5 1/4 Control byte
+0093: 0132 		 CommandBlock5	EQU		046H		; ControlTable pointer
+0094: 0132 		 DiskStatus		EQU		043H		; Completion Status
+0095: 0132 		 
+0096: 0132 		 ;  The command table tracks and DMAAddress can also be used as working storage and updated as the
+0097: 0132 		 ; load process continues. The sector in the command table cannot be used directly as the disk controller
+0098: 0132 		 ; requires it to be the sector number on the specified head(1-9) rather than the sector number
+0099: 0132 		 ; on the track. Hence a separate variable is used.
+0100: 0132 		 
+0101: 0132 	02	 Sector:			DB		StartSector
+0102: 0133 		 ;
+0103: 0133 	01	 CommandTable:	DB		01H			; Command -- read
+0104: 0134 	00	 Unit:			DB		0			; Unit ( drive) number = 0 or 1
+0105: 0135 	00	 Head:			DB		0			; Head Number = 0 or 1
+0106: 0136 	00	 Track:			DB		StartTrack	; used as working variable
+0107: 0137 	00	 SectorOnHead:	DB		0			; Converted by low level driver
+0108: 0138 	0002	 ByteCount:		DW		SectorSize * SectorsPerRead
+0109: 013A 	00E0	 DMAAddress:		DW		CCPEntry
+0110: 013C 	4300	 NextStatus:		DW		DiskStatus	; pointer to next status block if chained
+0111: 013E 	4500	 NextControl:	DW		DiskControl5	; pointer to next control byte if chained
+0112: 0140 		 ;
+0113: 0140 		 MainCode:
+0114: 0140 	310001	 			LXI		SP,ColdBootLoader	; Stack grows below code
+0115: 0143 	210301	 			LXI		H,SignOnMessage		;
+0116: 0146 	CDD901	 			CALL	DisplayMessage
+0117: 0149 		 				
+0118: 0149 	213301	 			LXI		H,CommandTable		; Point the disk controller
+0119: 014C 	224600	 			SHLD	CommandBlock5		;  at the command block
+0120: 014F 		 				
+0121: 014F 	0E10	 			MVI		C,SectorsToRead		; Set sector count
+0122: 0151 		 LoadLoop:
+0123: 0151 	CD7B01	 			CALL	ColdBootRead		; Read data into memory
+0124: 0154 	0D	 			DCR		C					; decrement sector count
+0125: 0155 	CA00F6	 			JZ		BIOSEntry			; enter Bios when loaded
+0126: 0158 		 			
+0127: 0158 	213201	 			LXI		H,Sector			; update the sector number
+0128: 015B 	3E01	 			MVI		A,SectorsPerRead		; by adding on number of sectors read
+0129: 015D 	86	 			ADD		M
+0130: 015E 	77	 			MOV		M,A					; Save result
+0131: 015F 	3E13	 			MVI		A,LastSectorOnTrack +1	; end of track?
+0132: 0161 	BE	 			CMP		M
+0133: 0162 	C26E01	 			JNZ		NotEndTrack
+0134: 0165 		 			
+0135: 0165 	3E01	 			MVI		A,FirstSectorOnTrack
+0136: 0167 	2A3601	 			LHLD	Track				; update the track number
+0137: 016A 	23	 			INX		H
+0138: 016B 	223601	 			SHLD	Track
+0139: 016E 		 NotEndTrack:
+0140: 016E 	2A3A01	 			LHLD	DMAAddress			; update DMA Address
+0141: 0171 	110002	 			LXI		D,SectorSize * SectorsPerRead
+0142: 0174 	19	 			DAD		D
+0143: 0175 	223A01	 			SHLD	DMAAddress
+0144: 0178 	C35101	 			JMP		LoadLoop
+0145: 017B 		 ;
+0146: 017B 		 ColdBootRead:		; At this point, the description of the operation required is in the
+0147: 017B 		 					;variables contained in the command table, along with the sector variable
+0148: 017B 		 			
+0149: 017B 	C5	 			PUSH	B					; Save sector count in C
+0150: 017C 		 ; --------------Change this routine to match the disk controller in use --------------
+0151: 017C 		 
+0152: 017C 	0600	 			MVI		B,0					; assume head 0
+0153: 017E 	3A3201	 			LDA		Sector				; get required sector
+0154: 0181 	4F	 			MOV		C,A					; Take a copy of it
+0155: 0182 	FE0A	 			CPI		LastSectorOnHead0 + 1	; on Head 0?
+0156: 0184 	DA8B01	 			JC		Head0				; No
+0157: 0187 		 			
+0158: 0187 	D609	 			SUI		LastSectorOnHead0	; bias down for head 0
+0159: 0189 	4F	 			MOV		C,A					; save a copy
+0160: 018A 	04	 			INR		B					; set head 1
+0161: 018B 		 Head0:
+0162: 018B 	78	 			MOV		A,B					; get head
+0163: 018C 	323501	 			STA		Head
+0164: 018F 	79	 			MOV		A,C
+0165: 0190 	323701	 			STA		SectorOnHead
+0166: 0193 		 			
+0167: 0193 	214500	 			LXI		H,DiskControl5		; Activate controller
+0168: 0196 	3680	 			MVI		M,080H
+0169: 0198 		 			
+0170: 0198 		 WaitForBootComolete:
+0171: 0198 	7E	 			MOV		A,M					; Get Status byte
+0172: 0199 	B7	 			ORA		A					; Complete ?
+0173: 019A 	C29801	 			JNZ		WaitForBootComolete	; No
+0174: 019D 		 			
+0175: 019D 	3A4300	 			LDA		DiskStatus
+0176: 01A0 	FE80	 			CPI		080H
+0177: 01A2 	DAA701	 			JC		ColdBootError		; oops have an error
+0178: 01A5 		 			
+0179: 01A5 		 ; -------------- End Of Physical Read Routine--------------
+0180: 01A5 	C1	 			POP		B					; recover sector count in C
+0181: 01A6 	C9	 			RET
+0182: 01A7 		 			
+0183: 01A7 		 ColdBootError:
+0184: 01A7 	21B001	 			LXI		H,ColdBootErrorMessage
+0185: 01AA 	CDD901	 			CALL	DisplayMessage		; output error message
+0186: 01AD 	C34001	 			JMP		MainCode			; restart the loader
+0187: 01B0 		 			
+0188: 01B0 		 ColdBootErrorMessage:
+0189: 01B0 	0D0A	 			DB		CR,LF						;CR,LF
+0190: 01B2 	426F6F	 			DB		042H,06FH,06FH				;M Boo
+0191: 01B5 	7473747261	 			DB		074H,073H,074H,072H,061H	;tstra
+0192: 01BA 	70204C6F61	 			DB		070H,020H,04CH,06FH,061H	;p Loa
+0193: 01BF 	6465722045	 			DB		064H,065H,072H,020H,045H	;der E
+0194: 01C4 	72726F7220	 			DB		072H,072H,06Fh,072H,020H	;rror 
+0195: 01C9 	2D20726574	 			DB		02DH,020H,072H,065H,074H	;- ret
+0196: 01CE 	7279696E67	 			DB		072H,079H,069H,06Eh,067H	;rying
+0197: 01D3 	2E2E2E	 			DB		02EH,02EH,02EH				;...
+0198: 01D6 	0D0A00	 			DB		CR,LF,00					;CR,LF
+0199: 01D9 		 			;
+0200: 01D9 		 			;--------Equates for terminal output
+0201: 01D9 		 			;
+0202: 01D9 		 TerminalStatusPort	EQU		02H
+0203: 01D9 		 TerminalDataPort		EQU		01H
+0204: 01D9 		 
+0205: 01D9 		 TerminalOutPutReady EQU		080H
+0206: 01D9 		 ;
+0207: 01D9 		 ;
+0208: 01D9 		 DisplayMessage:		;	Displays the specific message on the console. On Entry, HL points
+0209: 01D9 		 					; to a stream of bytes to be output. A 00H-byte terminates the message.
+0210: 01D9 	7E	 			MOV		A,M					; get next message byte
+0211: 01DA 	B7	 			ORA		A					; Terminator ?
+0212: 01DB 	C8	 			RZ							; yes - return
+0213: 01DC 	4F	 			MOV		C,A					; prepare for output
+0214: 01DD 		 OutputNotReady:
+0215: 01DD 	DB02	 			IN		TerminalStatusPort	; check if ready
+0216: 01DF 	E680	 			ANI		TerminalOutPutReady
+0217: 01E1 	CADD01	 			JZ		OutputNotReady		; No, wait
+0218: 01E4 		 			
+0219: 01E4 	79	 			MOV		A,C					; get the data 
+0220: 01E5 	D301	 			OUT		TerminalDataPort	; output to screen
+0221: 01E7 		 			
+0222: 01E7 	23	 			INX		H					; move to next byte in meaasge
+0223: 01E8 	C3D901	 			JMP		DisplayMessage		; loop until complete
+0224: 01EB 		 			
+0225: 01EB 		 ; The PROM-based bootstrap loader checks to see that the characters "CP/M" are on the
+0226: 01EB 		 ; diskette bootstrap sector before it transfers control to It
+0227: 01EB 		 			
+0228: 01EB 		 
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0039	E806	BDOSENTRY                     		
+0022	0E00	BDOSLENGTH                    		  0024,  0025,  0040,
+0040	F600	BIOSENTRY                     		  0125,
+0019	0900	BIOSLENGTH                    		  0024,  0025,
+0108	0138	BYTECOUNT                     		
+
+0028	E000	CCPENTRY                      		  0039,  0040,  0109,
+0021	0800	CCPLENGTH                     		  0024,  0025,  0039,  0040,
+0183	01A7	COLDBOOTERROR                 		  0177,
+0188	01B0	COLDBOOTERRORMESSAGE          		  0184,
+0068	0100	COLDBOOTLOADER                		  0114,
+0146	017B	COLDBOOTREAD                  		  0123,
+0093	0046	COMMANDBLOCK5                 		  0119,
+0103	0133	COMMANDTABLE                  		  0118,
+0070	000D	CR                            		  0074,  0079,  0088,  0189,  0198,
+
+0004	3930	DAY                           		  0085,
+0007	0000	DEBUG                         		
+0092	0045	DISKCONTROL5                  		  0111,  0167,
+0094	0043	DISKSTATUS                    		  0110,  0175,
+0208	01D9	DISPLAYMESSAGE                		  0116,  0185,  0223,
+0109	013A	DMAADDRESS                    		  0140,  0143,
+
+0049	0001	FIRSTSECTORONTRACK            		  0135,
+
+0105	0135	HEAD                          		  0163,
+0161	018B	HEAD0                         		  0156,
+
+0051	0009	LASTSECTORONHEAD0             		  0155,  0158,
+0050	0012	LASTSECTORONTRACK             		  0131,
+0025	1F00	LENGTHINBYTES                 		  0064,
+0024	0008	LENGTHINK                     		  0028,
+0071	000A	LF                            		  0074,  0079,  0088,  0189,  0198,
+0122	0151	LOADLOOP                      		  0144,
+
+0113	0140	MAINCODE                      		  0069,  0186,
+0015	0040	MEMORYSIZE                    		  0028,
+0003	3730	MONTH                         		  0083,
+
+0111	013E	NEXTCONTROL                   		
+0110	013C	NEXTSTATUS                    		
+0139	016E	NOTENDTRACK                   		  0133,
+
+0214	01DD	OUTPUTNOTREADY                		  0217,
+
+0101	0132	SECTOR                        		  0127,  0153,
+0107	0137	SECTORONHEAD                  		  0165,
+0052	0200	SECTORSIZE                    		  0064,  0108,  0141,
+0058	0001	SECTORSPERREAD                		  0108,  0128,  0141,
+0064	0010	SECTORSTOREAD                 		  0121,
+0073	0103	SIGNONMESSAGE                 		  0115,
+0063	0002	STARTSECTOR                   		  0101,
+0062	0000	STARTTRACK                    		  0106,
+
+0203	0001	TERMINALDATAPORT              		  0220,
+0205	0080	TERMINALOUTPUTREADY           		  0216,
+0202	0002	TERMINALSTATUSPORT            		  0215,
+0106	0136	TRACK                         		  0136,  0138,
+
+0104	0134	UNIT                          		
+
+0002	3130	VERSION                       		  0081,
+
+0170	0198	WAITFORBOOTCOMOLETE           		  0173,
+
+0005	3531	YEAR                          		  0087,
