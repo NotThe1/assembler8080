@@ -1,3 +1,5 @@
+;		BDOS Function Codes
+
 fcSysReset	EQU		0		; System Reset
 fcConIn		EQU		1		; Read Console Byte
 fcConOut	EQU		2		; Write Console Byte
