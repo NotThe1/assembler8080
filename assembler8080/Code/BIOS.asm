@@ -12,17 +12,19 @@ Year		EQU		03531H		; '15'
 
 MemorySize	EQU 64
 
-BIOSLength	EQU 0900H
-
 CCPLength	EQU 0800H	; Constant
-BDOSLength	EQU 0E00H	; Constant
+BDOSLength	EQU 0A00H	; Constant	0E00H
+BIOSLength	EQU 0A00H	; Constant 0900H
 
 LengthInK	EQU ((CCPLength + BDOSLength + BIOSLength) /1024) + 1
 LengthInBytes	EQU (CCPLength + BDOSLength + BIOSLength)
 
-CCPEntry	EQU	((MemorySize - LengthInK) * (0 + 1024))
+
+;CCPEntry	EQU	((MemorySize - LengthInK) * (0 + 1024))
+CCPEntry	EQU 0E400H		; forced calculation
+
 BDOSEntry	EQU	CCPEntry + CCPLength + 6
-BIOSEntry	EQU	CCPENtry + CCPLength + BDOSLength
+BIOSEntry	EQU	CCPEntry + CCPLength + BDOSLength
 
 PageZero:	ORG 0000H		; Start of page Zero
 	JMP		WarmBootEntry	; warm start
