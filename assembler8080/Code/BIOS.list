@@ -13,7 +13,7 @@
 0013: 0000 		 MemorySize	EQU 64
 0014: 0000 		 
 0015: 0000 		 CCPLength	EQU 0800H	; Constant
-0016: 0000 		 BDOSLength	EQU 0A00H	; Constant	0E00H
+0016: 0000 		 BDOSLength	EQU 0E00H	; Constant	0E00H
 0017: 0000 		 BIOSLength	EQU 0A00H	; Constant 0900H
 0018: 0000 		 
 0019: 0000 		 LengthInK	EQU ((CCPLength + BDOSLength + BIOSLength) /1024) + 1
@@ -21,7 +21,7 @@
 0021: 0000 		 
 0022: 0000 		 
 0023: 0000 		 ;CCPEntry	EQU	((MemorySize - LengthInK) * (0 + 1024))
-0024: 0000 		 CCPEntry	EQU 0E400H		; forced calculation
+0024: 0000 		 CCPEntry	EQU 0E000H		; forced calculation
 0025: 0000 		 
 0026: 0000 		 BDOSEntry	EQU	CCPEntry + CCPLength + 6
 0027: 0000 		 BIOSEntry	EQU	CCPEntry + CCPLength + BDOSLength
@@ -31,7 +31,7 @@
 0031: 0003 		 IOBYTE:
 0032: 0003 	01	 	DB		01H				; IOBYTE- Console is assigned the CRT device
 0033: 0004 	00	 	DB		00H				; Current default drive (A)
-0034: 0005 	C306EC	 	JMP		BDOSEntry		; jump to BDOS entry
+0034: 0005 	C306E8	 	JMP		BDOSEntry		; jump to BDOS entry
 0035: 0008 		 	DS		028H			; interrupt locations 1-5 not used
 0036: 0030 		 	DS		008H			; interrupt location 6 is reserved
 0037: 0038 	C30000	 	JMP		0000H			; rst 7 used only by DDT & SID programs
@@ -244,7 +244,7 @@
 0244: F848 	2103F6	 	LXI		H,WarmBootEntry	; get BIOS vector address
 0245: F84B 	220100	 	SHLD	0001H		; put address in location 1
 0246: F84E 		 	
-0247: F84E 	2106EC	 	LXI		H,BDOSEntry	; Get BDOS entry point address
+0247: F84E 	2106E8	 	LXI		H,BDOSEntry	; Get BDOS entry point address
 0248: F851 	220600	 	SHLD	0006H		; put address at location 5
 0249: F854 		 	
 0250: F854 	018000	 	LXI		B,80H		; set disk I/O address to default
@@ -253,7 +253,7 @@
 0253: F85A 	FB	 	EI
 0254: F85B 	3A0400	 	LDA		DefaultDisk		; Transfer current default disk to
 0255: F85E 	4F	 	MOV		C,A			; Console Command Processor
-0256: F85F 	C300E4	 	JMP		CCPEntry	; transfer to CCP
+0256: F85F 	C300E0	 	JMP		CCPEntry	; transfer to CCP
 0257: F862 		 		
 0258: F862 		 		
 0259: F862 		 		
@@ -1369,7 +1369,7 @@
 1369: FE12 	00	 	DB	00H				; track number
 1370: FE13 	02	 	DB	02H				; Starting sector number
 1371: FE14 	0010	 	DW	8 * 512			; Number of bytes to read
-1372: FE16 	00E4	 	DW	CCPEntry		; read into this address
+1372: FE16 	00E0	 	DW	CCPEntry		; read into this address
 1373: FE18 	4300	 	DW	DiskStatusBlock	; pointer to next block
 1374: FE1A 	4500	 	DW	DiskControl5	; pointer to next table
 1375: FE1C 		 BootControlPart2:
@@ -1379,7 +1379,7 @@
 1379: FE1F 	00	 	DB	00H				; track number
 1380: FE20 	01	 	DB	01H				; Starting sector number
 1381: FE21 	0006	 	DW	3 * 512			; Number of bytes to read
-1382: FE23 	00F4	 	DW	CCPEntry + ( 8 * 512)		; read into this address
+1382: FE23 	00F0	 	DW	CCPEntry + ( 8 * 512)		; read into this address
 1383: FE25 	4300	 	DW	DiskStatusBlock	; pointer to next block
 1384: FE27 	4500	 	DW	DiskControl5	; pointer to next table
 1385: FE29 		 
@@ -1455,8 +1455,8 @@
 0077	F833	AFTERDISKBUFFER               		  0226,
 0865	0800	ALLOCATIONBLOCKSIZE           		  0980,
 
-0026	EC06	BDOSENTRY                     		  0034,  0247,
-0016	0A00	BDOSLENGTH                    		  0019,  0020,  0027,
+0026	E806	BDOSENTRY                     		  0034,  0247,
+0016	0E00	BDOSLENGTH                    		  0019,  0020,  0027,
 0027	F600	BIOSENTRY                     		  0051,
 0017	0A00	BIOSLENGTH                    		  0019,  0020,
 0181	F6F9	BOOT                          		  0055,
@@ -1464,7 +1464,7 @@
 1375	FE1C	BOOTCONTROLPART2              		  1398,
 1099	FCD7	BUFFERMOVE                    		  1092,  1141,
 
-0024	E400	CCPENTRY                      		  0026,  0027,  0256,  1372,  1382,
+0024	E000	CCPENTRY                      		  0026,  0027,  0256,  1372,  1382,
 0015	0800	CCPLENGTH                     		  0019,  0020,  0026,  0027,
 0988	FC37	CHECKUNALLOCATEDBLOCK         		  0977,
 1231	0046	COMMANDBLOCK5                 		  1338,  1404,
@@ -1567,8 +1567,8 @@
 0492	F950	INPUTSTATUSPORT               		  0490,
 0031	0003	IOBYTE                        		  0212,  0275,  0291,  0303,  0326,  0338,  0350,  0363,
 
-0020	1C00	LENGTHINBYTES                 		
-0019	0008	LENGTHINK                     		
+0020	2000	LENGTHINBYTES                 		
+0019	0009	LENGTHINK                     		
 0112	000A	LF                            		  0128,  0132,  0138,  0145,  0152,  0159,  0166,
 0335	F8AC	LIST                          		  0061,
 0310	F894	LISTST                        		  0071,

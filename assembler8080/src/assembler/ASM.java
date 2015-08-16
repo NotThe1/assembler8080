@@ -167,11 +167,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 					passOneList.add(new PassOne(lineNumber, currentPC, symbol, comment));
 				}//
 				saveMemoryImage(currentPC, memImage);
-				if (cbSaveToFile.isSelected()) {
-					pw.printf("%04d: %04X \t%s\t %s%n", lineNumber, currentPC, memImage, rawLine);
-				}// if - do we send to file?
-				String logMessage = String.format("%04d: %04X \t%s\t %s%n", lineNumber, currentPC, memImage, rawLine);
+//				String logMessage = String.format("%04d: %04X \t%s\t %s%n", lineNumber, currentPC, memImage, rawLine);
+
+				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage, rawLine);
 				txtLog2.append(logMessage);
+				if (cbSaveToFile.isSelected()) {
+					pw.print(logMessage);
+				}// if - do we send to file?
 			}// while
 
 			doList(pw);

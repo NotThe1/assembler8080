@@ -13,7 +13,7 @@ Year		EQU		03531H		; '15'
 MemorySize	EQU 64
 
 CCPLength	EQU 0800H	; Constant
-BDOSLength	EQU 0A00H	; Constant	0E00H
+BDOSLength	EQU 0E00H	; Constant	0E00H
 BIOSLength	EQU 0A00H	; Constant 0900H
 
 LengthInK	EQU ((CCPLength + BDOSLength + BIOSLength) /1024) + 1
@@ -21,7 +21,7 @@ LengthInBytes	EQU (CCPLength + BDOSLength + BIOSLength)
 
 
 ;CCPEntry	EQU	((MemorySize - LengthInK) * (0 + 1024))
-CCPEntry	EQU 0E400H		; forced calculation
+CCPEntry	EQU 0E000H		; forced calculation
 
 BDOSEntry	EQU	CCPEntry + CCPLength + 6
 BIOSEntry	EQU	CCPEntry + CCPLength + BDOSLength
