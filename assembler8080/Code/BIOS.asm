@@ -642,15 +642,15 @@ NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
 	DB	Floppy5 + NeedDeblocking
 	
 Floppy5ParameterBlock:
-	DW	048H				; 128-byte sectors per track
-	DB	49					; Block shift
-	DB	15 					; Block mask
+	DW	048H				; 128-byte sectors per track- (72)
+	DB	04H					; Block shift ( 4=> 2K)
+	DB	0FH					; Block mask
 	DB	01 					; Extent mask
-	DW	174 				; Maximum allocation block number
-	DW	127 				; Number of directory entries - 1
+	DW	0AEH 				; Maximum allocation block number (174)
+	DW	07FH 				; Number of directory entries - 1 (127)
 	DB	0C0H				; Bit map for reserving 1 alloc. block
 	DB	00					;  for file directory
-	DW	020H				;Disk change work area size
+	DW	020H				;Disk change work area size (32)
 	DW	01					; Number of tracks before directory
 	
 	; Standard 8" floppy
@@ -660,15 +660,15 @@ Floppy5ParameterBlock:
 							;   that no de-blocking is required
 	
 Floppy8ParameterBlock:
-	DW	01AH				; sectors per track
-	DB	03					; Block shift
+	DW	01AH				; sectors per track (26)
+	DB	03					; Block shift (3=>1K)
 	DB	07					; Block mask
 	DB	00 					; Extent mask
-	DW	242 				; Maximum allocation block number
-	DW	63	 				; Number of directory entries - 1
+	DW	0F2H 				; Maximum allocation block number (242)
+	DW	03FH 				; Number of directory entries - 1 (63)
 	DB	0C0H				; Bit map for reserving 2 alloc. block
 	DB	00					;  for file directory
-	DW	010H				;Disk change work area size
+	DW	010H				;Disk change work area size (16)
 	DW	02					; Number of tracks before directory
 	
 			; Disk work area

@@ -642,15 +642,15 @@
 0642: FA41 	81	 	DB	Floppy5 + NeedDeblocking
 0643: FA42 		 	
 0644: FA42 		 Floppy5ParameterBlock:
-0645: FA42 	4800	 	DW	048H				; 128-byte sectors per track
-0646: FA44 	31	 	DB	49					; Block shift
-0647: FA45 	0F	 	DB	15 					; Block mask
+0645: FA42 	4800	 	DW	048H				; 128-byte sectors per track- (72)
+0646: FA44 	04	 	DB	04H					; Block shift ( 4=> 2K)
+0647: FA45 	0F	 	DB	0FH					; Block mask
 0648: FA46 	01	 	DB	01 					; Extent mask
-0649: FA47 	AE00	 	DW	174 				; Maximum allocation block number
-0650: FA49 	7F00	 	DW	127 				; Number of directory entries - 1
+0649: FA47 	AE00	 	DW	0AEH 				; Maximum allocation block number (174)
+0650: FA49 	7F00	 	DW	07FH 				; Number of directory entries - 1 (127)
 0651: FA4B 	C0	 	DB	0C0H				; Bit map for reserving 1 alloc. block
 0652: FA4C 	00	 	DB	00					;  for file directory
-0653: FA4D 	2000	 	DW	020H				;Disk change work area size
+0653: FA4D 	2000	 	DW	020H				;Disk change work area size (32)
 0654: FA4F 	0100	 	DW	01					; Number of tracks before directory
 0655: FA51 		 	
 0656: FA51 		 	; Standard 8" floppy
@@ -660,15 +660,15 @@
 0660: FA52 		 							;   that no de-blocking is required
 0661: FA52 		 	
 0662: FA52 		 Floppy8ParameterBlock:
-0663: FA52 	1A00	 	DW	01AH				; sectors per track
-0664: FA54 	03	 	DB	03					; Block shift
+0663: FA52 	1A00	 	DW	01AH				; sectors per track (26)
+0664: FA54 	03	 	DB	03					; Block shift (3=>1K)
 0665: FA55 	07	 	DB	07					; Block mask
 0666: FA56 	00	 	DB	00 					; Extent mask
-0667: FA57 	F200	 	DW	242 				; Maximum allocation block number
-0668: FA59 	3F00	 	DW	63	 				; Number of directory entries - 1
+0667: FA57 	F200	 	DW	0F2H 				; Maximum allocation block number (242)
+0668: FA59 	3F00	 	DW	03FH 				; Number of directory entries - 1 (63)
 0669: FA5B 	C0	 	DB	0C0H				; Bit map for reserving 2 alloc. block
 0670: FA5C 	00	 	DB	00					;  for file directory
-0671: FA5D 	1000	 	DW	010H				;Disk change work area size
+0671: FA5D 	1000	 	DW	010H				;Disk change work area size (16)
 0672: FA5F 	0200	 	DW	02					; Number of tracks before directory
 0673: FA61 		 	
 0674: FA61 		 			; Disk work area
