@@ -8,7 +8,7 @@ import javax.swing.JFrame;
 import javax.swing.JMenuBar;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
-import javax.swing.filechooser.FileFilter;
+//import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import java.awt.event.ActionListener;
@@ -64,7 +64,7 @@ import java.awt.Insets;
 public class ASM implements ActionListener, AdjustmentListener {
 
 	private JFrame frame; 
-	private JFileChooser chooser;
+//	private JFileChooser chooser;
 
 	private File asmSourceFile = null;
 	private JButton btnStart;
@@ -956,7 +956,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 	@Override
 	public void adjustmentValueChanged(AdjustmentEvent ae) {
 		// ae.getAdjustmentType();
-		String name = ((Component) ae.getSource()).getName();
+//		String name = ((Component) ae.getSource()).getName();
 		if (((Component) ae.getSource()).getName() == "verticalScrollBar") {
 			scrollLog2.getVerticalScrollBar().setValue(scrollLog1.getVerticalScrollBar().getValue());
 		}// if - the left scroll pane

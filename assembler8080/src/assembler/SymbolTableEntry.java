@@ -7,7 +7,7 @@ public class SymbolTableEntry {
 	private int value;
 	private int symbolType;
 	private int symbolScope;
-	private boolean absolute;
+//	private boolean absolute;
 	private Integer definedLineNumber;
 	private ArrayList<Integer> referencedLineNumbers;
 	

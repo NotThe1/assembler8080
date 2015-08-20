@@ -26,10 +26,13 @@ CCPEntry	EQU 0E000H		; forced calculation
 BDOSEntry	EQU	CCPEntry + CCPLength + 6
 BIOSEntry	EQU	CCPEntry + CCPLength + BDOSLength
 
+
+;;;	DefaultDisk	EQU	0004H
 PageZero:	ORG 0000H		; Start of page Zero
 	JMP		WarmBootEntry	; warm start
 IOBYTE:
 	DB		01H				; IOBYTE- Console is assigned the CRT device
+DefaultDisk:
 	DB		00H				; Current default drive (A)
 	JMP		BDOSEntry		; jump to BDOS entry
 	DS		028H			; interrupt locations 1-5 not used
@@ -52,24 +55,24 @@ DefaultDiskBuffer:
 		
 		; BIOS jum Vector
 		
-	JMP	BOOT			; NOT YET CODED
+	JMP	BOOT			; 00 Checked
 WarmBootEntry:
-	JMP	WBOOT			; NOT YET CODED
-	JMP	CONST			; CODED
-	JMP	CONIN			; CODED
-	JMP	CONOUT			; CODED		     495   F95B: OutputStatusPort:
-	JMP	LIST			; CODED
-	JMP	PUNCH			; CODED
-	JMP	READER			; CODED
-	JMP	HOME			; CODED			302		FBD3
-	JMP	SELDSK			; CODED			168		FB2B
-	JMP	SETTRK			; CODED			211		FB58
-	JMP	SETSEC			; CODED			221		FB5E
-	JMP	SETDMA			; CODED			230		FB65
-	JMP	READ			; CODED			398		FBFB
-	JMP	WRITE			; CODED			426		FC15
-	JMP	LISTST			; CODED
-	JMP	SECTRAN			; CODED
+	JMP	WBOOT			; 01 Checked
+	JMP	CONST			; 02 Checked
+	JMP	CONIN			; 03 Checked
+	JMP	CONOUT			; 04 Checked
+	JMP	LIST			; 05 Not Yet Checked
+	JMP	PUNCH			; 06 Not Yet Checked
+	JMP	READER			; 07 Not Yet Checked
+	JMP	HOME			; 08 Not Yet Checked			302		FBD3
+	JMP	SELDSK			; 09 Checked	
+	JMP	SETTRK			; 0A Checked
+	JMP	SETSEC			; 0B Checked			221		FB5E
+	JMP	SETDMA			; 0C Not Yet Checked			230		FB65
+	JMP	READ			; 0D Not Yet Checked			398		FBFB
+	JMP	WRITE			; 0E Not Yet Checked			426		FC15
+	JMP	LISTST			; 0F Not Yet Checked
+	JMP	SECTRAN			; 10 Not Yet Checked
 	
 PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128, 
 DiskBuffer:
@@ -87,7 +90,7 @@ InitializeStream:		; used by the initialization subroutine. Layout:
 						;	DB	Port numbe of 00H terminator
 						;	Console does not need to be initalized. it was done in the PROM
 
-		DB	CommunicationStatusPort	; intel 8251 ?
+		DB	00H			; no setup needed !!CommunicationStatusPort	; intel 8251 ?
 		DB	06H		; number of bytes
 		DB	0		; get chip ready by sending data out to it
 		DB	0
@@ -174,7 +177,6 @@ SignOnMessage:		; Main sign on message
 		
 		DB	00
 		
-	DefaultDisk	EQU	0004H
 	
 ;219--------------------BOOT-----------------------------	
 	
@@ -184,91 +186,91 @@ SignOnMessage:		; Main sign on message
 				
 				; setting up 8251 & 8253 --
 	DI
-	LXI	H,InitializeStream		;HL-> Data stream
-;
+					; on this system the console is already initialized so the
+					; InitializeStream is not used here
+	LXI		H,InitializeStream		;HL-> Data stream for port initialization (none here)
 InitializeLoop:
-	MOV	A,M		; get port #
-	ORA A		; if 00H then done
-	JZ	InitializeComplete
+	MOV		A,M					; get port #
+	ORA		A					; if 00H then done
+	JZ		InitializeComplete
 	
-	STA	InitializePort	; set up OUT instruction
-	INX	H		; HL -> count # of bytes to output
-	MOV	C,M		; get byte count
-	
+	STA		InitializePort		; set up OUT instruction
+	INX		H					; HL -> count # of bytes to output
+	MOV		C,M					; get byte count
 InitializeNextByte:
-	INX	H	
-	MOV	A,M		; get next byte
-	DB OUTopCode		; OUT instruction output to correct port
-	
+	INX		H	
+	MOV		A,M					; get next byte
+	DB		OUTopCode			; OUT instruction output to correct port
 InitializePort:
-	DB	0		; set by above code (self modifying code!!!!!)
-	DCR	C		; Count down
-	JNZ	InitializeNextByte
-	INX	H		; HL-> next port number
-	JMP InitializeLoop	; go back for more
-	
+	DB		0					; set by above code (self modifying code!!!!!)
+	DCR		C					; Count down
+	JNZ		InitializeNextByte
+	INX		H					; HL-> next port number
+	JMP		InitializeLoop		; go back for more
+;----------- above not needed with the console ------------------------	
+
 InitializeComplete:
-	MVI	A,01H	; set up for terminal to be console
-	STA	IOBYTE
+	MVI		A,01H				; set up for terminal to be console
+	STA		IOBYTE				; save in Page 0
+	LXI		H,SignonMessage
+	CALL	DisplayMessage		; display the signon message
 	
-	LXI	H,SignonMessage
-	CALL	DisplayMessage
+	XRA		A					; Set default disk to A: (0)
+	STA		DefaultDisk
+	EI							; enable the interrupts
 	
-	XRA	A		; Set default disk to A:
-	STA	DefaultDisk
-	EI			; enable the interrupts
-	
-	JMP	EnterCPM	; Complete initialization and enter CP/M
-					; by going to the Console Command Processor
-;
+	JMP		EnterCPM			; Complete initialization and enter CP/M
+								; by going to the Console Command Processor
 ;271---------------End of Cold Boot Initialization Code--------------
 
 		ORG AfterDiskBuffer		; reset Location Counter
+		
+		
+						; HL points at a Zero-Byte terminated string to be output
 DisplayMessage:
-	MOV		A,M		; get next message byte
-	ORA		A		; check if terminator
-	RZ			; Yes, thes return to caller
+	MOV		A,M					; get next message byte
+	ORA		A					; terminator (a = 0)?
+	RZ							; Yes, thes return to caller
 	
-	MOV		C,A		; prepare for output
-	PUSH	HL		; save message pointer
-	CALL	CONOUT	; go to main console output routine	*********************************************
+	MOV		C,A					; prepare for output
+	PUSH	HL					; save message pointer
+	CALL	CONOUT				; go to main console output routine	*******
 	POP		H
-	INX		H 		; point at next character
-	JMP		DisplayMessage	; loop till done
+	INX		H 					; point at next character
+	JMP		DisplayMessage		; loop till done
 	
 EnterCPM:
-	MVI		A,0C3H		; JMP op code
-	STA		0000H		; set up the jump in location 0000H
-	STA		0005H		; and at location 0005H
+	MVI		A,0C3H				; JMP op code
+	STA		0000H				; set up the jump in location 0000H
+	STA		0005H				; and at location 0005H
 	
-	LXI		H,WarmBootEntry	; get BIOS vector address
-	SHLD	0001H		; put address in location 1
+	LXI		H,WarmBootEntry		; get BIOS vector address
+	SHLD	0001H				; put address in location 1
 	
-	LXI		H,BDOSEntry	; Get BDOS entry point address
-	SHLD	0006H		; put address at location 5
+	LXI		H,BDOSEntry			; Get BDOS entry point address
+	SHLD	0006H				; put address at location 5
 	
-	LXI		B,80H		; set disk I/O address to default
-	CALL	SETDMA		; use normal BIOS routine		****************************************************************
+	LXI		B,DefaultDiskBuffer	; set disk I/O address to default
+	CALL	SETDMA				; use normal BIOS routine		****************************************************************
 	
 	EI
 	LDA		DefaultDisk		; Transfer current default disk to
-	MOV		C,A			; Console Command Processor
-	JMP		CCPEntry	; transfer to CCP
+	MOV		C,A				; Console Command Processor
+	JMP		CCPEntry		; transfer to CCP
 		
 		
 		
 ;IOBYTE	EQU		0003H		;I/O redirection byte
 
 ;333--------------------CONST----------------------------
-	; Entered directly from BIOS JMP vector
-	; returns Register A
+	; Entered directly from BIOS JMP vector, returns Register A
 	; 00H -> No data
 	; 0FFH -> there is data
 CONST:
 	CALL	GetConsoleStatus	; return A= zero or not zero
 	ORA		A
-	RZ					; if 0 no returning data
-	MVI		A,0FFH		; else indicate there is data
+	RZ							; if 0 no returning data
+	MVI		A,0FFH				; else indicate there is data
 	RET
 	
 GetConsoleStatus:
@@ -280,43 +282,39 @@ GetConsoleStatus:
 	DW		DummyInStatus			; 11
 	
 CONIN:
-						; get console Input character
-						; entered directly from the BIOS jmp Vector
-						; return the character from the console in the A register.
-						; most significant bit will be 0. except when "reader" (communication)
-						; port has input , all 8 bits are reurned
-						;
-						; normally this follows a call to CONST. it indicates a char is ready.
-						; this is a blocking call
-	LDA		IOBYTE			; get i/o redirection byte
+	; Get console Input character entered directly from the BIOS jmp Vector
+	; return the character from the console in the A register.
+	; most significant bit will be 0. except when "reader" (communication)
+	; port has input , all 8 bits are reurned
+	;
+	; normally this follows a call to CONST ( a blocking call) to indicates a char is ready.
+	LDA		IOBYTE				; get i/o redirection byte
 	CALL 	SelectRoutine
+			; Vectors to device routines
 	DW		TTYInput			; 00 <- IOBYTE bits 1,0
 	DW		TerminalInput		; 01
 	DW		CommunicationInput	; 10
 	DW		DummyInput			; 11
 	
 CONOUT:
-						; Console output
-						; entered directly from BIOS JMP Vector
-						; outputs the data character in the C register
-						; to the appropriate device according to bits 1,0 of IOBYTE
-	LDA		IOBYTE			; get i/o redirection byte
+	; Console output, entered directly from BIOS JMP Vector. it outputs the 
+	; character in the C register to the appropriate device according to
+	; bits 1,0 of IOBYTE
+	LDA		IOBYTE				; get i/o redirection byte
 	CALL 	SelectRoutine
+			; Vectors to device routines
 	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
 	DW		TerminalOutput		; 01
 	DW		CommunicationOutput	; 10
 	DW		DummyOutput			; 11
 	
-LISTST:					; List Device (output) status
-						; entered directly from the BIOS JMP Vector
-						; returns in A the list device status that indicates
-						; if the device will accept another character
-						; the IOBYTE's bits 7,6 determin the physical device
-						;
-						; A = 00H (zero flag set): cannot accpet data
-						; A = 0FFH ( zero flag cleared): can accept data
-	CALL	GetListStatus	; return  A = 0 or non-zero
-	
+LISTST:
+	; List Device (output) status entered directly from the BIOS JMP Vector
+	; returns in A the list device status that indicates if the device will
+	; accept another character the IOBYTE's bits 7,6 determin the physical device
+	; A = 00H (zero flag set): cannot accpet data
+	; A = 0FFH ( zero flag cleared): can accept data
+	CALL	GetListStatus	; return  A = 0 or non-zero	
 	ORA		A				; set flags
 	RZ						; exit if not ready
 	MVI		a,0FFH			; else set retuen value for ok
@@ -368,12 +366,13 @@ READER:					; Reader Input
 	DW		CommunicationOutput	; 10
 	DW		TerminalOutput		; 11
 	
-	
-		; SelectRoutine
-		; Transfer control to a specified address following its calling address
-		; according to the values in bits 1, 0 in A.
-		
-SelectRoutine:
+SelectRoutine:	
+		; SelectRoutine. When called, the calling code has a vector table immediately following it.
+		; it is used to get the correct physical routine determined by the IOBYTE bits for the
+		; logical device. (00,01,10,11). 
+		; It will transfer control to a specified address following its calling address
+		; according to the values in bits 1, 0 in A.		
+
 	RLC				; Shift select values into bits 2,1 in order to do word arithmetic
 SelectRoutine21:	; entry point if bits already in 2,1
 	ANI		06H		; isolate bits 2 and 1
@@ -386,7 +385,7 @@ SelectRoutine21:	; entry point if bits already in 2,1
 	MOV		H,M		; MS byte
 	MOV		L,A		; HL->routine
 	XTHL			; top of stack -> routine
-	RET				; transfer to selected routine
+	RET				; transfer control to the selected routine
 
 	
 ;------------------------- Input/Output Equates---------------------------------------
@@ -429,55 +428,55 @@ CommunicationTable:
 
 ;590----------------------routines called by SelectRoutine----------------------------
 TTYInStatus:
-		LXI		H,TTYTable		;HL-> control table
-		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+		LXI		H,TTYTable				;HL-> control table
+		JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
 TerminalInStatus:
-		LXI		H,TerminalTable	;HL-> control table
-		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+		LXI		H,TerminalTable			;HL-> control table
+		JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
 CommunicationInStatus:
 		LXI		H,CommunicationTable	;HL-> control table
-		JMP		InputStatus		; use of JMP, InputStatus will execute thr RETurn
+		JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
 DummyInStatus:
-		MVI		A,0FFH			; Dummy always indicates data ready
+		MVI		A,0FFH					; Dummy always indicates data ready
 		RET
 		
 TTYOutStatus:
-		LXI		H,TTYTable		;HL-> control table
-		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+		LXI		H,TTYTable				;HL-> control table
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 TerminalOutStatus:
-		LXI		H,TerminalTable	;HL-> control table
-		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+		LXI		H,TerminalTable			;HL-> control table
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 CommunicationOutStatus:
 		LXI		H,CommunicationTable	;HL-> control table
-		JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 DummyOutStatus:
-		MVI		A,0FFH			; Dummy always indicates ready to output data
+		MVI		A,0FFH					; Dummy always indicates ready to output data
 		RET
 
 TTYInput:
-		LXI		H,TTYTable		;HL-> control table
-		JMP		InputData		; use of JMP, InputStatus will execute thr RETurn
+		LXI		H,TTYTable				;HL-> control table
+		JMP		InputData				; use of JMP, InputStatus will execute thr RETurn
 TerminalInput:
-		LXI		H,TerminalTable	;HL-> control table
-		CALL	InputData		;** special **
-		ANI		07FH			; Strip off high order bit
+		LXI		H,TerminalTable			;HL-> control table
+		CALL	InputData				;** special **
+		ANI		07FH					; Strip off high order bit
 		RET	
 CommunicationInput:
 		LXI		H,CommunicationTable	;HL-> control table
-		JMP		InputData		; use of JMP, InputStatus will execute thr RETurn
+		JMP		InputData				; use of JMP, InputStatus will execute thr RETurn
 DummyInput:
-		MVI		A,01AH			; Dummy always returns EOF
+		MVI		A,01AH					; Dummy always returns EOF
 		RET
 		
 TTYOutput:
-		LXI		H,TTYTable		;HL-> control table
-		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+		LXI		H,TTYTable				;HL-> control table
+		JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
 TerminalOutput:
-		LXI		H,TerminalTable	;HL-> control table
-		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+		LXI		H,TerminalTable			;HL-> control table
+		JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
 CommunicationOutput:
 		LXI		H,CommunicationTable	;HL-> control table
-		JMP		OutputData		; use of JMP, InputStatus will execute thr RETurn
+		JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
 DummyOutput:
 		RET						; Dummy always discards the data
 
@@ -485,54 +484,54 @@ DummyOutput:
 
 ; On entry, HL points to appropriate control table, for output Register C contains the data to output
 
-InputStatus:				; return- A = 00H no incoming data
-		MOV		A,M			; get status port
+InputStatus:					; return- A = 00H no incoming data
+		MOV		A,M				; get status port
 		STA		InputStatusPort	;** self modifying code
 		DB		INopCode		; IN opcode
 InputStatusPort:
-		DB		00H			; <- set from above
-		INX		H			; move HL to point to input data mask
+		DB		00H				; <- set from above
+		INX		H				; move HL to point to input data mask
 		INX		H
 		INX		H
-		ANA		M			; mask with input status
-		RET
+		ANA		M				; mask with input status
+		RET						; return with status (00 nothing, FF - data available)
 		
-OutputStatus:				; return - A = 00H not ready
+OutputStatus:						; return - A = 00H not ready
 		MOV		A,M
 		STA		OutputStatusPort
-		DB		INopCode		; IN opcode
+		DB		INopCode			; IN opcode
 OutputStatusPort:
-		DB		00H			; <- set from above
-		INX		H			;HL , Output status mask
+		DB		00H					; <- set from above
+		INX		H					;HL , Output status mask
 		INX		H
-		ANA		M			; mask with output status
+		ANA		M					; mask with output status, 00 = Not ready
 		RET
 		
-InputData:					; return with next character
-		PUSH	H			; save control table pointer
+InputData:							; return with next character
+		PUSH	H					; save control table pointer
 		CALL	InputStatus
-		POP		H
-		JZ		InputData	; wait until incoming data
-		INX		H			; HL <- data port
-		MOV		A,M			; get data port
-		STA		InputDataPort
-		DB		INopCode
+		POP		H					; restore the control table
+		JZ		InputData			; wait until incoming data
+		INX		H					; HL <- data port
+		MOV		A,M					; get data port
+		STA		InputDataPort		; modify code here
+		DB		INopCode			; do the actual I/O
 InputDataPort:
-		DB		00H			; <- set from above
-		RET
+		DB		00H					; <- set from above
+		RET							; return with data in A
 		
-OutputData:					; data in Register C is output
-		PUSH	H			; save control table pointer
+OutputData:							; data in Register C is output
+		PUSH	H					; save control table pointer
 		CALL	OutputStatus
-		POP		H
-		JZ		OutputData	; wait until incoming data
-		INX		H			; HL <- data port
-		MOV		A,M			; get data port
-		STA		OutputDataPort
-		MOV		A,C			; get the data to output
-		DB		OUTopCode
+		POP		H					; restore table pointer
+		JZ		OutputData			; wait until incoming data
+		INX		H					; HL <- data port
+		MOV		A,M					; get data port
+		STA		OutputDataPort		; store it here Modify the code
+		MOV		A,C					; get the data to output
+		DB		OUTopCode			; Do the I/O here !!
 OutputDataPort:
-		DB		00H			; <- set from above
+		DB		00H					; <- set from above
 		RET
 		
 ;746,795
@@ -696,7 +695,7 @@ DiskBAllocationVector:	DS		(174/8)+1 	; B:
 DiskCAllocationVector:	DS		(242/8)+1 	; C:
 DiskDAllocationVector:	DS		(242/8)+1 	; A:
 	
-NumberOfLogicalDisks:	EQU 4
+NumberOfLogicalDisks	EQU 4
 
 
 		;  Disk routines
@@ -707,42 +706,39 @@ NumberOfLogicalDisks:	EQU 4
 ;  in HL, or 0000H if selected disk does not exist		
 ;**********************	
 SELDSK:
-	LXI		H,00H		; Assume an error
-	MOV		A,C 		; Check if  requested disk is valid
+	LXI		H,00H				; Assume an error
+	MOV		A,C 				; Check if  requested disk is valid
 	CPI		NumberOfLogicalDisks
-	RNC					; return if > max number of Disks
+	RNC							; return if > max number of Disks
 	
-	STA		SelectedDisk	; save disk number
-	MOV		L,A			; make disk into word number
+	STA		SelectedDisk		; save disk number
+	MOV		L,A					; make disk into word number
 	MVI		H,0
-						; Compute offset down disk parameter
-						; table by multiplying by parameter
-						; header length (16 bytes)
+		; Compute offset down disk parameter table by multiplying by parameter
+		; header length (16 bytes)
 	DAD		H
 	DAD		H
 	DAD		H
-	DAD		H			; pointing at right one
+	DAD		H					; pointing at right one
 	LXI		D,DiskParameterHeaders		; get base address
-	DAD		D			; DE -> appropriate DPH
-	PUSH	H			; save DPH address
-						; access disk parameter block to
-						; extract special prefix byte that
-						; identifies disk type and whether
-						; de-blocking is required
-	LXI		D,10		; Get DPB pointer offset in DPH
-	DAD		D			; DE -> DPB address
-	MOV		E,M			; Get DPB address in DE
+	DAD		D					; DE -> appropriate DPH
+	PUSH	H					; Save DPH address access disk parameter block to extract special
+								;    prefix byte that identifies disk type and whether de-blocking
+								;    is required
+	LXI		D,10				; Get DPB pointer offset in DPH
+	DAD		D					; DE -> DPB address
+	MOV		E,M					; Get DPB address in DE
 	INX		H
 	MOV		D,M	
-	XCHG				; DE ->DPB
-	DCX		H			; DE -> prefix byte
-	MOV		A,M			; get prefix byte
-	ANI		0FH			; isolate disk type
-	STA		DiskType	; save for use in low level driver
-	MOV		A,M			; get another copy
-	ANI		NeedDeblocking
+	XCHG						; DE ->DPB
+	DCX		H					; DE -> prefix byte
+	MOV		A,M					; get prefix byte
+	ANI		0FH					; isolate disk type
+	STA		DiskType			; save for use in low level driver
+	MOV		A,M					; get another copy
+	ANI		NeedDeblocking		; determin if deblocking is required and
 	STA		DeblockingRequired	; save for low level driver
-	POP		H			; recover DPH pointer
+	POP		H					; recover DPH pointer
 	RET
 
 ;**********************	
@@ -768,11 +764,11 @@ SETSEC:
 ;SetDMA - Set DMA (input/output) address for next read or write
 ;       Address in BC
 ;**********************
-DMAAddress:	DW	0		; DMA address
+DMAAddress:	DW	0				; DMA address
 SETDMA:
 	MOV		L,C					; select address in BC on entry
 	MOV		H,B
-	SHLD	DMAAddress		; save for low level driver	
+	SHLD	DMAAddress			; save for low level driver	
 	RET
 	
 			; Translate logical sector number to physical
@@ -1222,27 +1218,28 @@ MoveDkTrkSecLoop:
 ; the end of the chain
 ;**************************************************************************************************
 
-DiskControl8	EQU	040H	; 8" control byte
-CommandBlock8	EQU	041H	; Control Table Pointer
+DiskControl8				EQU	040H	; 8" control byte
+CommandBlock8				EQU	041H	; Control Table Pointer
 
-DiskStatusBlock	EQU	043H	; 8" and 5 1/4" status block
+DiskStatusBlock				EQU	043H	; 8" and 5 1/4" status block
 
-DiskControl5	EQU	045H	; 8" control byte
-CommandBlock5	EQU	046H	; Control Table Pointer
+DiskControl5				EQU	045H	; 8" control byte
+CommandBlock5				EQU	046H	; Control Table Pointer
 
+FloppyReadCode				EQU	01H		; Code for Read
+FloppyWriteCode				EQU	02H		; Code for Write
 ;***************************************************************************
 ;					Floppy Disk Control tables
 ;***************************************************************************
-FloppyCommand:	DB	00H		; Command
-FloppyReadCode	EQU	01H
-FloppyWriteCode	EQU	02H
-FloppyUnit:		DB	00H		; unit (drive) number = 0 or 1
-FloppyHead:		DB	00H		; head number = 0 or 1
-FloppyTrack:	DB	00H		; track number
-FloppySector:	DB	00H		; sector number
-FloppyByteCount:	DW	0000H	; number of bytes to read/write
-FloppyDMAAddress:	DW	0000H	; transfer address
-FloppyNextStatusBlock:	DW	0000H	; pointer to next status block
+FloppyDCT:
+FloppyCommand:				DB	00H		; Command
+FloppyUnit:					DB	00H		; unit (drive) number = 0 or 1
+FloppyHead:					DB	00H		; head number = 0 or 1
+FloppyTrack:				DB	00H		; track number
+FloppySector:				DB	00H		; sector number
+FloppyByteCount:			DW	0000H	; number of bytes to read/write
+FloppyDMAAddress:			DW	0000H	; transfer address
+FloppyNextStatusBlock:		DW	0000H	; pointer to next status block
 FloppyNextControlLocation:	DW	0000H	; pointer to next control byte
 
 ; Write contents of disk buffer to correct sector
@@ -1391,7 +1388,7 @@ BootControlPart2:
 ; Two prefabricated control tables are used.
 ;**********************************************************************************	
 WBOOT:
-	LXI		SP,080H
+	LXI		SP,DefaultDiskBuffer
 	LXI		D,BootControlPart1
 	CALL	WarmBootRead
 	
@@ -1400,11 +1397,11 @@ WBOOT:
 	JMP		EnterCPM
 	
 WarmBootRead:
-	LXI		H,FloppyCommand
-	SHLD	CommandBlock5
-	MVI		C,13				; set byte count
+	LXI		H,FloppyDCT			; get pointer to the Floppy's Device Control Table
+	SHLD	CommandBlock5		; put it into the Command block for drive A:
+	MVI		C,13				; set byte count for move
 WarmByteMove:
-	LDAX	D
+	LDAX	D					; Move the coded Control block into the Command Block
 	MOV		M,A
 	INX		H
 	INX		D
@@ -1412,22 +1409,22 @@ WarmByteMove:
 	JNZ		WarmByteMove
 	
 	LXI		H,DiskControl5
-	MVI		M,080H			; activate the controller
+	MVI		M,080H				; activate the controller 
 	
 WaitForBootComplete:
-	MOV		A,M
-	ORA		A
-	JNZ		WaitForBootComplete
+	MOV		A,M					; Get the control byte
+	ORA		A					; Reset to 0 (Completed operation) ?
+	JNZ		WaitForBootComplete	; if not try again
 	
-	LDA		DiskStatusBlock
-	CPI		080H		; any errors ?
-	JC		WarmBootError	; Yup
-	RET
+	LDA		DiskStatusBlock		; after operation what's the status?
+	CPI		080H				; any errors ?
+	JC		WarmBootError		; Yup
+	RET							; else we are done!
 
 WarmBootError:
-	LXI		H,WarmBootErroMessage
-	CALL	DisplayMessage
-	JMP		WBOOT
+	LXI		H,WarmBootErroMessage	; point at error message
+	CALL	DisplayMessage			; sent it. and
+	JMP		WBOOT					; try again.
 	
 WarmBootErroMessage:
 	DB		0DH,0AH

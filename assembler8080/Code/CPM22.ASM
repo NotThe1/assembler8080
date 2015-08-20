@@ -18,7 +18,7 @@ IOBYTE	EQU	3	;i/o definition byte.
 TDRIVE	EQU	4	;current drive name and user number.
 ENTRY	EQU	5	;entry point for the cp/m bdos.
 TFCB	EQU	5CH	;default file control block.
-TBUFF	EQU	80H	;i/o buffer and command line storage.
+Pg0Buffer	EQU	80H	;i/o buffer and command line storage.
 TBASE	EQU	100H	;transiant program storage area.
 ;
 ;   Set control character equates.
@@ -311,7 +311,7 @@ GETINP:
 ;   Move this record into input buffer.
 ;
 	LXI	D,INBUFF+1
-	LXI	H,TBUFF	;data was read into buffer here.
+	LXI	H,Pg0Buffer	;data was read into buffer here.
 	MVI	B,128	;all 128 characters may be used.
 	CALL	HL2DE	;(HL) to (DE), (B) bytes.
 	LXI	H,BATCHFCB+14
@@ -393,7 +393,7 @@ GETDSK:
 ;   Set the stabdard dma address.
 ;
 STDDMA:
-	LXI	D,TBUFF
+	LXI	D,Pg0Buffer
 ;
 ;   Routine to set the dma address to (DE).
 ;
@@ -737,7 +737,7 @@ CMMND1:
 ;   Process command line here.
 ;
 CMMND2:
-	LXI	D,TBUFF
+	LXI	D,Pg0Buffer
 	CALL	DMASET	;set standard dma address.
 	CALL	GETDSK
 	STA	CDRIVE	;set current drive.
@@ -861,10 +861,10 @@ HL2DE:
 	JNZ	HL2DE
 	RET
 ;
-;   Compute (HL)=(TBUFF)+(A)+(C) and get the byte that's here.
+;   Compute (HL)=(Pg0Buffer)+(A)+(C) and get the byte that's here.
 ;
 EXTRACT:
-	LXI	H,TBUFF
+	LXI	H,Pg0Buffer
 	ADD	C
 	CALL	ADDHL
 	MOV	A,M
@@ -1058,7 +1058,7 @@ TYPE2:
 	MOV	M,A
 TYPE3:
 	INR	M	;count this byte.
-	LXI	H,TBUFF	;and get the (A)th one from the buffer (TBUFF).
+	LXI	H,Pg0Buffer	;and get the (A)th one from the buffer (Pg0Buffer).
 	CALL	ADDHL
 	MOV	A,M
 	CPI	CNTRLZ	;end of file mark?
@@ -1316,7 +1316,7 @@ UNKWN5:
 ;
 UNKWN6:
 	MVI	B,0	;keep a character count.
-	LXI	D,TBUFF+1;data gets put here.
+	LXI	D,Pg0Buffer+1;data gets put here.
 UNKWN7:
 	MOV	A,M	;move it now.
 	STAX	D
@@ -1328,7 +1328,7 @@ UNKWN7:
 	JMP	UNKWN7
 UNKWN8:
 	MOV	A,B	;now store the character count.
-	STA	TBUFF
+	STA	Pg0Buffer
 	CALL	CRLF	;clean up the screen.
 	CALL	STDDMA	;set standard transfer address.
 	CALL	SETCDRV	;reset current drive.
@@ -1547,7 +1547,7 @@ DISKRO:		DB	'R/O$'
 PRTERR:
 	PUSH	H	;save second message pointer.
 	CALL	OUTCRLF	;send (cr)(lf).
-	LDA	ACTIVE	;get active drive.
+	LDA	CurrentDrive	;get Current Drive drive.
 	ADI	041H	; 'A'	;make ascii.
 	STA	BDOSDRV	;and put in message.
 	LXI	B,BDOSERR;and print it.
@@ -1971,7 +1971,7 @@ UserStack:
 BDOSstack	EQU	$	;end of stack area.
 ;
 USERNO:	DB	0	;current user number.
-ACTIVE:	DB	0	;currently active drive.
+CurrentDrive:	DB	0	;currently active drive.
 ParamsDE:	DW	0	;save (DE) parameters here on entry.
 STATUS:	DW	0	;status returned from bdos function.
 ;
@@ -2004,10 +2004,10 @@ DE2HL1:
 ;
 ;   Select the desired drive.
 ;
-SELECT:
-	LDA	ACTIVE	;get active disk.
+SelectDisk:
+	LDA	CurrentDrive	;get active disk.
 	MOV	C,A
-	CALL	SELDSK	;select it.
+	CALL	SELDSK	; (BIOS CALL )select it.
 	MOV	A,H	;valid drive?
 	ORA	L	;valid drive?
 	RZ		;return if not.
@@ -2043,9 +2043,9 @@ SELECT:
 	LXI	H,BIGDISK
 	MVI	M,0FFH	;set to samll.
 	ORA	A
-	JZ	SELECT1
+	JZ	SelectDisk1
 	MVI	M,0	;wrong, set to large.
-SELECT1:
+SelectDisk1:
 	MVI	A,0FFH	;clear the zero flag.
 	ORA	A
 	RET
@@ -2325,21 +2325,21 @@ STNREC1:
 	MOV	M,A	;and put this into fcb as number of records used.
 	RET
 ;
-;   Shift (HL) right (C) bits.
+;   Shift HL right (C) bits.
 ;
 SHIFTR:
-	INR	C
+	INR		C			; minor adjustment
 SHIFTR1:
-	DCR	C
-	RZ
-	MOV	A,H
-	ORA	A
-	RAR
-	MOV	H,A
-	MOV	A,L
-	RAR
-	MOV	L,A
-	JMP	SHIFTR1
+	DCR		C			; count down
+	RZ					; exit if done
+	MOV		A,H			; get the hi byte
+	ORA		A			; reset carry bit
+	RAR					; rotate right thru carry
+	MOV		H,A			; return new hi byte
+	MOV		A,L			; get lo byte
+	RAR					; rotate right thru carry
+	MOV		L,A			; return new lo byte
+	JMP		SHIFTR1		; keep doing it
 ;
 ;   Compute the check-sum for the directory buffer. Return
 ; integer sum in (A).
@@ -2370,7 +2370,7 @@ SHIFTL1:
 ;
 SETBIT:
 	PUSH	B	;save 16 bit word.
-	LDA	ACTIVE	;get active drive.
+	LDA	CurrentDrive	;get active drive.
 	MOV	C,A
 	LXI	H,1
 	CALL	SHIFTL	;shift bit 0 into place.
@@ -2387,8 +2387,8 @@ SETBIT:
 ; The result is returned in (A), bit 0.
 ;
 GETWPRT:
-	LHLD	WRTPRT	;get status bytes.
-	LDA	ACTIVE	;which drive is current?
+	LHLD	ROBitMap	;get Read Only Bit Map
+	LDA	CurrentDrive	;which drive is current?
 	MOV	C,A
 	CALL	SHIFTR	;shift status such that bit 0 is the
 	MOV	A,L	;one of interest for this drive.
@@ -2398,12 +2398,12 @@ GETWPRT:
 ;   Function to write protect the current disk.
 ;
 WRTPRTD:
-	LXI	H,WRTPRT;point to status word.
+	LXI	H,ROBitMap	;point to Read Only Bit Map
 	MOV	C,M	;set (BC) equal to the status.
 	INX	H
 	MOV	B,M
 	CALL	SETBIT	;and set this bit according to current drive.
-	SHLD	WRTPRT	;then save.
+	SHLD	ROBitMap	;then save.
 	LHLD	DIRSIZE	;now save directory size limit.
 	INX	H	;remember the last one.
 	XCHG
@@ -2552,44 +2552,44 @@ CHKDIR1:
 ;   Do a write to the directory of the current disk.
 ;
 DIRWRITE:
-	CALL	SETDIR	;set checksum byte.
-	CALL	DIRDMA	;set directory dma address.
-	MVI	C,1	;tell the bios to actually write.
-	CALL	DOWRITE	;then do the write.
-	JMP	DEFDMA
+	CALL	SETDIR			;set checksum byte.
+	CALL	SetDirDMA		;set directory dma address.
+	MVI		C,1				;tell the bios to actually write.
+	CALL	DOWRITE			;then do the write.
+	JMP		Set2UsersDMA
 ;
 ;   Read from the directory.
 ;
 DIRREAD:
-	CALL	DIRDMA	;set the directory dma address.
+	CALL	SetDirDMA	;set the directory dma address.
 	CALL	DOREAD	;and read it.
 ;
 ;   Routine to set the dma address to the users choice.
 ;
-DEFDMA:
-	LXI	H,USERDMA;reset the default dma address and return.
-	JMP	DIRDMA1
+Set2UsersDMA:
+	LXI		H,UsersDMA		;reset the default dma address and return.
+	JMP		SetDMA0
 ;
 ;   Routine to set the dma address for directory work.
 ;
-DIRDMA:
-	LXI	H,DIRBUF
+SetDirDMA:
+	LXI		H,DIRBUF
 ;
 ;   Set the dma address. On entry, (HL) points to
 ; word containing the desired dma address.
 ;
-DIRDMA1:
-	MOV	C,M
-	INX	H
-	MOV	B,M	;setup (BC) and go to the bios to set it.
-	JMP	SETDMA
+SetDMA0:
+	MOV		C,M
+	INX		H
+	MOV		B,M			;setup (BC) and go to the bios to set it.
+	JMP		SETDMA
 ;
 ;   Move the directory buffer into user's dma space.
 ;
 MOVEDIR:
 	LHLD	DIRBUF	;buffer is located here, and
 	XCHG
-	LHLD	USERDMA; put it here.
+	LHLD	UsersDMA; put it here.
 	MVI	C,128	;this is its length.
 	JMP	DE2HL	;move it now and return.
 ;
@@ -3472,7 +3472,7 @@ WTSEQ7:
 	INX	H
 	INR	D	;do 128 bytes.
 	JP	WTSEQ7
-	CALL	DIRDMA	;tell the bios the dma address for directory access.
+	CALL	SetDirDMA	;tell the bios the dma address for directory access.
 	LHLD	LOGSECT	;get sector that starts current block.
 	MVI	C,2	;set 'writing to unused space' flag.
 WTSEQ8:
@@ -3491,7 +3491,7 @@ WTSEQ8:
 	JNZ	WTSEQ8	;continue until (BLKMASK+1) sectors written.
 	POP	H	;reset next sector number.
 	SHLD	BLKNMBR
-	CALL	DEFDMA	;and reset dma address.
+	CALL	Set2UsersDMA	;and reset dma address.
 ;
 ;   Normal disk write. Set the desired track and sector then
 ; do the actual write.
@@ -3795,39 +3795,39 @@ SETRAN:
 	MOV	M,A	;and lastly 'r2'.
 	RET
 ;
-;   This routine select the drive specified in (ACTIVE) and
+;   This routine select the drive specified in (CurrentDrive) and
 ; update the login vector and bitmap table if this drive was
 ; not already active.
 ;
-LOGINDRV:
-	LHLD	LOGIN	;get the login vector.
-	LDA	ACTIVE	;get the default drive.
+LoginDrive:
+	LHLD	LoggedBitMap	;get the logged Bitmap.
+	LDA	CurrentDrive	;get the default drive.
 	MOV	C,A
 	CALL	SHIFTR	;position active bit for this drive
 	PUSH	H	;into bit 0.
 	XCHG
-	CALL	SELECT	;select this drive.
+	CALL	SelectDisk	;select this drive.
 	POP	H
 	CZ	SLCTERR	;valid drive?
 	MOV	A,L	;is this a newly activated drive?
 	RAR
 	RC
-	LHLD	LOGIN	;yes, update the login vector.
+	LHLD	LoggedBitMap	;yes, update the logged Bitmap.
 	MOV	C,L
 	MOV	B,H
 	CALL	SETBIT
-	SHLD	LOGIN	;and save.
+	SHLD	LoggedBitMap	;and save.
 	JMP	BITMAP	;now update the bitmap.
 ;
 ;   Function to set the active disk number.
 ;
 SETDSK:
 	LDA	ParamE	;get parameter passed and see if this
-	LXI	H,ACTIVE;represents a change in drives.
+	LXI	H,CurrentDrive;represents a change in drives.
 	CMP	M
 	RZ
 	MOV	M,A	;yes it does, log it in.
-	JMP	LOGINDRV
+	JMP	LoginDrive
 ;
 ;   This is the 'auto disk select' routine. The firsst byte
 ; of the fcb is examined for a drive specification. If non
@@ -3843,7 +3843,7 @@ AUTOSEL:
 	STA	ParamE	;and save for the select routine.
 	CPI	1EH	;check for 'no change' condition.
 	JNC	AUTOSL1	;yes, don't change.
-	LDA	ACTIVE	;we must change, save currently active
+	LDA	CurrentDrive	;we must change, save currently active
 	STA	OLDDRV	;drive.
 	MOV	A,M	;and save first byte of fcb also.
 	STA	AUTOFLAG;this must be non-zero.
@@ -3866,15 +3866,15 @@ GETVER:
 ;   Function to reset the disk system.
 ;
 RSTDSK:
-	LXI	H,0	;clear write protect status and log
-	SHLD	WRTPRT	;in vector.
-	SHLD	LOGIN
-	XRA	A	;select drive 'A'.
-	STA	ACTIVE
-	LXI	H,TBUFF	;setup default dma address.
-	SHLD	USERDMA
-	CALL	DEFDMA
-	JMP	LOGINDRV;now log in drive 'A'.
+	LXI		H,0				;clear write protect status and log
+	SHLD	ROBitMap		;Clear All Read Only Bits
+	SHLD	LoggedBitMap	; Clear all loggerd in drives
+	XRA		A				;select drive 'A'.
+	STA		CurrentDrive
+	LXI		H,Pg0Buffer		;setup default dma address.
+	SHLD	UsersDMA
+	CALL	Set2UsersDMA
+	JMP		LoginDrive		;now log in drive 'A'.
 ;
 ;   Function to open a specified file.
 ;
@@ -3952,24 +3952,24 @@ RENFILE:
 	CALL	CHGNAMES;file names.
 	JMP	STSTATUS
 ;
-;   Function to return the login vector.
+;   Function to return the logged in Bit map.
 ;
 GETLOG:
-	LHLD	LOGIN
+	LHLD	LoggedBitMap
 	JMP	GETPRM1
 ;
 ;   Function to return the current disk assignment.
 ;
 GETCRNT:
-	LDA	ACTIVE
+	LDA	CurrentDrive
 	JMP	SETSTAT
 ;
 ;   Function to set the dma address.
 ;
 PUTDMA:
 	XCHG
-	SHLD	USERDMA	;save in our space and then get to
-	JMP	DEFDMA	;the bios with this also.
+	SHLD	UsersDMA	;save in our space and then get to
+	JMP	Set2UsersDMA	;the bios with this also.
 ;
 ;   Function to return the allocation vector.
 ;
@@ -3980,7 +3980,7 @@ GETALOC:
 ;   Function to return the read-only status vector.
 ;
 GETROV:
-	LHLD	WRTPRT
+	LHLD	ROBitMap
 	JMP	GETPRM1
 ;
 ;   Function to set the file attributes (read-only, system).
@@ -4041,26 +4041,26 @@ FILESIZE:
 LOGOFF:
 	LHLD	ParamsDE	;get drives to log off.
 	MOV	A,L	;for each bit that is set, we want
-	CMA		;to clear that bit in (LOGIN)
-	MOV	E,A	;and (WRTPRT).
+	CMA		;to clear that bit in (LoggedBitMap)
+	MOV	E,A	;and (ROBitMap).
 	MOV	A,H
 	CMA
-	LHLD	LOGIN	;reset the login vector.
+	LHLD	LoggedBitMap	;reset the login Bit map.
 	ANA	H
 	MOV	D,A
 	MOV	A,L
 	ANA	E
 	MOV	E,A
-	LHLD	WRTPRT
+	LHLD	ROBitMap
 	XCHG
-	SHLD	LOGIN	;and save.
+	SHLD	LoggedBitMap	;and save.
 	MOV	A,L	;now do the write protect vector.
 	ANA	E
 	MOV	L,A
 	MOV	A,H
 	ANA	D
 	MOV	H,A
-	SHLD	WRTPRT	;and save. all done.
+	SHLD	ROBitMap	;and save. all done.
 	RET
 ;
 ;   Get here to return to the user.
@@ -4109,9 +4109,9 @@ WTSPECL:
 ;**************************************************************
 ;
 EMPTYFCB:	DB	0E5H	;empty directory segment indicator.
-WRTPRT:		DW	0	;write protect status for all 16 drives.
-LOGIN:		DW	0	;drive active word (1 bit per drive).
-USERDMA:	DW	080H	;user's dma address (defaults to 80h).
+ROBitMap:		DW	0	;write protect status for all 16 drives.
+LoggedBitMap:		DW	0	;drive active word (1 bit per drive).
+UsersDMA:	DW	080H	;user's dma address (defaults to 80h).
 ;
 ;   Scratch areas from parameter block.
 ;
