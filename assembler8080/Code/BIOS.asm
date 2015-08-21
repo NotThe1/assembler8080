@@ -68,7 +68,7 @@ WarmBootEntry:
 	JMP	SELDSK			; 09 Checked	
 	JMP	SETTRK			; 0A Checked
 	JMP	SETSEC			; 0B Checked			221		FB5E
-	JMP	SETDMA			; 0C Not Yet Checked			230		FB65
+	JMP	SETDMA			; 0C Checked			230		FB65
 	JMP	READ			; 0D Not Yet Checked			398		FBFB
 	JMP	WRITE			; 0E Not Yet Checked			426		FC15
 	JMP	LISTST			; 0F Not Yet Checked
@@ -935,10 +935,11 @@ DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 READ:
 		LDA		DeblockingRequired
 		ORA		A
-		JZ		ReadNoDeblock			; if 0 use normal non-blocked read
+		JZ		ReadNoDeblock			; if 0 use normal non-blocked read (128 byte sectors)
 ; The de-blocking algorithm used is such that a read operation can be viewed UP until the actual
 ; data transfer as though it was the first write to an unallocated allocation block. 
-		XRA		A					; set record count to 0
+										; else its a 512 byte sector
+		XRA		A						; set record count to 0
 		STA		UnalocatedlRecordCount
 		INR		A
 		STA		ReadOperation			; Indicate that this is a read
@@ -1015,154 +1016,151 @@ RequestPreread:
 ; Common code to execute both reads and writes of 128-byte sectors	
 ;*******************************************************	
 PerformReadWrite:
-		XRA		A				; Assume no disk error will occur
+		XRA		A						; Assume no disk error will occur
 		STA		DiskErrorFlag
 		LDA		SelectedSector
-		RAR						; Convert selected 128-byte sector
-		RAR						; into physical sector by dividing by 4
-		ANI		03FH			; remove unwanted bits
+		RAR								; Convert selected 128-byte sector
+		RAR								; into physical sector by dividing by 4
+		ANI		03FH					; remove unwanted bits
 		STA		SelectedPhysicalSector
-		LXI		H,DataInDiskBuffer	; see if there is any data here ?
+		LXI		H,DataInDiskBuffer		; see if there is any data here ?
 		MOV		A,M
-		MVI		M,001H				; force there is data
-		ORA		A					; any data here ?
+		MVI		M,001H					; force there is data here for after the actual read
+		ORA		A						; really is there any data here ?
 		JZ		ReadSectorIntoBuffer	; NO - go read into buffer
 ;
-;The buffer does have a physical sector in it.
-; Note: The disk. track. and PHYSICAL sector in the buffer need to be checked,
-; hence the use of the CompareDkTrk subroutine
-;
+		; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
+		; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
 		LXI		D,InBufferDkTrkSec
-		LXI		H,SelectedDkTrkSec	; is it the same 
-		CALL	CompareDkTrk		;    Disk and Track as selected ?
-		JNZ		SectorNotInBuffer	; NO, it must be read
-; it is in the buffer
-		LDA		InBufferSector		; get the sector
+		LXI		H,SelectedDkTrkSec		; get the requested sector
+		CALL	CompareDkTrk			; is it in the buffer ? 
+		JNZ		SectorNotInBuffer		; NO, it must be read
+		; Yes, it is in the buffer
+		LDA		InBufferSector			; get the sector
 		LXI		H,SelectedPhysicalSector
-		CMP		M					; Check if correct physical sector
-		JZ		SectorInBuffer		; Yes - it is already in memory
-		
-; No, it will have to be read in over current contents of buffer
+		CMP		M						; Check if correct physical sector
+		JZ		SectorInBuffer			; Yes - it is already in memory
+		; No, it will have to be read in over current contents of buffer
 SectorNotInBuffer:
 		LDA		MustWriteBuffer
-		ORA		A					; do we need to write ?
-		CNZ		WritePhysical		; Yes - write it out
+		ORA		A						; do we need to write ?
+		CNZ		WritePhysical			; if yes - write it out
 
 ReadSectorIntoBuffer:
-		CALL	SetInBufferDkTrkSector
-		LDA		MustPrereadSector	; do we need to pre-read
-		ORA		A
-		CNZ		ReadPhysical		; yes - pre-read the sector
-		XRA		A					; reset the flag
-		STA		MustWriteBuffer
-		
-; Selected sector on correct track and  disk is already 1n the buffer.
-; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
-SectorInBuffer:
-		LDA		SelectedSector
-		ANI		SectorMask			; only want the least bits
-		MOV		L,A
-		MVI		H,00H				; Multiply by 128
-		DAD		H					; *2
-		DAD		H					; *4
-		DAD		H					; *8
-		DAD		H					; *16
-		DAD		H					; *32
-		DAD		H					; *64
-		DAD		H					; *128
-		LXI		D,DiskBuffer
-		DAD		D					; HL -> 128-byte sector number start address
-		XCHG						; DE -> sector in the disk buffer
-		LHLD	DMAAddress			; Get DMA address (set in SETDMA)
-		XCHG						; assume a read so :
-									; DE -> DMA Address & HL -> sector in disk buffer
-		MVI		C,128/8				; 8 bytes per move (loop count)
-;
-;  At this point -
-;	C	->	loop count
-;	DE	->	DMA address
-;	HL	->	sector in disk buffer
-;
-		LDA		ReadOperation		; Move into or out of buffer /
-		ORA		A
-		JNZ		BufferMove			; Move out of buffer
-		
-		INR		A					; going to force a write
-		STA		MustWriteBuffer
-		XCHG						; DE <--> HL
-		
-;The following move loop moves eight bytes at a time from (HL> to (DE), C contains the loop count
-BufferMove:
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		MOV		A,M					; Get byte from source
-		STAX	D					; Put into destination
-		INX		D					; update pointers
-		INX		H
-		
-		DCR		C					; count down on loop counter
-		JNZ		BufferMove			; repeat till done (CP/M sector moved)
-; end of loop		
-		LDA		WriteType			; write to directory ?
-		CPI		WriteDirectory
-		LDA		DiskErrorFlag		; get flag in case of a delayed read or write
-		RNZ							; return if delayed read or write
-		
-		ORA		A					; Any disk errors ?
-		RNZ							; yes - abandon attempt to write to directory
-		
-		XRA		A
-		STA		MustWriteBuffer		; clear flag
-		CALL	WritePhysical
-		LDA		DiskErrorFlag		; return error flag to caller
-		RET
-;********************************************************************
-
-		
-; indicates  selected disk, track, and sector now residing in buffer
-SetInBufferDkTrkSector:
+		; indicate the  selected disk, track, and sector now residing in buffer
 		LDA		SelectedDisk
 		STA		InBufferDisk
 		LHLD	SelectedTrack
 		SHLD	InBufferTrack
 		LDA		SelectedPhysicalSector
 		STA		InBufferSector
-		Ret
 		
-CompareDkTrk:					;Compares just the disk and track   pointed to by DE and HL 
+		LDA		MustPrereadSector		; do we need to pre-read
+		ORA		A
+		CNZ		ReadPhysical			; yes - pre-read the sector
+		XRA		A						; reset the flag
+		STA		MustWriteBuffer			; and store it away
+		
+; Selected sector on correct track and  disk is already 1n the buffer.
+; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
+SectorInBuffer:
+		LDA		SelectedSector
+		ANI		SectorMask				; only want the least bits
+		MOV		L,A						; to calculate offset into 512 byte buffer
+		MVI		H,00H					; Multiply by 128
+		DAD		H						; *2
+		DAD		H						; *4
+		DAD		H						; *8
+		DAD		H						; *16
+		DAD		H						; *32
+		DAD		H						; *64
+		DAD		H						; *128
+		LXI		D,DiskBuffer
+		DAD		D						; HL -> 128-byte sector number start address
+		XCHG							; DE -> sector in the disk buffer
+		LHLD	DMAAddress				; Get DMA address (set in SETDMA)
+		XCHG							; assume a read so :
+										; DE -> DMA Address & HL -> sector in disk buffer
+		MVI		C,128/8					; 8 bytes per move (loop count)
+;
+;  At this point -
+;	C	->	loop count
+;	DE	->	DMA address
+;	HL	->	sector in disk buffer
+;
+		LDA		ReadOperation			; Move into or out of buffer /
+		ORA		A
+		JNZ		BufferMove				; Move out of buffer
+		
+		INR		A						; going to force a write
+		STA		MustWriteBuffer
+		XCHG							; DE <--> HL
+		
+;The following move loop moves eight bytes at a time from (HL> to (DE), C contains the loop count
+BufferMove:
+		MOV		A,M						; Get byte from source
+		STAX	D						; Put into destination
+		INX		D						; update pointers
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		DCR		C						; count down on loop counter
+		JNZ		BufferMove				; repeat till done (CP/M sector moved)
+; end of loop
+		
+		LDA		WriteType				; write to directory ?
+		CPI		WriteDirectory
+		LDA		DiskErrorFlag			; get flag in case of a delayed read or write
+		RNZ								; return if delayed read or write
+		
+		ORA		A						; Any disk errors ?
+		RNZ								; yes - abandon attempt to write to directory
+		
+		XRA		A
+		STA		MustWriteBuffer			; clear flag
+		CALL	WritePhysical
+		LDA		DiskErrorFlag			; return error flag to caller
+		RET
+;********************************************************************
+
+		
+
+; Compares just the disk and track   pointed to by DE and HL (used for Blocking/Deblocking)
+CompareDkTrk:			
 		MVI		C,03H			; Disk(1), Track(2)
 		JMP		CompareDkTrkSecLoop
 CompareDkTrkSec:				;Compares just the disk and track   pointed to by DE and HL 

@@ -1,0 +1,416 @@
+RSTDSK:
+	LXI	H,0	;clear write protect status and log
+	SHLD	ROBitMap	;Clear All Read Only Bits
+	SHLD	LoggedBitMap ; Clear all loged in disks
+	XRA	A	;select drive 'A'.
+	STA	CurrentDrive
+	LXI	H,Pg0Buffer	;setup default dma address.
+	SHLD	UsersDMA
+	CALL	Set2UsersDMA
+		;   Routine to set the dma address to the users choice.
+		Set2UsersDMA:
+			LXI	H,UsersDMA;reset the default dma address and return.
+			JMP	SetDMA0
+			;   Set the dma address. On entry, (HL) points to
+			; word containing the desired dma address.
+			;
+			SetDMA0:
+				MOV	C,M
+				INX	H
+				MOV	B,M	;setup (BC) and go to the bios to set it.
+				JMP	SETDMA (BIOS CALL)
+	JMP	LoginDrive;now log in drive 'A'.
+		;   This routine select the drive specified in (CurrentDrive) and
+		; update the login vector and bitmap table if this drive was
+		; not already active.
+		;
+		LoginDrive:
+			LHLD	LoggedBitMap	;get the login vector.
+			LDA	CurrentDrive	;get the default drive.
+			MOV	C,A
+			CALL	SHIFTR	;position active bit for this drive
+				;   Shift (HL) right (C) bits.
+				SHIFTR:
+					INR	C
+				SHIFTR1:
+					DCR	C
+					RZ
+					MOV	A,H
+					ORA	A
+					RAR
+					MOV	H,A
+					MOV	A,L
+					RAR
+					MOV	L,A
+					JMP	SHIFTR1
+			PUSH	H	;into bit 0.
+			XCHG
+			CALL	SelectDisk	;select this drive.
+				;   Select the desired drive.
+				;
+				SelectDisk:
+					LDA	CurrentDrive	;get active disk.
+					MOV	C,A
+					CALL	SELDSK	;select it. (BIOS CALL)
+					MOV	A,H	;valid drive?
+					ORA	L	;valid drive?
+					RZ		;return if not.
+				;   Here, the BIOS returned the address of the parameter block
+				; in (HL). We will extract the necessary pointers and save them.
+					MOV	E,M	;yes, get address of translation table into (DE).
+					INX	H
+					MOV	D,M
+					INX	H
+					SHLD	SCRATCH1	;save pointers to scratch areas.
+					INX	H
+					INX	H
+					SHLD	SCRATCH2	;ditto.
+					INX	H
+					INX	H
+					SHLD	SCRATCH3	;ditto.
+					INX	H
+					INX	H
+					XCHG		;now save the translation table address.
+					SHLD	XLATE
+					LXI	H,DIRBUF	;put the next 8 bytes here.
+					MVI	C,8	;they consist of the directory buffer
+					CALL	DE2HL	;pointer, parameter block pointer,
+						;   Block move. (DE) to (HL), (C) bytes total.
+						DE2HL:
+							INR	C	;is count down to zero?
+						DE2HL1:
+							DCR	C
+							RZ		;yes, we are done.
+							LDAX	D	;no, move one more byte.
+							MOV	M,A
+							INX	D
+							INX	H
+							JMP	DE2HL1	;and repeat.
+					LHLD	DISKPB	;check and allocation vectors.
+					XCHG
+					LXI	H,SECTORS	;move parameter block into our ram.
+					MVI	C,15	;it is 15 bytes long.
+					CALL	DE2HL
+					LHLD	DSKSIZE	;check disk size.
+					MOV	A,H	;more than 256 blocks on this?
+					LXI	H,BIGDISK
+					MVI	M,0FFH	;set to samll.
+					ORA	A
+					JZ	SelectDisk1
+					MVI	M,0	;wrong, set to large.
+				SelectDisk1:
+					MVI	A,0FFH	;clear the zero flag.
+					ORA	A
+					RET
+			POP	H
+			CZ	SLCTERR	;valid drive?
+			MOV	A,L	;is this a newly activated drive?
+			RAR
+			RC
+			LHLD	LoggedBitMap	;yes, update the login vector.
+			MOV	C,L
+			MOV	B,H
+			CALL	SETBIT
+				;   Routine to set a bit in a 16 bit value contained in (BC).
+				; The bit set depends on the current drive selection.
+				;
+				SETBIT:
+					PUSH	B	;save 16 bit word.
+					LDA	CurrentDrive	;get active drive.
+					MOV	C,A
+					LXI	H,1
+					CALL	SHIFTL	;shift bit 0 into place.
+						;   Shift (HL) left (C) bits.
+						SHIFTL:
+							INR	C
+						SHIFTL1:
+							DCR	C
+							RZ
+							DAD	H	;shift left 1 bit.
+							JMP	SHIFTL1
+					POP	B	;now 'or' this with the original word.
+					MOV	A,C
+					ORA	L
+					MOV	L,A	;low byte done, do high byte.
+					MOV	A,B
+					ORA	H
+					MOV	H,A
+					RET
+			SHLD	LoggedBitMap	;and save.
+			JMP	BITMAP	;now update the bitmap. ********************
+				;   Construct the space used allocation bit map for the active
+				; drive. If a file name starts with '$' and it is under the
+				; current user number, then (STATUS) is set to minus 1. Otherwise
+				; it is not set at all.
+				;
+				BITMAP:
+					LHLD	DSKSIZE	;compute size of allocation table.
+					MVI	C,3
+					CALL	SHIFTR	;(HL)=(HL)/8.
+					INX	H	;at lease 1 byte.
+					MOV	B,H
+					MOV	C,L	;set (BC) to the allocation table length.
+				;
+				;   Initialize the bitmap for this drive. Right now, the first
+				; two bytes are specified by the disk parameter block. However
+				; a patch could be entered here if it were necessary to setup
+				; this table in a special mannor. For example, the bios could
+				; determine locations of 'bad blocks' and set them as already
+				; 'used' in the map.
+				;
+					LHLD	ALOCVECT;now zero out the table now.
+				BITMAP1:
+					MVI	M,0
+					INX	H
+					DCX	B
+					MOV	A,B
+					ORA	C
+					JNZ	BITMAP1
+					LHLD	ALLOC0	;get initial space used by directory.
+					XCHG
+					LHLD	ALOCVECT;and put this into map.
+					MOV	M,E
+					INX	H
+					MOV	M,D
+				;   End of initialization portion.
+					CALL	HOMEDRV	;now home the drive. (BIOS CALL)
+					LHLD	SCRATCH1
+					MVI	M,3	;force next directory request to read
+					INX	H	;in a sector.
+					MVI	M,0
+					CALL	STFILPOS;clear initial file position also.
+						;   Set location (FILEPOS) to 0ffffh.
+						STFILPOS:
+							LXI	H,0FFFFH
+							SHLD	FILEPOS
+							RET
+				BITMAP2:
+					MVI	C,0FFH	;read next file name in directory
+					CALL	NXENTRY	;and set checksum byte.
+							;   Move on to the next file position within the current
+							; directory buffer. If no more exist, set pointer to 0ffffh
+							; and the calling routine will check for this. Enter with (C)
+							; equal to 0ffh to cause the checksum byte to be set, else we
+							; will check this disk and set write protect if checksums are
+							; not the same (applies only if another directory sector must
+							; be read).
+							;
+							NXENTRY:
+								LHLD	DIRSIZE	;get directory entry size limit.
+								XCHG
+								LHLD	FILEPOS	;get current count.
+								INX	H	;go on to the next one.
+								SHLD	FILEPOS
+								CALL	SUBHL	;(HL)=(DIRSIZE)-(FILEPOS)
+									;   Compute (HL)=(DE)-(HL)
+									SUBHL:
+										MOV	A,E	;compute difference.
+										SUB	L
+										MOV	L,A	;store low byte.
+										MOV	A,D
+										SBB	H
+										MOV	H,A	;and then high byte.
+										RET
+								JNC	NXENT1	;is there more room left?
+								JMP	STFILPOS;no. Set this flag and return.
+										;   Set location (FILEPOS) to 0ffffh.
+										STFILPOS:
+											LXI	H,0FFFFH
+											SHLD	FILEPOS
+											RET					;**** EXIT
+							NXENT1:
+								LDA	FILEPOS	;get file position within directory.
+								ANI	03H	;only look within this sector (only 4 entries fit).
+								MVI	B,5	;convert to relative position (32 bytes each).
+							NXENT2:
+								ADD	A	;note that this is not efficient code.
+								DCR	B	;5 'ADD A's would be better.
+								JNZ	NXENT2
+								STA	FCBPOS	;save it as position of fcb.
+								ORA	A
+								RNZ		;return if we are within buffer.
+								PUSH	B
+								CALL	TRKSEC	;we need the next directory sector.
+									;   Routine to select the track and sector that the desired
+									; block number falls in.
+									;
+									TRKSEC:
+										LHLD	FILEPOS	;get position of last accessed file
+										MVI	C,2	;in directory and compute sector #.
+										CALL	SHIFTR	;sector #=file-position/4.
+											;   Shift (HL) right (C) bits.
+											SHIFTR:
+												INR	C
+											SHIFTR1:
+												DCR	C
+												RZ
+												MOV	A,H
+												ORA	A
+												RAR
+												MOV	H,A
+												MOV	A,L
+												RAR
+												MOV	L,A
+												JMP	SHIFTR1
+										SHLD	BLKNMBR	;save this as the block number of interest.
+										SHLD	CKSUMTBL;what's it doing here too?
+								CALL	DIRREAD
+										;   Read from the directory.
+										DIRREAD:
+											CALL	SetDirDMA	;set the directory dma address.
+											CALL	DOREAD	;and read it.
+										;   Routine to set the dma address to the users choice.
+										Set2UsersDMA:
+											LXI	H,UsersDMA;reset the default dma address and return.
+											JMP	SetDMA0
+										;   Routine to set the dma address for directory work.
+										SetDirDMA:
+											LXI	H,DIRBUF
+										;   Set the dma address. On entry, (HL) points to
+										; word containing the desired dma address.
+										SetDMA0:
+											MOV	C,M
+											INX	H
+											MOV	B,M	;setup (BC) and go to the bios to set it.
+											JMP	SETDMA (BIOS CALL)
+
+								POP	B
+								JMP	CHECKDIR
+										;   Routine to set or compare the directory checksum byte. If
+										; (C)=0ffh, then this will set the checksum byte. Else the byte
+										; will be checked. If the check fails (the disk has been changed),
+										; then this disk will be write protected.
+										CHECKDIR:
+											LHLD	CKSUMTBL
+											XCHG
+											LHLD	ALLOC1
+											CALL	SUBHL
+												;   Compute (HL)=(DE)-(HL)
+												SUBHL:
+													MOV	A,E	;compute difference.
+													SUB	L
+													MOV	L,A	;store low byte.
+													MOV	A,D
+													SBB	H
+													MOV	H,A	;and then high byte.
+													RET
+											RNC		;ok if (CKSUMTBL) > (ALLOC1), so return.
+											PUSH	B
+											CALL	CHECKSUM;else compute checksum.
+												;   Compute the check-sum for the directory buffer. Return
+												; integer sum in (A).
+												CHECKSUM:
+													MVI	C,128	;length of buffer.
+													LHLD	DIRBUF	;get its location.
+													XRA	A	;clear summation byte.
+												CHKSUM1:
+													ADD	M	;and compute sum ignoring carries.
+													INX	H
+													DCR	C
+													JNZ	CHKSUM1
+													RET
+											LHLD	CHKVECT	;get address of checksum table.
+											XCHG
+											LHLD	CKSUMTBL
+											DAD	D	;set (HL) to point to byte for this drive.
+											POP	B
+											INR	C	;set or check ?
+											JZ	CHKDIR1
+											CMP	M	;check them.
+											RZ		;return if they are the same.
+											CALL	MOREFLS	;not the same, do we care?
+												;   Compare (FILEPOS) with (SCRATCH1) and set flags based on
+												; the difference. This checks to see if there are more file
+												; names in the directory. We are at (FILEPOS) and there are
+												; (SCRATCH1) of them to check.
+												;
+												MOREFLS:
+													LHLD	FILEPOS	;we are here.
+													XCHG
+													LHLD	SCRATCH1;and don't go past here.
+													MOV	A,E	;compute difference but don't keep.
+													SUB	M
+													INX	H
+													MOV	A,D
+													SBB	M	;set carry if no more names.
+													RET
+											RNC
+											CALL	WRTPRTD	;yes, mark this as write protected.
+													;   Function to write protect the current disk.
+													WRTPRTD:
+														LXI	H,ROBitMap;point to status word.
+														MOV	C,M	;set (BC) equal to the status.
+														INX	H
+														MOV	B,M
+														CALL	SETBIT	;and set this bit according to current drive.
+															;   Routine to set a bit in a 16 bit value contained in (BC).
+															; The bit set depends on the current drive selection.
+															SETBIT:
+																PUSH	B	;save 16 bit word.
+																LDA	CurrentDrive	;get active drive.
+																MOV	C,A
+																LXI	H,1
+																CALL	SHIFTL	;shift bit 0 into place.
+																POP	B	;now 'or' this with the original word.
+																MOV	A,C
+																ORA	L
+																MOV	L,A	;low byte done, do high byte.
+																MOV	A,B
+																ORA	H
+																MOV	H,A
+																RET
+														SHLD	ROBitMap	;then save.
+														LHLD	DIRSIZE	;now save directory size limit.
+														INX	H	;remember the last one.
+														XCHG
+														LHLD	SCRATCH1;and store it here.
+														MOV	M,E	;put low byte.
+														INX	H
+														MOV	M,D	;then high byte.
+														RET
+											RET
+										CHKDIR1:
+											MOV	M,A	;just set the byte.
+											RET
+					CALL	CKFILPOS;is there another file?
+						;   Check (FILEPOS) and set the zero flag if it equals 0ffffh.
+						CKFILPOS:
+							LXI	H,FILEPOS
+							MOV	A,M
+							INX	H
+							CMP	M	;are both bytes the same?
+							RNZ
+							INR	A	;yes, but are they each 0ffh?
+							RET
+					RZ
+					CALL	FCB2HL	;yes, get its address.
+							;   Routine to set (HL) pointing to the proper entry in the
+							; directory buffer.
+							FCB2HL:
+								LHLD	DIRBUF	;get address of buffer.
+								LDA	FCBPOS	;relative position of file.
+							;   Routine to add (A) to (HL).
+							ADDA2HL:
+								ADD	L
+								MOV	L,A
+								RNC
+								INR	H	;take care of any carry.
+								RET
+					MVI	A,0E5H
+					CMP	M	;empty file entry?
+					JZ	BITMAP2
+					LDA	USERNO	;no, correct user number?
+					CMP	M
+					JNZ	BITMAP3
+					INX	H
+					MOV	A,M	;yes, does name start with a '$'?
+					SUI	DOLLAR		; '$'
+					JNZ	BITMAP3
+					DCR	A	;yes, set atatus to minus one.
+					STA	STATUS
+				BITMAP3:
+					MVI	C,1	;now set this file's space as used in bit map.
+					CALL	SETFILE
+					CALL	CHKNMBR	;keep (SCRATCH1) in bounds.
+					JMP	BITMAP2
+;

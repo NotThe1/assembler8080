@@ -57,7 +57,7 @@
 0057: F600                		                  
 0058: F600     C3F9F6     	JMP	BOOT			; 00 Checked
 0059: F603                WarmBootEntry:      
-0060: F603     C329FE     	JMP	WBOOT			; 01 Checked
+0060: F603     C325FE     	JMP	WBOOT			; 01 Checked
 0061: F606     C362F8     	JMP	CONST			; 02 Checked
 0062: F609     C378F8     	JMP	CONIN			; 03 Checked
 0063: F60C     C386F8     	JMP	CONOUT			; 04 Checked
@@ -68,7 +68,7 @@
 0068: F61B     C32BFB     	JMP	SELDSK			; 09 Checked	
 0069: F61E     C358FB     	JMP	SETTRK			; 0A Checked
 0070: F621     C35EFB     	JMP	SETSEC			; 0B Checked			221		FB5E
-0071: F624     C365FB     	JMP	SETDMA			; 0C Not Yet Checked			230		FB65
+0071: F624     C365FB     	JMP	SETDMA			; 0C Checked			230		FB65
 0072: F627     C3FBFB     	JMP	READ			; 0D Not Yet Checked			398		FBFB
 0073: F62A     C315FC     	JMP	WRITE			; 0E Not Yet Checked			426		FC15
 0074: F62D     C394F8     	JMP	LISTST			; 0F Not Yet Checked
@@ -764,11 +764,11 @@
 0764: FB63                ;SetDMA - Set DMA (input/output) address for next read or write
 0765: FB63                ;       Address in BC
 0766: FB63                ;**********************
-0767: FB63     0000       DMAAddress:	DW	0		; DMA address
+0767: FB63     0000       DMAAddress:	DW	0				; DMA address
 0768: FB65                SETDMA:             
 0769: FB65     69         	MOV		L,C					; select address in BC on entry
 0770: FB66     60         	MOV		H,B           
-0771: FB67     2263FB     	SHLD	DMAAddress		; save for low level driver	
+0771: FB67     2263FB     	SHLD	DMAAddress			; save for low level driver	
 0772: FB6A     C9         	RET                
 0773: FB6B                	                   
 0774: FB6B                			; Translate logical sector number to physical
@@ -935,511 +935,509 @@
 0935: FBFB                READ:               
 0936: FBFB     3AF9FB     		LDA		DeblockingRequired
 0937: FBFE     B7         		ORA		A            
-0938: FBFF     CA52FD     		JZ		ReadNoDeblock			; if 0 use normal non-blocked read
+0938: FBFF     CA4EFD     		JZ		ReadNoDeblock			; if 0 use normal non-blocked read (128 byte sectors)
 0939: FC02                ; The de-blocking algorithm used is such that a read operation can be viewed UP until the actual
 0940: FC02                ; data transfer as though it was the first write to an unallocated allocation block. 
-0941: FC02     AF         		XRA		A					; set record count to 0
-0942: FC03     32F5FB     		STA		UnalocatedlRecordCount
-0943: FC06     3C         		INR		A            
-0944: FC07     32F8FB     		STA		ReadOperation			; Indicate that this is a read
-0945: FC0A     32F7FB     		STA		MustPreReadSector		; force pre-read
-0946: FC0D     3E02       		MVI		A,WriteUnallocated		; fake de-blocking code into responding as if this
-0947: FC0F     32E3FB     		STA		WriteType				;  is the first write to an unallocated allocation block
-0948: FC12     C36EFC     		JMP		PerformReadWrite		; use common code to execute read
-0949: FC15                		                  
-0950: FC15                ;************************************************************************************************
-0951: FC15                ;		WRITE            
-0952: FC15                ;Write a 128-byte sector from the current DMA address to the previously $elected disk, track, and sector.
-0953: FC15                ;                   
-0954: FC15                ; On arrival here, the BOOS will have set register C to indicate whether this write operation is to
-0955: FC15                ; an already allocated allocation block (which means a pre-read of the sector may be needed),
-0956: FC15                ; to the directory (in which case the data will be written to the disk immediately),
-0957: FC15                ; or to the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
-0958: FC15                                    
-0959: FC15                ; Only writes to the directory take place immediately. In all other cases, the data will be moved
-0960: FC15                ; from the DMA address into the disk buffer, and only written out when circumstance, force the transfer.
-0961: FC15                ; The number of physical disk operations can therefore be reduced considerably.
-0962: FC15                ;************************************************************************************************
-0963: FC15                WRITE:              
-0964: FC15     3AF9FB     		LDA		DeblockingRequired
-0965: FC18     B7         		ORA		A            
-0966: FC19     CA4DFD     		JZ		WriteNoDeblock			; if 0 use normal non-blocked write
-0967: FC1C                                    
-0968: FC1C     AF         		XRA		A            
-0969: FC1D     32F8FB     		STA		ReadOperation			; its a write (Not a read)
-0970: FC20     79         		MOV		A,C          
-0971: FC21     32E3FB     		STA		WriteType				; save the BDOS write type
-0972: FC24     FE02       		CPI		WriteUnallocated		; first write to an unallocated allocation block ?
-0973: FC26     C237FC     		JNZ		CheckUnallocatedBlock	; No, - in the middle of writing to an unallocated block ?
-0974: FC29                										; Yes, first write to unallocated allocation block. Initialize
-0975: FC29                										; variables associated with unallocated writes
-0976: FC29     3E10       		MVI		A,AllocationBlockSize/ 128	; Number of 128 byte sectors
-0977: FC2B     32F5FB     		STA		UnalocatedlRecordCount
-0978: FC2E     21EAFB     		LXI		H,SelectedDkTrkSec		; copy disk, track & sector into unallocated variables
-0979: FC31     11F1FB     		LXI		D,UnallocatedDkTrkSec
-0980: FC34     CD35FD     		CALL 	MoveDkTrkSec
-0981: FC37                		                  
-0982: FC37                	; Check if this is not the first write to an unallocated allocation block -- if it is,
-0983: FC37                	; the unallocated record count has just been set to the number of 128-byte sectors in the allocation block
-0984: FC37                CheckUnallocatedBlock:
-0985: FC37     3AF5FB     		LDA		UnalocatedlRecordCount
-0986: FC3A     B7         		ORA		A            
-0987: FC3B     CA66FC     		JZ		RequestPreread			; No - write to an unallocated block
-0988: FC3E     3D         		DCR		A						; decrement 128 byte sectors left
-0989: FC3F     32F5FB     		STA		UnalocatedlRecordCount
-0990: FC42                		                  
-0991: FC42     21EAFB     		LXI		H,SelectedDkTrkSec		; same Disk, Track & sector as for those in an unallocated block
-0992: FC45     11F1FB     		LXI		D,UnallocatedDkTrkSec
-0993: FC48     CD29FD     		CALL	CompareDkTrkSec			; are they the same
-0994: FC4B     C266FC     		JNZ		RequestPreread			; NO - do a pre-read
-0995: FC4E                										;Compare$DkSTrkSec  returns with  DE -> Unallocated$Sector , HL -> UnallocatedSSector 
-0996: FC4E     EB         		XCHG              
-0997: FC4F     34         		INR	M             
-0998: FC50     7E         		MOV		A,M          
-0999: FC51     FE48       		CPI		CPMSecPerTrack			; Sector > maximum on track ?
-1000: FC53     DA5FFC     		JC		NoTrackChange			; No ( A < M)
-1001: FC56     3600       		MVI		M,00H					; Yes
-1002: FC58     2AF2FB     		LHLD	UnallocatedTrack
-1003: FC5B     23         		INX		H						; increment track 
-1004: FC5C     22F2FB     		SHLD	UnallocatedTrack
-1005: FC5F                NoTrackChange:      
-1006: FC5F     AF         		XRA		A            
-1007: FC60     32F7FB     		STA		MustPrereadSector		; clear flag
-1008: FC63     C36EFC     		JMP		PerformReadWrite
-1009: FC66                RequestPreread:     
-1010: FC66     AF         		XRA		A            
-1011: FC67     32F5FB     		STA		UnalocatedlRecordCount	; not a write into an unallocated block
-1012: FC6A     3C         		INR		A            
-1013: FC6B     32F7FB     		STA		MustPrereadSector		; set flag
-1014: FC6E                ;*******************************************************
-1015: FC6E                ; Common code to execute both reads and writes of 128-byte sectors	
-1016: FC6E                ;*******************************************************	
-1017: FC6E                PerformReadWrite:   
-1018: FC6E     AF         		XRA		A				; Assume no disk error will occur
-1019: FC6F     32F6FB     		STA		DiskErrorFlag
-1020: FC72     3AEDFB     		LDA		SelectedSector
-1021: FC75     1F         		RAR						; Convert selected 128-byte sector
-1022: FC76     1F         		RAR						; into physical sector by dividing by 4
-1023: FC77     E63F       		ANI		03FH			; remove unwanted bits
-1024: FC79     32EEFB     		STA		SelectedPhysicalSector
-1025: FC7C     21E8FB     		LXI		H,DataInDiskBuffer	; see if there is any data here ?
-1026: FC7F     7E         		MOV		A,M          
-1027: FC80     3601       		MVI		M,001H				; force there is data
-1028: FC82     B7         		ORA		A					; any data here ?
-1029: FC83     CAA3FC     		JZ		ReadSectorIntoBuffer	; NO - go read into buffer
-1030: FC86                ;                   
-1031: FC86                ;The buffer does have a physical sector in it.
-1032: FC86                ; Note: The disk. track. and PHYSICAL sector in the buffer need to be checked,
-1033: FC86                ; hence the use of the CompareDkTrk subroutine
-1034: FC86                ;                   
-1035: FC86     11E4FB     		LXI		D,InBufferDkTrkSec
-1036: FC89     21EAFB     		LXI		H,SelectedDkTrkSec	; is it the same 
-1037: FC8C     CD24FD     		CALL	CompareDkTrk		;    Disk and Track as selected ?
-1038: FC8F     C29CFC     		JNZ		SectorNotInBuffer	; NO, it must be read
-1039: FC92                ; it is in the buffer
-1040: FC92     3AE7FB     		LDA		InBufferSector		; get the sector
-1041: FC95     21EEFB     		LXI		H,SelectedPhysicalSector
-1042: FC98     BE         		CMP		M					; Check if correct physical sector
-1043: FC99     CAB1FC     		JZ		SectorInBuffer		; Yes - it is already in memory
-1044: FC9C                		                  
-1045: FC9C                ; No, it will have to be read in over current contents of buffer
-1046: FC9C                SectorNotInBuffer:  
-1047: FC9C     3AE9FB     		LDA		MustWriteBuffer
-1048: FC9F     B7         		ORA		A					; do we need to write ?
-1049: FCA0     C495FD     		CNZ		WritePhysical		; Yes - write it out
-1050: FCA3                                    
-1051: FCA3                ReadSectorIntoBuffer:
-1052: FCA3     CD11FD     		CALL	SetInBufferDkTrkSector
-1053: FCA6     3AF7FB     		LDA		MustPrereadSector	; do we need to pre-read
-1054: FCA9     B7         		ORA		A            
-1055: FCAA     C49AFD     		CNZ		ReadPhysical		; yes - pre-read the sector
-1056: FCAD     AF         		XRA		A					; reset the flag
-1057: FCAE     32E9FB     		STA		MustWriteBuffer
-1058: FCB1                		                  
-1059: FCB1                ; Selected sector on correct track and  disk is already 1n the buffer.
-1060: FCB1                ; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
-1061: FCB1                SectorInBuffer:     
-1062: FCB1     3AEDFB     		LDA		SelectedSector
-1063: FCB4     E603       		ANI		SectorMask			; only want the least bits
-1064: FCB6     6F         		MOV		L,A          
-1065: FCB7     2600       		MVI		H,00H				; Multiply by 128
-1066: FCB9     29         		DAD		H					; *2   
-1067: FCBA     29         		DAD		H					; *4   
-1068: FCBB     29         		DAD		H					; *8   
-1069: FCBC     29         		DAD		H					; *16  
-1070: FCBD     29         		DAD		H					; *32  
-1071: FCBE     29         		DAD		H					; *64  
-1072: FCBF     29         		DAD		H					; *128 
-1073: FCC0     1133F6     		LXI		D,DiskBuffer 
-1074: FCC3     19         		DAD		D					; HL -> 128-byte sector number start address
-1075: FCC4     EB         		XCHG						; DE -> sector in the disk buffer
-1076: FCC5     2A63FB     		LHLD	DMAAddress			; Get DMA address (set in SETDMA)
-1077: FCC8     EB         		XCHG						; assume a read so :
-1078: FCC9                									; DE -> DMA Address & HL -> sector in disk buffer
-1079: FCC9     0E10       		MVI		C,128/8				; 8 bytes per move (loop count)
-1080: FCCB                ;                   
-1081: FCCB                ;  At this point -  
-1082: FCCB                ;	C	->	loop count   
-1083: FCCB                ;	DE	->	DMA address 
-1084: FCCB                ;	HL	->	sector in disk buffer
-1085: FCCB                ;                   
-1086: FCCB     3AF8FB     		LDA		ReadOperation		; Move into or out of buffer /
-1087: FCCE     B7         		ORA		A            
-1088: FCCF     C2D7FC     		JNZ		BufferMove			; Move out of buffer
-1089: FCD2                		                  
-1090: FCD2     3C         		INR		A					; going to force a write
-1091: FCD3     32E9FB     		STA		MustWriteBuffer
-1092: FCD6     EB         		XCHG						; DE <--> HL
-1093: FCD7                		                  
-1094: FCD7                ;The following move loop moves eight bytes at a time from (HL> to (DE), C contains the loop count
-1095: FCD7                BufferMove:         
-1096: FCD7     7E         		MOV		A,M					; Get byte from source
-1097: FCD8     12         		STAX	D					; Put into destination
-1098: FCD9     13         		INX		D					; update pointers
-1099: FCDA     23         		INX		H            
-1100: FCDB                		                  
-1101: FCDB     7E         		MOV		A,M					; Get byte from source
-1102: FCDC     12         		STAX	D					; Put into destination
-1103: FCDD     13         		INX		D					; update pointers
-1104: FCDE     23         		INX		H            
-1105: FCDF                		                  
-1106: FCDF     7E         		MOV		A,M					; Get byte from source
-1107: FCE0     12         		STAX	D					; Put into destination
-1108: FCE1     13         		INX		D					; update pointers
-1109: FCE2     23         		INX		H            
-1110: FCE3                		                  
-1111: FCE3     7E         		MOV		A,M					; Get byte from source
-1112: FCE4     12         		STAX	D					; Put into destination
-1113: FCE5     13         		INX		D					; update pointers
-1114: FCE6     23         		INX		H            
-1115: FCE7                		                  
-1116: FCE7     7E         		MOV		A,M					; Get byte from source
-1117: FCE8     12         		STAX	D					; Put into destination
-1118: FCE9     13         		INX		D					; update pointers
-1119: FCEA     23         		INX		H            
-1120: FCEB                		                  
-1121: FCEB     7E         		MOV		A,M					; Get byte from source
-1122: FCEC     12         		STAX	D					; Put into destination
-1123: FCED     13         		INX		D					; update pointers
-1124: FCEE     23         		INX		H            
-1125: FCEF                		                  
-1126: FCEF     7E         		MOV		A,M					; Get byte from source
-1127: FCF0     12         		STAX	D					; Put into destination
-1128: FCF1     13         		INX		D					; update pointers
-1129: FCF2     23         		INX		H            
-1130: FCF3                		                  
-1131: FCF3     7E         		MOV		A,M					; Get byte from source
-1132: FCF4     12         		STAX	D					; Put into destination
-1133: FCF5     13         		INX		D					; update pointers
-1134: FCF6     23         		INX		H            
-1135: FCF7                		                  
-1136: FCF7     0D         		DCR		C					; count down on loop counter
-1137: FCF8     C2D7FC     		JNZ		BufferMove			; repeat till done (CP/M sector moved)
-1138: FCFB                ; end of loop		     
-1139: FCFB     3AE3FB     		LDA		WriteType			; write to directory ?
-1140: FCFE     FE01       		CPI		WriteDirectory
-1141: FD00     3AF6FB     		LDA		DiskErrorFlag		; get flag in case of a delayed read or write
-1142: FD03     C0         		RNZ							; return if delayed read or write
-1143: FD04                		                  
-1144: FD04     B7         		ORA		A					; Any disk errors ?
-1145: FD05     C0         		RNZ							; yes - abandon attempt to write to directory
-1146: FD06                		                  
-1147: FD06     AF         		XRA		A            
-1148: FD07     32E9FB     		STA		MustWriteBuffer		; clear flag
-1149: FD0A     CD95FD     		CALL	WritePhysical
-1150: FD0D     3AF6FB     		LDA		DiskErrorFlag		; return error flag to caller
-1151: FD10     C9         		RET               
-1152: FD11                ;********************************************************************
-1153: FD11                                    
-1154: FD11                		                  
-1155: FD11                ; indicates  selected disk, track, and sector now residing in buffer
-1156: FD11                SetInBufferDkTrkSector:
-1157: FD11     3AEAFB     		LDA		SelectedDisk 
-1158: FD14     32E4FB     		STA		InBufferDisk 
-1159: FD17     2AEBFB     		LHLD	SelectedTrack
-1160: FD1A     22E5FB     		SHLD	InBufferTrack
-1161: FD1D     3AEEFB     		LDA		SelectedPhysicalSector
-1162: FD20     32E7FB     		STA		InBufferSector
-1163: FD23     C9         		Ret               
-1164: FD24                		                  
-1165: FD24                CompareDkTrk:					;Compares just the disk and track   pointed to by DE and HL 
-1166: FD24     0E03       		MVI		C,03H			; Disk(1), Track(2)
-1167: FD26     C32BFD     		JMP		CompareDkTrkSecLoop
-1168: FD29                CompareDkTrkSec:				;Compares just the disk and track   pointed to by DE and HL 
-1169: FD29     0E04       		MVI		C,04H			; Disk(1), Track(2), Sector(1)
-1170: FD2B                CompareDkTrkSecLoop:
-1171: FD2B     1A         		LDAX	D            
-1172: FD2C     BE         		CMP		M            
-1173: FD2D     C0         		RNZ						; Not equal
-1174: FD2E     13         		INX	D             
-1175: FD2F     23         		INX	H             
-1176: FD30     0D         		DCR		C            
-1177: FD31     C8         		RZ						; return they match (zero flag set)
-1178: FD32     C32BFD     		JMP		CompareDkTrkSecLoop	; keep going
-1179: FD35                                    
-1180: FD35                ;********************************************************************
-1181: FD35                                    
-1182: FD35                ;Moves the disk, track, and sector variables pointed at by HL to those pointed at by DE 
-1183: FD35                MoveDkTrkSec:       
-1184: FD35     0E04       		MVI		C,04H			; Disk(1), Track(2), Sector(1)
-1185: FD37                MoveDkTrkSecLoop:   
-1186: FD37     7E         		MOV		A,M          
-1187: FD38     12         		STAX	D            
-1188: FD39     13         		INX		D            
-1189: FD3A     23         		INX		H            
-1190: FD3B     0D         		DCR		C            
-1191: FD3C     C8         		RZ					; exit loop done
-1192: FD3D     C337FD     		JMP		MoveDkTrkSecLoop
-1193: FD40                		                  
-1194: FD40                ;**************************************************************************************************
-1195: FD40                ;  There are two "smart" disk controllers on this system, one for the 8" floppy diskette drives,
-1196: FD40                ; and one for the 5 1/4" mini-diskette drives
-1197: FD40                ;                   
-1198: FD40                ;  The controllers are "hard-wired" to monitor certain locations in memory to detect when they are to
-1199: FD40                ; perform some disk operation. The 8" controller monitors location 0040H, and the 5 1/4 controller
-1200: FD40                ; monitors location 0045H. These are called their disk control bytes.
-1201: FD40                ; If the most significant bit of  disk control byte is set, the controller will look at the word
-1202: FD40                ; following the respective control bytes. This word must contain the address of  valid disk control
-1203: FD40                ; table that specifies the exact disk operation to be performed.
-1204: FD40                ;                   
-1205: FD40                ;  Once the operation has been completed. the controller resets its disk control byte to OOH.
-1206: FD40                ; This indicates completion to the disk driver code.
-1207: FD40                ;                   
-1208: FD40                ;  The controller also sets a return code in a disk status block -both controllers use the SAME location
-1209: FD40                ; for this, 0043H. If the first byte of this status block is less than 80H. then a disk error
-1210: FD40                ; has occurred. For this simple BIOS. no further details of the status settings are relevant.
-1211: FD40                ; Note that the disk controller has built-in retry logic -- reads and writes are attempted
-1212: FD40                ; ten times before the controller returns an error
-1213: FD40                ;                   
-1214: FD40                ;  The disk control table layout is shown below. Note that the controllers have the capability
-1215: FD40                ; for control tables to be chained together so that a sequence of disk operations can be initiated.
-1216: FD40                ; In this BIOS this feature is not used. However. the controller requires that the chain pointers
-1217: FD40                ; in the disk control tables be pointed back to the main control bytes in order to indicate
-1218: FD40                ; the end of the chain
-1219: FD40                ;**************************************************************************************************
-1220: FD40                                    
-1221: FD40                DiskControl8				EQU	040H	; 8" control byte
-1222: FD40                CommandBlock8				EQU	041H	; Control Table Pointer
-1223: FD40                                    
-1224: FD40                DiskStatusBlock				EQU	043H	; 8" and 5 1/4" status block
-1225: FD40                                    
-1226: FD40                DiskControl5				EQU	045H	; 8" control byte
-1227: FD40                CommandBlock5				EQU	046H	; Control Table Pointer
-1228: FD40                                    
-1229: FD40                FloppyReadCode				EQU	01H		; Code for Read
-1230: FD40                FloppyWriteCode				EQU	02H		; Code for Write
-1231: FD40                ;***************************************************************************
-1232: FD40                ;					Floppy Disk Control tables
-1233: FD40                ;***************************************************************************
-1234: FD40                FloppyDCT:          
-1235: FD40     00         FloppyCommand:				DB	00H		; Command
-1236: FD41     00         FloppyUnit:					DB	00H		; unit (drive) number = 0 or 1
-1237: FD42     00         FloppyHead:					DB	00H		; head number = 0 or 1
-1238: FD43     00         FloppyTrack:				DB	00H		; track number
-1239: FD44     00         FloppySector:				DB	00H		; sector number
-1240: FD45     0000       FloppyByteCount:			DW	0000H	; number of bytes to read/write
-1241: FD47     0000       FloppyDMAAddress:			DW	0000H	; transfer address
-1242: FD49     0000       FloppyNextStatusBlock:		DW	0000H	; pointer to next status block
-1243: FD4B     0000       FloppyNextControlLocation:	DW	0000H	; pointer to next control byte
-1244: FD4D                                    
-1245: FD4D                ; Write contents of disk buffer to correct sector
-1246: FD4D                WriteNoDeblock:     
-1247: FD4D     3E02       	MVI		A,FloppyWriteCode	; get write function code
-1248: FD4F     C354FD     	JMP		CommonNoDeblock
-1249: FD52                ;Read previously selected sector into disk buffer
-1250: FD52                ReadNoDeblock:      
-1251: FD52     3E01       	MVI		A,FloppyReadCode	; get read function code
-1252: FD54                CommonNoDeblock:    
-1253: FD54     3240FD     	STA		FloppyCommand		; set the correct command code
-1254: FD57     218000     	LXI		H,128				; bytes per sector
-1255: FD5A     2245FD     	SHLD	FloppyByteCount
-1256: FD5D     AF         	XRA		A					; 8" has only head 0
-1257: FD5E     3242FD     	STA		FloppyHead    
-1258: FD61                	                   
-1259: FD61     3AEAFB     	LDA		SelectedDisk		; insure only disk 0 or 1
-1260: FD64     E601       	ANI		01H           
-1261: FD66     3241FD     	STA		FloppyUnit			; set the unit number
-1262: FD69                	                   
-1263: FD69     3AEBFB     	LDA		SelectedTrack 
-1264: FD6C     3243FD     	STA		FloppyTrack			; set track number
-1265: FD6F                	                   
-1266: FD6F     3AEDFB     	LDA		SelectedSector
-1267: FD72     3244FD     	STA		FloppySector		; set sector
-1268: FD75                	                   
-1269: FD75     2A63FB     	LHLD	DMAAddress    
-1270: FD78     2247FD     	SHLD	FloppyDMAAddress	; set transfer address
-1271: FD7B                	                   
-1272: FD7B                ;  The disk controller can accept chained disk control tables, but in this case
-1273: FD7B                ; they are not used. so the "Next" pointers must be pointed back at the initial
-1274: FD7B                ; control bytes in the base page. 
-1275: FD7B     214300     	LXI		H,DiskStatusBlock
-1276: FD7E     2249FD     	SHLD	FloppyNextStatusBlock	; set pointer back to start
-1277: FD81     214000     	LXI		H,DiskControl8
-1278: FD84     224BFD     	SHLD	FloppyNextControlLocation	; set pointer back to start
-1279: FD87     2140FD     	LXI		H,FloppyCommand
-1280: FD8A     224100     	SHLD	CommandBlock8 
-1281: FD8D                	                   
-1282: FD8D     214000     	LXI		H,DiskControl8
-1283: FD90     3680       	MVI		M,080H				; activate the controller to perform operation
-1284: FD92     C3F7FD     	JMP		WaitForDiskComplete
-1285: FD95                	                   
-1286: FD95                ;Write contents of disk buffer to correct sector
-1287: FD95                WritePhysical:      
-1288: FD95     3E02       	MVI		A,FloppyWriteCode	; get write function
-1289: FD97     C39CFD     	JMP		CommonPhysical
-1290: FD9A                ReadPhysical:       
-1291: FD9A     3E01       	MVI		A,FloppyReadCode	; get read function
-1292: FD9C                CommonPhysical:     
-1293: FD9C     3240FD     	STA		FloppyCommand		; set the command
-1294: FD9F                	                   
-1295: FD9F     3AFAFB     	LDA		DiskType      
-1296: FDA2     FE01       	CPI		Floppy5				; is it 5 1/4 ?
-1297: FDA4     CAADFD     	JZ		CorrectDisktype		; yes
-1298: FDA7     3E01       	MVI		A,1           
-1299: FDA9     3209FE     	STA		DiskError			; no set error and exit
-1300: FDAC     C9         	RET                
-1301: FDAD                CorrectDisktype:    
-1302: FDAD     3AE4FB     	LDA		InBufferDisk  
-1303: FDB0     E601       	ANI		01H					; only units 0 or 1
-1304: FDB2     3241FD     	STA		FloppyUnit			; set disk
-1305: FDB5     2AE5FB     	LHLD	InBufferTrack 
-1306: FDB8     7D         	MOV		A,L					; for this controller it is a byte value
-1307: FDB9     3243FD     	STA		FloppyTrack			; set track
-1308: FDBC                ;  The sector must be converted into a head number and sector number.
-1309: FDBC                ; Sectors 0 - 8 are head 0, 9 - 17 , are head 1 
-1310: FDBC     0600       	MVI		B,0					; assume head 0
-1311: FDBE     3AE7FB     	LDA		InBufferSector
-1312: FDC1     4F         	MOV		C,A					; save copy
-1313: FDC2     FE09       	CPI		09H           
-1314: FDC4     DACBFD     	JC		Head0          
-1315: FDC7     D609       	SUI		09H					; Modulo sector
-1316: FDC9     4F         	MOV		C,A           
-1317: FDCA     04         	INR		B					; set head to 1
-1318: FDCB                Head0:              
-1319: FDCB     78         	MOV		A,B           
-1320: FDCC     3242FD     	STA		FloppyHead			; set head number
-1321: FDCF     79         	MOV		A,C           
-1322: FDD0     3C         	INR		A					; physical sectors start at 1
-1323: FDD1     3244FD     	STA		FloppySector		; set sector
-1324: FDD4     210002     	LXI		H,PhysicalSectorSize
-1325: FDD7     2245FD     	SHLD	FloppyByteCount		; set byte count
-1326: FDDA     2133F6     	LXI		H,DiskBuffer  
-1327: FDDD     2247FD     	SHLD	FloppyDMAAddress	; set transfer address
-1328: FDE0                ;	As only one control table is in use, close the status and busy chain pointers
-1329: FDE0                ;  back to the main control bytes
-1330: FDE0     214300     	LXI		H,DiskStatusBlock
-1331: FDE3     2249FD     	SHLD	FloppyNextStatusBlock
-1332: FDE6     214500     	LXI		H,DiskControl5
-1333: FDE9     224BFD     	SHLD	FloppyNextControlLocation
-1334: FDEC     2140FD     	LXI		H,FloppyCommand
-1335: FDEF     224600     	SHLD	CommandBlock5 
-1336: FDF2                	                   
-1337: FDF2     214500     	LXI		H,DiskControl5		; activate 5 1/4" disk controller
-1338: FDF5     3680       	MVI		M,080H        
-1339: FDF7                                    
-1340: FDF7                ;Wait until Disk Status Block indicates , operation complete, then check 
-1341: FDF7                ; if any errors occurred. ,On entry HL -> disk control byte	
-1342: FDF7                WaitForDiskComplete:
-1343: FDF7     7E         	MOV		A,M				; get control bytes
-1344: FDF8     B7         	ORA		A             
-1345: FDF9     C2F7FD     	JNZ		WaitForDiskComplete	; operation not done
-1346: FDFC                	                   
-1347: FDFC     3A4300     	LDA		DiskStatusBlock		; done , so now check status
-1348: FDFF     FE80       	CPI		080H          
-1349: FE01     DA09FE     	JC		DiskError      
-1350: FE04     AF         	XRA		A             
-1351: FE05     32F6FB     	STA		DiskErrorFlag		; clear the flag
-1352: FE08     C9         	RET                
-1353: FE09                	                   
-1354: FE09                DiskError:          
-1355: FE09     3E01       	MVI		A,1           
-1356: FE0B     32F6FB     	STA		DiskErrorFlag		; set the error flag
-1357: FE0E     C9         	RET                
-1358: FE0F                	                   
-1359: FE0F                ;**********************************************************************************
-1360: FE0F                ;		Disk Control table image for warm boot
-1361: FE0F                ;**********************************************************************************
-1362: FE0F                BootControlPart1:   
-1363: FE0F     01         	DB	01H				; Read function
-1364: FE10     00         	DB	00H				; unit number
-1365: FE11     00         	DB	00H				; head number
-1366: FE12     00         	DB	00H				; track number
-1367: FE13     02         	DB	02H				; Starting sector number
-1368: FE14     0010       	DW	8 * 512			; Number of bytes to read
-1369: FE16     00E0       	DW	CCPEntry		; read into this address
-1370: FE18     4300       	DW	DiskStatusBlock	; pointer to next block
-1371: FE1A     4500       	DW	DiskControl5	; pointer to next table
-1372: FE1C                BootControlPart2:   
-1373: FE1C     01         	DB	01H				; Read function
-1374: FE1D     00         	DB	00H				; unit number
-1375: FE1E     01         	DB	01H				; head number
-1376: FE1F     00         	DB	00H				; track number
-1377: FE20     01         	DB	01H				; Starting sector number
-1378: FE21     0006       	DW	3 * 512			; Number of bytes to read
-1379: FE23     00F0       	DW	CCPEntry + ( 8 * 512)		; read into this address
-1380: FE25     4300       	DW	DiskStatusBlock	; pointer to next block
-1381: FE27     4500       	DW	DiskControl5	; pointer to next table
-1382: FE29                                    
-1383: FE29                ;**********************************************************************************	
-1384: FE29                ;						Warm Boot    
-1385: FE29                ;  On warm boot. the CCP and BDOS must be reloaded into memory.
-1386: FE29                ; In this BIOS. only the 5 1/4" diskettes will be used.
-1387: FE29                ; Therefore this code is hardware specific to the controller.
-1388: FE29                ; Two prefabricated control tables are used.
-1389: FE29                ;**********************************************************************************	
-1390: FE29                WBOOT:              
-1391: FE29     318000     	LXI		SP,DefaultDiskBuffer
-1392: FE2C     110FFE     	LXI		D,BootControlPart1
-1393: FE2F     CD3BFE     	CALL	WarmBootRead  
-1394: FE32                	                   
-1395: FE32     111CFE     	LXi		D,BootControlPart2
-1396: FE35     CD3BFE     	CALL	WarmBootRead  
-1397: FE38     C340F8     	JMP		EnterCPM      
-1398: FE3B                	                   
-1399: FE3B                WarmBootRead:       
-1400: FE3B     2140FD     	LXI		H,FloppyDCT			; get pointer to the Floppy's Device Control Table
-1401: FE3E     224600     	SHLD	CommandBlock5		; put it into the Command block for drive A:
-1402: FE41     0E0D       	MVI		C,13				; set byte count for move
-1403: FE43                WarmByteMove:       
-1404: FE43     1A         	LDAX	D					; Move the coded Control block into the Command Block
-1405: FE44     77         	MOV		M,A           
-1406: FE45     23         	INX		H             
-1407: FE46     13         	INX		D             
-1408: FE47     0D         	DCR		C             
-1409: FE48     C243FE     	JNZ		WarmByteMove  
-1410: FE4B                	                   
-1411: FE4B     214500     	LXI		H,DiskControl5
-1412: FE4E     3680       	MVI		M,080H				; activate the controller 
-1413: FE50                	                   
-1414: FE50                WaitForBootComplete:
-1415: FE50     7E         	MOV		A,M					; Get the control byte
-1416: FE51     B7         	ORA		A					; Reset to 0 (Completed operation) ?
-1417: FE52     C250FE     	JNZ		WaitForBootComplete	; if not try again
-1418: FE55                	                   
-1419: FE55     3A4300     	LDA		DiskStatusBlock		; after operation what's the status?
-1420: FE58     FE80       	CPI		080H				; any errors ?
-1421: FE5A     DA5EFE     	JC		WarmBootError		; Yup
-1422: FE5D     C9         	RET							; else we are done!
-1423: FE5E                                    
-1424: FE5E                WarmBootError:      
-1425: FE5E     2167FE     	LXI		H,WarmBootErroMessage	; point at error message
-1426: FE61     CD33F8     	CALL	DisplayMessage			; sent it. and
-1427: FE64     C329FE     	JMP		WBOOT					; try again.
-1428: FE67                	                   
-1429: FE67                WarmBootErroMessage:
-1430: FE67     0D0A       	DB		0DH,0AH        
-1431: FE69     5761726D20 	DB		057H,061H,072H,06DH,020H				; Warm
-1432: FE6E     426F6F7420 	DB		042H,06FH,06FH,074H,020H				; Boot
-1433: FE73     7265744879696E67 	DB		072H,065H,074H,072,079H,069H,06EH,067H	;retrying
-1434: FE7B     2E2E2E0D0A 	DB		02EH,02EH,02EH,0DH,0AH
-1435: FE80     00         	DB		00H            
-1436: FE81                End:                
-1437: FE81                                    
-1438: FE81                                    
-1439: FE81                	                   
-1440: FE81                                    
-1441: FE81                                    
-1442: FE81                	                   
+0941: FC02                										; else its a 512 byte sector
+0942: FC02     AF         		XRA		A						; set record count to 0
+0943: FC03     32F5FB     		STA		UnalocatedlRecordCount
+0944: FC06     3C         		INR		A            
+0945: FC07     32F8FB     		STA		ReadOperation			; Indicate that this is a read
+0946: FC0A     32F7FB     		STA		MustPreReadSector		; force pre-read
+0947: FC0D     3E02       		MVI		A,WriteUnallocated		; fake de-blocking code into responding as if this
+0948: FC0F     32E3FB     		STA		WriteType				;  is the first write to an unallocated allocation block
+0949: FC12     C36EFC     		JMP		PerformReadWrite		; use common code to execute read
+0950: FC15                		                  
+0951: FC15                ;************************************************************************************************
+0952: FC15                ;		WRITE            
+0953: FC15                ;Write a 128-byte sector from the current DMA address to the previously $elected disk, track, and sector.
+0954: FC15                ;                   
+0955: FC15                ; On arrival here, the BOOS will have set register C to indicate whether this write operation is to
+0956: FC15                ; an already allocated allocation block (which means a pre-read of the sector may be needed),
+0957: FC15                ; to the directory (in which case the data will be written to the disk immediately),
+0958: FC15                ; or to the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
+0959: FC15                                    
+0960: FC15                ; Only writes to the directory take place immediately. In all other cases, the data will be moved
+0961: FC15                ; from the DMA address into the disk buffer, and only written out when circumstance, force the transfer.
+0962: FC15                ; The number of physical disk operations can therefore be reduced considerably.
+0963: FC15                ;************************************************************************************************
+0964: FC15                WRITE:              
+0965: FC15     3AF9FB     		LDA		DeblockingRequired
+0966: FC18     B7         		ORA		A            
+0967: FC19     CA49FD     		JZ		WriteNoDeblock			; if 0 use normal non-blocked write
+0968: FC1C                                    
+0969: FC1C     AF         		XRA		A            
+0970: FC1D     32F8FB     		STA		ReadOperation			; its a write (Not a read)
+0971: FC20     79         		MOV		A,C          
+0972: FC21     32E3FB     		STA		WriteType				; save the BDOS write type
+0973: FC24     FE02       		CPI		WriteUnallocated		; first write to an unallocated allocation block ?
+0974: FC26     C237FC     		JNZ		CheckUnallocatedBlock	; No, - in the middle of writing to an unallocated block ?
+0975: FC29                										; Yes, first write to unallocated allocation block. Initialize
+0976: FC29                										; variables associated with unallocated writes
+0977: FC29     3E10       		MVI		A,AllocationBlockSize/ 128	; Number of 128 byte sectors
+0978: FC2B     32F5FB     		STA		UnalocatedlRecordCount
+0979: FC2E     21EAFB     		LXI		H,SelectedDkTrkSec		; copy disk, track & sector into unallocated variables
+0980: FC31     11F1FB     		LXI		D,UnallocatedDkTrkSec
+0981: FC34     CD31FD     		CALL 	MoveDkTrkSec
+0982: FC37                		                  
+0983: FC37                	; Check if this is not the first write to an unallocated allocation block -- if it is,
+0984: FC37                	; the unallocated record count has just been set to the number of 128-byte sectors in the allocation block
+0985: FC37                CheckUnallocatedBlock:
+0986: FC37     3AF5FB     		LDA		UnalocatedlRecordCount
+0987: FC3A     B7         		ORA		A            
+0988: FC3B     CA66FC     		JZ		RequestPreread			; No - write to an unallocated block
+0989: FC3E     3D         		DCR		A						; decrement 128 byte sectors left
+0990: FC3F     32F5FB     		STA		UnalocatedlRecordCount
+0991: FC42                		                  
+0992: FC42     21EAFB     		LXI		H,SelectedDkTrkSec		; same Disk, Track & sector as for those in an unallocated block
+0993: FC45     11F1FB     		LXI		D,UnallocatedDkTrkSec
+0994: FC48     CD25FD     		CALL	CompareDkTrkSec			; are they the same
+0995: FC4B     C266FC     		JNZ		RequestPreread			; NO - do a pre-read
+0996: FC4E                										;Compare$DkSTrkSec  returns with  DE -> Unallocated$Sector , HL -> UnallocatedSSector 
+0997: FC4E     EB         		XCHG              
+0998: FC4F     34         		INR	M             
+0999: FC50     7E         		MOV		A,M          
+1000: FC51     FE48       		CPI		CPMSecPerTrack			; Sector > maximum on track ?
+1001: FC53     DA5FFC     		JC		NoTrackChange			; No ( A < M)
+1002: FC56     3600       		MVI		M,00H					; Yes
+1003: FC58     2AF2FB     		LHLD	UnallocatedTrack
+1004: FC5B     23         		INX		H						; increment track 
+1005: FC5C     22F2FB     		SHLD	UnallocatedTrack
+1006: FC5F                NoTrackChange:      
+1007: FC5F     AF         		XRA		A            
+1008: FC60     32F7FB     		STA		MustPrereadSector		; clear flag
+1009: FC63     C36EFC     		JMP		PerformReadWrite
+1010: FC66                RequestPreread:     
+1011: FC66     AF         		XRA		A            
+1012: FC67     32F5FB     		STA		UnalocatedlRecordCount	; not a write into an unallocated block
+1013: FC6A     3C         		INR		A            
+1014: FC6B     32F7FB     		STA		MustPrereadSector		; set flag
+1015: FC6E                ;*******************************************************
+1016: FC6E                ; Common code to execute both reads and writes of 128-byte sectors	
+1017: FC6E                ;*******************************************************	
+1018: FC6E                PerformReadWrite:   
+1019: FC6E     AF         		XRA		A						; Assume no disk error will occur
+1020: FC6F     32F6FB     		STA		DiskErrorFlag
+1021: FC72     3AEDFB     		LDA		SelectedSector
+1022: FC75     1F         		RAR								; Convert selected 128-byte sector
+1023: FC76     1F         		RAR								; into physical sector by dividing by 4
+1024: FC77     E63F       		ANI		03FH					; remove unwanted bits
+1025: FC79     32EEFB     		STA		SelectedPhysicalSector
+1026: FC7C     21E8FB     		LXI		H,DataInDiskBuffer		; see if there is any data here ?
+1027: FC7F     7E         		MOV		A,M          
+1028: FC80     3601       		MVI		M,001H					; force there is data here for after the actual read
+1029: FC82     B7         		ORA		A						; really is there any data here ?
+1030: FC83     CAA3FC     		JZ		ReadSectorIntoBuffer	; NO - go read into buffer
+1031: FC86                ;                   
+1032: FC86                		; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
+1033: FC86                		; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
+1034: FC86     11E4FB     		LXI		D,InBufferDkTrkSec
+1035: FC89     21EAFB     		LXI		H,SelectedDkTrkSec		; get the requested sector
+1036: FC8C     CD20FD     		CALL	CompareDkTrk			; is it in the buffer ? 
+1037: FC8F     C29CFC     		JNZ		SectorNotInBuffer		; NO, it must be read
+1038: FC92                		; Yes, it is in the buffer
+1039: FC92     3AE7FB     		LDA		InBufferSector			; get the sector
+1040: FC95     21EEFB     		LXI		H,SelectedPhysicalSector
+1041: FC98     BE         		CMP		M						; Check if correct physical sector
+1042: FC99     CAC0FC     		JZ		SectorInBuffer			; Yes - it is already in memory
+1043: FC9C                		; No, it will have to be read in over current contents of buffer
+1044: FC9C                SectorNotInBuffer:  
+1045: FC9C     3AE9FB     		LDA		MustWriteBuffer
+1046: FC9F     B7         		ORA		A						; do we need to write ?
+1047: FCA0     C491FD     		CNZ		WritePhysical			; if yes - write it out
+1048: FCA3                                    
+1049: FCA3                ReadSectorIntoBuffer:
+1050: FCA3                		; indicate the  selected disk, track, and sector now residing in buffer
+1051: FCA3     3AEAFB     		LDA		SelectedDisk 
+1052: FCA6     32E4FB     		STA		InBufferDisk 
+1053: FCA9     2AEBFB     		LHLD	SelectedTrack
+1054: FCAC     22E5FB     		SHLD	InBufferTrack
+1055: FCAF     3AEEFB     		LDA		SelectedPhysicalSector
+1056: FCB2     32E7FB     		STA		InBufferSector
+1057: FCB5                		                  
+1058: FCB5     3AF7FB     		LDA		MustPrereadSector		; do we need to pre-read
+1059: FCB8     B7         		ORA		A            
+1060: FCB9     C496FD     		CNZ		ReadPhysical			; yes - pre-read the sector
+1061: FCBC     AF         		XRA		A						; reset the flag
+1062: FCBD     32E9FB     		STA		MustWriteBuffer			; and store it away
+1063: FCC0                		                  
+1064: FCC0                ; Selected sector on correct track and  disk is already 1n the buffer.
+1065: FCC0                ; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
+1066: FCC0                SectorInBuffer:     
+1067: FCC0     3AEDFB     		LDA		SelectedSector
+1068: FCC3     E603       		ANI		SectorMask				; only want the least bits
+1069: FCC5     6F         		MOV		L,A						; to calculate offset into 512 byte buffer
+1070: FCC6     2600       		MVI		H,00H					; Multiply by 128
+1071: FCC8     29         		DAD		H						; *2  
+1072: FCC9     29         		DAD		H						; *4  
+1073: FCCA     29         		DAD		H						; *8  
+1074: FCCB     29         		DAD		H						; *16 
+1075: FCCC     29         		DAD		H						; *32 
+1076: FCCD     29         		DAD		H						; *64 
+1077: FCCE     29         		DAD		H						; *128
+1078: FCCF     1133F6     		LXI		D,DiskBuffer 
+1079: FCD2     19         		DAD		D						; HL -> 128-byte sector number start address
+1080: FCD3     EB         		XCHG							; DE -> sector in the disk buffer
+1081: FCD4     2A63FB     		LHLD	DMAAddress				; Get DMA address (set in SETDMA)
+1082: FCD7     EB         		XCHG							; assume a read so :
+1083: FCD8                										; DE -> DMA Address & HL -> sector in disk buffer
+1084: FCD8     0E10       		MVI		C,128/8					; 8 bytes per move (loop count)
+1085: FCDA                ;                   
+1086: FCDA                ;  At this point -  
+1087: FCDA                ;	C	->	loop count   
+1088: FCDA                ;	DE	->	DMA address 
+1089: FCDA                ;	HL	->	sector in disk buffer
+1090: FCDA                ;                   
+1091: FCDA     3AF8FB     		LDA		ReadOperation			; Move into or out of buffer /
+1092: FCDD     B7         		ORA		A            
+1093: FCDE     C2E6FC     		JNZ		BufferMove				; Move out of buffer
+1094: FCE1                		                  
+1095: FCE1     3C         		INR		A						; going to force a write
+1096: FCE2     32E9FB     		STA		MustWriteBuffer
+1097: FCE5     EB         		XCHG							; DE <--> HL
+1098: FCE6                		                  
+1099: FCE6                ;The following move loop moves eight bytes at a time from (HL> to (DE), C contains the loop count
+1100: FCE6                BufferMove:         
+1101: FCE6     7E         		MOV		A,M						; Get byte from source
+1102: FCE7     12         		STAX	D						; Put into destination
+1103: FCE8     13         		INX		D						; update pointers
+1104: FCE9     23         		INX		H            
+1105: FCEA                		                  
+1106: FCEA     7E         		MOV		A,M	         
+1107: FCEB     12         		STAX	D            
+1108: FCEC     13         		INX		D            
+1109: FCED     23         		INX		H            
+1110: FCEE                		                  
+1111: FCEE     7E         		MOV		A,M          
+1112: FCEF     12         		STAX	D            
+1113: FCF0     13         		INX		D            
+1114: FCF1     23         		INX		H            
+1115: FCF2                		                  
+1116: FCF2     7E         		MOV		A,M	         
+1117: FCF3     12         		STAX	D            
+1118: FCF4     13         		INX		D            
+1119: FCF5     23         		INX		H            
+1120: FCF6                		                  
+1121: FCF6     7E         		MOV		A,M          
+1122: FCF7     12         		STAX	D            
+1123: FCF8     13         		INX		D            
+1124: FCF9     23         		INX		H            
+1125: FCFA                		                  
+1126: FCFA     7E         		MOV		A,M          
+1127: FCFB     12         		STAX	D            
+1128: FCFC     13         		INX		D            
+1129: FCFD     23         		INX		H            
+1130: FCFE                		                  
+1131: FCFE     7E         		MOV		A,M	         
+1132: FCFF     12         		STAX	D            
+1133: FD00     13         		INX		D            
+1134: FD01     23         		INX		H            
+1135: FD02                		                  
+1136: FD02     7E         		MOV		A,M          
+1137: FD03     12         		STAX	D            
+1138: FD04     13         		INX		D            
+1139: FD05     23         		INX		H            
+1140: FD06                		                  
+1141: FD06     0D         		DCR		C						; count down on loop counter
+1142: FD07     C2E6FC     		JNZ		BufferMove				; repeat till done (CP/M sector moved)
+1143: FD0A                ; end of loop       
+1144: FD0A                		                  
+1145: FD0A     3AE3FB     		LDA		WriteType				; write to directory ?
+1146: FD0D     FE01       		CPI		WriteDirectory
+1147: FD0F     3AF6FB     		LDA		DiskErrorFlag			; get flag in case of a delayed read or write
+1148: FD12     C0         		RNZ								; return if delayed read or write
+1149: FD13                		                  
+1150: FD13     B7         		ORA		A						; Any disk errors ?
+1151: FD14     C0         		RNZ								; yes - abandon attempt to write to directory
+1152: FD15                		                  
+1153: FD15     AF         		XRA		A            
+1154: FD16     32E9FB     		STA		MustWriteBuffer			; clear flag
+1155: FD19     CD91FD     		CALL	WritePhysical
+1156: FD1C     3AF6FB     		LDA		DiskErrorFlag			; return error flag to caller
+1157: FD1F     C9         		RET               
+1158: FD20                ;********************************************************************
+1159: FD20                                    
+1160: FD20                		                  
+1161: FD20                                    
+1162: FD20                ; Compares just the disk and track   pointed to by DE and HL (used for Blocking/Deblocking)
+1163: FD20                CompareDkTrk:			    
+1164: FD20     0E03       		MVI		C,03H			; Disk(1), Track(2)
+1165: FD22     C327FD     		JMP		CompareDkTrkSecLoop
+1166: FD25                CompareDkTrkSec:				;Compares just the disk and track   pointed to by DE and HL 
+1167: FD25     0E04       		MVI		C,04H			; Disk(1), Track(2), Sector(1)
+1168: FD27                CompareDkTrkSecLoop:
+1169: FD27     1A         		LDAX	D            
+1170: FD28     BE         		CMP		M            
+1171: FD29     C0         		RNZ						; Not equal
+1172: FD2A     13         		INX	D             
+1173: FD2B     23         		INX	H             
+1174: FD2C     0D         		DCR		C            
+1175: FD2D     C8         		RZ						; return they match (zero flag set)
+1176: FD2E     C327FD     		JMP		CompareDkTrkSecLoop	; keep going
+1177: FD31                                    
+1178: FD31                ;********************************************************************
+1179: FD31                                    
+1180: FD31                ;Moves the disk, track, and sector variables pointed at by HL to those pointed at by DE 
+1181: FD31                MoveDkTrkSec:       
+1182: FD31     0E04       		MVI		C,04H			; Disk(1), Track(2), Sector(1)
+1183: FD33                MoveDkTrkSecLoop:   
+1184: FD33     7E         		MOV		A,M          
+1185: FD34     12         		STAX	D            
+1186: FD35     13         		INX		D            
+1187: FD36     23         		INX		H            
+1188: FD37     0D         		DCR		C            
+1189: FD38     C8         		RZ					; exit loop done
+1190: FD39     C333FD     		JMP		MoveDkTrkSecLoop
+1191: FD3C                		                  
+1192: FD3C                ;**************************************************************************************************
+1193: FD3C                ;  There are two "smart" disk controllers on this system, one for the 8" floppy diskette drives,
+1194: FD3C                ; and one for the 5 1/4" mini-diskette drives
+1195: FD3C                ;                   
+1196: FD3C                ;  The controllers are "hard-wired" to monitor certain locations in memory to detect when they are to
+1197: FD3C                ; perform some disk operation. The 8" controller monitors location 0040H, and the 5 1/4 controller
+1198: FD3C                ; monitors location 0045H. These are called their disk control bytes.
+1199: FD3C                ; If the most significant bit of  disk control byte is set, the controller will look at the word
+1200: FD3C                ; following the respective control bytes. This word must contain the address of  valid disk control
+1201: FD3C                ; table that specifies the exact disk operation to be performed.
+1202: FD3C                ;                   
+1203: FD3C                ;  Once the operation has been completed. the controller resets its disk control byte to OOH.
+1204: FD3C                ; This indicates completion to the disk driver code.
+1205: FD3C                ;                   
+1206: FD3C                ;  The controller also sets a return code in a disk status block -both controllers use the SAME location
+1207: FD3C                ; for this, 0043H. If the first byte of this status block is less than 80H. then a disk error
+1208: FD3C                ; has occurred. For this simple BIOS. no further details of the status settings are relevant.
+1209: FD3C                ; Note that the disk controller has built-in retry logic -- reads and writes are attempted
+1210: FD3C                ; ten times before the controller returns an error
+1211: FD3C                ;                   
+1212: FD3C                ;  The disk control table layout is shown below. Note that the controllers have the capability
+1213: FD3C                ; for control tables to be chained together so that a sequence of disk operations can be initiated.
+1214: FD3C                ; In this BIOS this feature is not used. However. the controller requires that the chain pointers
+1215: FD3C                ; in the disk control tables be pointed back to the main control bytes in order to indicate
+1216: FD3C                ; the end of the chain
+1217: FD3C                ;**************************************************************************************************
+1218: FD3C                                    
+1219: FD3C                DiskControl8				EQU	040H	; 8" control byte
+1220: FD3C                CommandBlock8				EQU	041H	; Control Table Pointer
+1221: FD3C                                    
+1222: FD3C                DiskStatusBlock				EQU	043H	; 8" and 5 1/4" status block
+1223: FD3C                                    
+1224: FD3C                DiskControl5				EQU	045H	; 8" control byte
+1225: FD3C                CommandBlock5				EQU	046H	; Control Table Pointer
+1226: FD3C                                    
+1227: FD3C                FloppyReadCode				EQU	01H		; Code for Read
+1228: FD3C                FloppyWriteCode				EQU	02H		; Code for Write
+1229: FD3C                ;***************************************************************************
+1230: FD3C                ;					Floppy Disk Control tables
+1231: FD3C                ;***************************************************************************
+1232: FD3C                FloppyDCT:          
+1233: FD3C     00         FloppyCommand:				DB	00H		; Command
+1234: FD3D     00         FloppyUnit:					DB	00H		; unit (drive) number = 0 or 1
+1235: FD3E     00         FloppyHead:					DB	00H		; head number = 0 or 1
+1236: FD3F     00         FloppyTrack:				DB	00H		; track number
+1237: FD40     00         FloppySector:				DB	00H		; sector number
+1238: FD41     0000       FloppyByteCount:			DW	0000H	; number of bytes to read/write
+1239: FD43     0000       FloppyDMAAddress:			DW	0000H	; transfer address
+1240: FD45     0000       FloppyNextStatusBlock:		DW	0000H	; pointer to next status block
+1241: FD47     0000       FloppyNextControlLocation:	DW	0000H	; pointer to next control byte
+1242: FD49                                    
+1243: FD49                ; Write contents of disk buffer to correct sector
+1244: FD49                WriteNoDeblock:     
+1245: FD49     3E02       	MVI		A,FloppyWriteCode	; get write function code
+1246: FD4B     C350FD     	JMP		CommonNoDeblock
+1247: FD4E                ;Read previously selected sector into disk buffer
+1248: FD4E                ReadNoDeblock:      
+1249: FD4E     3E01       	MVI		A,FloppyReadCode	; get read function code
+1250: FD50                CommonNoDeblock:    
+1251: FD50     323CFD     	STA		FloppyCommand		; set the correct command code
+1252: FD53     218000     	LXI		H,128				; bytes per sector
+1253: FD56     2241FD     	SHLD	FloppyByteCount
+1254: FD59     AF         	XRA		A					; 8" has only head 0
+1255: FD5A     323EFD     	STA		FloppyHead    
+1256: FD5D                	                   
+1257: FD5D     3AEAFB     	LDA		SelectedDisk		; insure only disk 0 or 1
+1258: FD60     E601       	ANI		01H           
+1259: FD62     323DFD     	STA		FloppyUnit			; set the unit number
+1260: FD65                	                   
+1261: FD65     3AEBFB     	LDA		SelectedTrack 
+1262: FD68     323FFD     	STA		FloppyTrack			; set track number
+1263: FD6B                	                   
+1264: FD6B     3AEDFB     	LDA		SelectedSector
+1265: FD6E     3240FD     	STA		FloppySector		; set sector
+1266: FD71                	                   
+1267: FD71     2A63FB     	LHLD	DMAAddress    
+1268: FD74     2243FD     	SHLD	FloppyDMAAddress	; set transfer address
+1269: FD77                	                   
+1270: FD77                ;  The disk controller can accept chained disk control tables, but in this case
+1271: FD77                ; they are not used. so the "Next" pointers must be pointed back at the initial
+1272: FD77                ; control bytes in the base page. 
+1273: FD77     214300     	LXI		H,DiskStatusBlock
+1274: FD7A     2245FD     	SHLD	FloppyNextStatusBlock	; set pointer back to start
+1275: FD7D     214000     	LXI		H,DiskControl8
+1276: FD80     2247FD     	SHLD	FloppyNextControlLocation	; set pointer back to start
+1277: FD83     213CFD     	LXI		H,FloppyCommand
+1278: FD86     224100     	SHLD	CommandBlock8 
+1279: FD89                	                   
+1280: FD89     214000     	LXI		H,DiskControl8
+1281: FD8C     3680       	MVI		M,080H				; activate the controller to perform operation
+1282: FD8E     C3F3FD     	JMP		WaitForDiskComplete
+1283: FD91                	                   
+1284: FD91                ;Write contents of disk buffer to correct sector
+1285: FD91                WritePhysical:      
+1286: FD91     3E02       	MVI		A,FloppyWriteCode	; get write function
+1287: FD93     C398FD     	JMP		CommonPhysical
+1288: FD96                ReadPhysical:       
+1289: FD96     3E01       	MVI		A,FloppyReadCode	; get read function
+1290: FD98                CommonPhysical:     
+1291: FD98     323CFD     	STA		FloppyCommand		; set the command
+1292: FD9B                	                   
+1293: FD9B     3AFAFB     	LDA		DiskType      
+1294: FD9E     FE01       	CPI		Floppy5				; is it 5 1/4 ?
+1295: FDA0     CAA9FD     	JZ		CorrectDisktype		; yes
+1296: FDA3     3E01       	MVI		A,1           
+1297: FDA5     3205FE     	STA		DiskError			; no set error and exit
+1298: FDA8     C9         	RET                
+1299: FDA9                CorrectDisktype:    
+1300: FDA9     3AE4FB     	LDA		InBufferDisk  
+1301: FDAC     E601       	ANI		01H					; only units 0 or 1
+1302: FDAE     323DFD     	STA		FloppyUnit			; set disk
+1303: FDB1     2AE5FB     	LHLD	InBufferTrack 
+1304: FDB4     7D         	MOV		A,L					; for this controller it is a byte value
+1305: FDB5     323FFD     	STA		FloppyTrack			; set track
+1306: FDB8                ;  The sector must be converted into a head number and sector number.
+1307: FDB8                ; Sectors 0 - 8 are head 0, 9 - 17 , are head 1 
+1308: FDB8     0600       	MVI		B,0					; assume head 0
+1309: FDBA     3AE7FB     	LDA		InBufferSector
+1310: FDBD     4F         	MOV		C,A					; save copy
+1311: FDBE     FE09       	CPI		09H           
+1312: FDC0     DAC7FD     	JC		Head0          
+1313: FDC3     D609       	SUI		09H					; Modulo sector
+1314: FDC5     4F         	MOV		C,A           
+1315: FDC6     04         	INR		B					; set head to 1
+1316: FDC7                Head0:              
+1317: FDC7     78         	MOV		A,B           
+1318: FDC8     323EFD     	STA		FloppyHead			; set head number
+1319: FDCB     79         	MOV		A,C           
+1320: FDCC     3C         	INR		A					; physical sectors start at 1
+1321: FDCD     3240FD     	STA		FloppySector		; set sector
+1322: FDD0     210002     	LXI		H,PhysicalSectorSize
+1323: FDD3     2241FD     	SHLD	FloppyByteCount		; set byte count
+1324: FDD6     2133F6     	LXI		H,DiskBuffer  
+1325: FDD9     2243FD     	SHLD	FloppyDMAAddress	; set transfer address
+1326: FDDC                ;	As only one control table is in use, close the status and busy chain pointers
+1327: FDDC                ;  back to the main control bytes
+1328: FDDC     214300     	LXI		H,DiskStatusBlock
+1329: FDDF     2245FD     	SHLD	FloppyNextStatusBlock
+1330: FDE2     214500     	LXI		H,DiskControl5
+1331: FDE5     2247FD     	SHLD	FloppyNextControlLocation
+1332: FDE8     213CFD     	LXI		H,FloppyCommand
+1333: FDEB     224600     	SHLD	CommandBlock5 
+1334: FDEE                	                   
+1335: FDEE     214500     	LXI		H,DiskControl5		; activate 5 1/4" disk controller
+1336: FDF1     3680       	MVI		M,080H        
+1337: FDF3                                    
+1338: FDF3                ;Wait until Disk Status Block indicates , operation complete, then check 
+1339: FDF3                ; if any errors occurred. ,On entry HL -> disk control byte	
+1340: FDF3                WaitForDiskComplete:
+1341: FDF3     7E         	MOV		A,M				; get control bytes
+1342: FDF4     B7         	ORA		A             
+1343: FDF5     C2F3FD     	JNZ		WaitForDiskComplete	; operation not done
+1344: FDF8                	                   
+1345: FDF8     3A4300     	LDA		DiskStatusBlock		; done , so now check status
+1346: FDFB     FE80       	CPI		080H          
+1347: FDFD     DA05FE     	JC		DiskError      
+1348: FE00     AF         	XRA		A             
+1349: FE01     32F6FB     	STA		DiskErrorFlag		; clear the flag
+1350: FE04     C9         	RET                
+1351: FE05                	                   
+1352: FE05                DiskError:          
+1353: FE05     3E01       	MVI		A,1           
+1354: FE07     32F6FB     	STA		DiskErrorFlag		; set the error flag
+1355: FE0A     C9         	RET                
+1356: FE0B                	                   
+1357: FE0B                ;**********************************************************************************
+1358: FE0B                ;		Disk Control table image for warm boot
+1359: FE0B                ;**********************************************************************************
+1360: FE0B                BootControlPart1:   
+1361: FE0B     01         	DB	01H				; Read function
+1362: FE0C     00         	DB	00H				; unit number
+1363: FE0D     00         	DB	00H				; head number
+1364: FE0E     00         	DB	00H				; track number
+1365: FE0F     02         	DB	02H				; Starting sector number
+1366: FE10     0010       	DW	8 * 512			; Number of bytes to read
+1367: FE12     00E0       	DW	CCPEntry		; read into this address
+1368: FE14     4300       	DW	DiskStatusBlock	; pointer to next block
+1369: FE16     4500       	DW	DiskControl5	; pointer to next table
+1370: FE18                BootControlPart2:   
+1371: FE18     01         	DB	01H				; Read function
+1372: FE19     00         	DB	00H				; unit number
+1373: FE1A     01         	DB	01H				; head number
+1374: FE1B     00         	DB	00H				; track number
+1375: FE1C     01         	DB	01H				; Starting sector number
+1376: FE1D     0006       	DW	3 * 512			; Number of bytes to read
+1377: FE1F     00F0       	DW	CCPEntry + ( 8 * 512)		; read into this address
+1378: FE21     4300       	DW	DiskStatusBlock	; pointer to next block
+1379: FE23     4500       	DW	DiskControl5	; pointer to next table
+1380: FE25                                    
+1381: FE25                ;**********************************************************************************	
+1382: FE25                ;						Warm Boot    
+1383: FE25                ;  On warm boot. the CCP and BDOS must be reloaded into memory.
+1384: FE25                ; In this BIOS. only the 5 1/4" diskettes will be used.
+1385: FE25                ; Therefore this code is hardware specific to the controller.
+1386: FE25                ; Two prefabricated control tables are used.
+1387: FE25                ;**********************************************************************************	
+1388: FE25                WBOOT:              
+1389: FE25     318000     	LXI		SP,DefaultDiskBuffer
+1390: FE28     110BFE     	LXI		D,BootControlPart1
+1391: FE2B     CD37FE     	CALL	WarmBootRead  
+1392: FE2E                	                   
+1393: FE2E     1118FE     	LXi		D,BootControlPart2
+1394: FE31     CD37FE     	CALL	WarmBootRead  
+1395: FE34     C340F8     	JMP		EnterCPM      
+1396: FE37                	                   
+1397: FE37                WarmBootRead:       
+1398: FE37     213CFD     	LXI		H,FloppyDCT			; get pointer to the Floppy's Device Control Table
+1399: FE3A     224600     	SHLD	CommandBlock5		; put it into the Command block for drive A:
+1400: FE3D     0E0D       	MVI		C,13				; set byte count for move
+1401: FE3F                WarmByteMove:       
+1402: FE3F     1A         	LDAX	D					; Move the coded Control block into the Command Block
+1403: FE40     77         	MOV		M,A           
+1404: FE41     23         	INX		H             
+1405: FE42     13         	INX		D             
+1406: FE43     0D         	DCR		C             
+1407: FE44     C23FFE     	JNZ		WarmByteMove  
+1408: FE47                	                   
+1409: FE47     214500     	LXI		H,DiskControl5
+1410: FE4A     3680       	MVI		M,080H				; activate the controller 
+1411: FE4C                	                   
+1412: FE4C                WaitForBootComplete:
+1413: FE4C     7E         	MOV		A,M					; Get the control byte
+1414: FE4D     B7         	ORA		A					; Reset to 0 (Completed operation) ?
+1415: FE4E     C24CFE     	JNZ		WaitForBootComplete	; if not try again
+1416: FE51                	                   
+1417: FE51     3A4300     	LDA		DiskStatusBlock		; after operation what's the status?
+1418: FE54     FE80       	CPI		080H				; any errors ?
+1419: FE56     DA5AFE     	JC		WarmBootError		; Yup
+1420: FE59     C9         	RET							; else we are done!
+1421: FE5A                                    
+1422: FE5A                WarmBootError:      
+1423: FE5A     2163FE     	LXI		H,WarmBootErroMessage	; point at error message
+1424: FE5D     CD33F8     	CALL	DisplayMessage			; sent it. and
+1425: FE60     C325FE     	JMP		WBOOT					; try again.
+1426: FE63                	                   
+1427: FE63                WarmBootErroMessage:
+1428: FE63     0D0A       	DB		0DH,0AH        
+1429: FE65     5761726D20 	DB		057H,061H,072H,06DH,020H				; Warm
+1430: FE6A     426F6F7420 	DB		042H,06FH,06FH,074H,020H				; Boot
+1431: FE6F     7265744879696E67 	DB		072H,065H,074H,072,079H,069H,06EH,067H	;retrying
+1432: FE77     2E2E2E0D0A 	DB		02EH,02EH,02EH,0DH,0AH
+1433: FE7C     00         	DB		00H            
+1434: FE7D                End:                
+1435: FE7D                                    
+1436: FE7D                                    
+1437: FE7D                	                   
+1438: FE7D                                    
+1439: FE7D                                    
+1440: FE7D                	                   
 
 
 
@@ -1450,24 +1448,24 @@
 0000	0000	$                             		
 
 0080	F833	AFTERDISKBUFFER               		  0226,
-0861	0800	ALLOCATIONBLOCKSIZE           		  0976,
+0861	0800	ALLOCATIONBLOCKSIZE           		  0977,
 
 0026	E806	BDOSENTRY                     		  0037,  0250,
 0016	0E00	BDOSLENGTH                    		  0019,  0020,  0027,
 0027	F600	BIOSENTRY                     		  0054,
 0017	0A00	BIOSLENGTH                    		  0019,  0020,
 0183	F6F9	BOOT                          		  0058,
-1362	FE0F	BOOTCONTROLPART1              		  1392,
-1372	FE1C	BOOTCONTROLPART2              		  1395,
-1095	FCD7	BUFFERMOVE                    		  1088,  1137,
+1360	FE0B	BOOTCONTROLPART1              		  1390,
+1370	FE18	BOOTCONTROLPART2              		  1393,
+1100	FCE6	BUFFERMOVE                    		  1093,  1142,
 
-0024	E000	CCPENTRY                      		  0026,  0027,  0259,  1369,  1379,
+0024	E000	CCPENTRY                      		  0026,  0027,  0259,  1367,  1377,
 0015	0800	CCPLENGTH                     		  0019,  0020,  0026,  0027,
-0984	FC37	CHECKUNALLOCATEDBLOCK         		  0973,
-1227	0046	COMMANDBLOCK5                 		  1335,  1401,
-1222	0041	COMMANDBLOCK8                 		  1280,
-1252	FD54	COMMONNODEBLOCK               		  1248,
-1292	FD9C	COMMONPHYSICAL                		  1289,
+0985	FC37	CHECKUNALLOCATEDBLOCK         		  0974,
+1225	0046	COMMANDBLOCK5                 		  1333,  1399,
+1220	0041	COMMANDBLOCK8                 		  1278,
+1250	FD50	COMMONNODEBLOCK               		  1246,
+1290	FD98	COMMONPHYSICAL                		  1287,
 0408	00DF	COMMUNICATIONBAUDMODE         		  0102,
 0409	00DE	COMMUNICATIONBAUDRATE         		  0106,
 0404	00EC	COMMUNICATIONDATAPORT         		  0423,
@@ -1479,80 +1477,80 @@
 0449	F917	COMMUNICATIONOUTSTATUS        		  0330,
 0403	00ED	COMMUNICATIONSTATUSPORT       		  0422,
 0421	F8F2	COMMUNICATIONTABLE            		  0437,  0450,  0465,  0478,
-1165	FD24	COMPAREDKTRK                  		  1037,
-1168	FD29	COMPAREDKTRKSEC               		  0993,
-1170	FD2B	COMPAREDKTRKSECLOOP           		  1167,  1178,
+1163	FD20	COMPAREDKTRK                  		  1036,
+1166	FD25	COMPAREDKTRKSEC               		  0994,
+1168	FD27	COMPAREDKTRKSECLOOP           		  1165,  1176,
 0284	F878	CONIN                         		  0062,
 0299	F886	CONOUT                        		  0063,  0237,
 0269	F862	CONST                         		  0061,
-1301	FDAD	CORRECTDISKTYPE               		  1297,
+1299	FDA9	CORRECTDISKTYPE               		  1295,
 0863	0004	CPMSECPERPHYSICAL             		  0864,  0865,
-0864	0048	CPMSECPERTRACK                		  0999,
+0864	0048	CPMSECPERTRACK                		  1000,
 0114	000D	CR                            		  0131,  0135,  0141,  0148,  0155,  0162,  0169,
 
-0888	FBE8	DATAINDISKBUFFER              		  0843,  1025,
+0888	FBE8	DATAINDISKBUFFER              		  0843,  1026,
 0010	3930	DAY                           		  0126,
-0922	FBF9	DEBLOCKINGREQUIRED            		  0740,  0936,  0964,
+0922	FBF9	DEBLOCKINGREQUIRED            		  0740,  0936,  0965,
 0035	0004	DEFAULTDISK                   		  0219,  0257,
-0048	0080	DEFAULTDISKBUFFER             		  0253,  1391,
+0048	0080	DEFAULTDISKBUFFER             		  0253,  1389,
 0626	F9C1	DIRECTORYBUFFER               		  0597,  0605,  0613,  0621,
 0692	FAC1	DISKAALLOCATIONVECTOR         		  0600,
 0679	FA61	DISKAWORKAREA                 		  0599,
 0693	FAD7	DISKBALLOCATIONVECTOR         		  0608,
-0078	F633	DISKBUFFER                    		  0082,  1073,  1326,
+0078	F633	DISKBUFFER                    		  0082,  1078,  1324,
 0680	FA81	DISKBWORKAREA                 		  0607,
 0695	FAED	DISKCALLOCATIONVECTOR         		  0616,
-1226	0045	DISKCONTROL5                  		  1332,  1337,  1371,  1381,  1411,
-1221	0040	DISKCONTROL8                  		  1277,  1282,
+1224	0045	DISKCONTROL5                  		  1330,  1335,  1369,  1379,  1409,
+1219	0040	DISKCONTROL8                  		  1275,  1280,
 0681	FAA1	DISKCWORKAREA                 		  0615,
 0696	FB0C	DISKDALLOCATIONVECTOR         		  0624,
 0682	FAB1	DISKDWORKAREA                 		  0623,
-1354	FE09	DISKERROR                     		  1299,  1349,
-0915	FBF6	DISKERRORFLAG                 		  1019,  1141,  1150,  1351,  1356,
+1352	FE05	DISKERROR                     		  1297,  1347,
+0915	FBF6	DISKERRORFLAG                 		  1020,  1147,  1156,  1349,  1354,
 0592	F981	DISKPARAMETERHEADERS          		  0723,
-1224	0043	DISKSTATUSBLOCK               		  1275,  1330,  1347,  1370,  1380,  1419,
-0923	FBFA	DISKTYPE                      		  0737,  1295,
-0230	F833	DISPLAYMESSAGE                		  0216,  0240,  1426,
-0767	FB63	DMAADDRESS                    		  0771,  1076,  1269,
+1222	0043	DISKSTATUSBLOCK               		  1273,  1328,  1345,  1368,  1378,  1417,
+0923	FBFA	DISKTYPE                      		  0737,  1293,
+0230	F833	DISPLAYMESSAGE                		  0216,  0240,  1424,
+0767	FB63	DMAADDRESS                    		  0771,  1081,  1267,
 0467	F935	DUMMYINPUT                    		  0297,
 0439	F908	DUMMYINSTATUS                 		  0282,
 0480	F94A	DUMMYOUTPUT                   		  0309,  0343,  0354,  0365,
 0452	F91D	DUMMYOUTSTATUS                		  0331,
 
-1436	FE81	END                           		
-0242	F840	ENTERCPM                      		  0222,  1397,
+1434	FE7D	END                           		
+0242	F840	ENTERCPM                      		  0222,  1395,
 
 0044	005C	FCB                           		
-0629	0001	FLOPPY5                       		  0641,  1296,
+0629	0001	FLOPPY5                       		  0641,  1294,
 0643	FA42	FLOPPY5PARAMETERBLOCK         		  0598,  0606,
 0785	FB6B	FLOPPY5SKEWTABLE              		  0595,  0603,  0619,
 0630	0002	FLOPPY8                       		  0658,
 0661	FA52	FLOPPY8PARAMETERBLOCK         		  0614,  0622,
 0809	FBB3	FLOPPY8SKEWTABLE              		  0611,
-1240	FD45	FLOPPYBYTECOUNT               		  1255,  1325,
-1235	FD40	FLOPPYCOMMAND                 		  1253,  1279,  1293,  1334,
-1234	FD40	FLOPPYDCT                     		  1400,
-1241	FD47	FLOPPYDMAADDRESS              		  1270,  1327,
-1237	FD42	FLOPPYHEAD                    		  1257,  1320,
-1243	FD4B	FLOPPYNEXTCONTROLLOCATION     		  1278,  1333,
-1242	FD49	FLOPPYNEXTSTATUSBLOCK         		  1276,  1331,
-1229	0001	FLOPPYREADCODE                		  1251,  1291,
-1239	FD44	FLOPPYSECTOR                  		  1267,  1323,
-1238	FD43	FLOPPYTRACK                   		  1264,  1307,
-1236	FD41	FLOPPYUNIT                    		  1261,  1304,
-1230	0002	FLOPPYWRITECODE               		  1247,  1288,
+1238	FD41	FLOPPYBYTECOUNT               		  1253,  1323,
+1233	FD3C	FLOPPYCOMMAND                 		  1251,  1277,  1291,  1332,
+1232	FD3C	FLOPPYDCT                     		  1398,
+1239	FD43	FLOPPYDMAADDRESS              		  1268,  1325,
+1235	FD3E	FLOPPYHEAD                    		  1255,  1318,
+1241	FD47	FLOPPYNEXTCONTROLLOCATION     		  1276,  1331,
+1240	FD45	FLOPPYNEXTSTATUSBLOCK         		  1274,  1329,
+1227	0001	FLOPPYREADCODE                		  1249,  1289,
+1237	FD40	FLOPPYSECTOR                  		  1265,  1321,
+1236	FD3F	FLOPPYTRACK                   		  1262,  1305,
+1234	FD3D	FLOPPYUNIT                    		  1259,  1302,
+1228	0002	FLOPPYWRITECODE               		  1245,  1286,
 
 0276	F86A	GETCONSOLESTATUS              		  0270,
 0323	F89C	GETLISTSTATUS                 		  0317,
 
-1318	FDCB	HEAD0                         		  1314,
+1316	FDC7	HEAD0                         		  1312,
 0839	FBD3	HOME                          		  0067,
 0844	FBDD	HOMENOWRITE                   		  0842,
 
-0884	FBE4	INBUFFERDISK                  		  1158,  1302,
-0883	FBE4	INBUFFERDKTRKSEC              		  1035,
-0886	FBE7	INBUFFERSECTOR                		  1040,  1162,  1311,
-0885	FBE5	INBUFFERTRACK                 		  1160,  1305,
+0884	FBE4	INBUFFERDISK                  		  1052,  1300,
+0883	FBE4	INBUFFERDKTRKSEC              		  1034,
+0886	FBE7	INBUFFERSECTOR                		  1039,  1056,  1309,
+0885	FBE5	INBUFFERTRACK                 		  1054,  1303,
 0212	F713	INITIALIZECOMPLETE            		  0195,
 0192	F6FD	INITIALIZELOOP                		  0209,
 0200	F707	INITIALIZENEXTBYTE            		  0207,
@@ -1573,13 +1571,13 @@
 
 0013	0040	MEMORYSIZE                    		
 0009	3830	MONTH                         		  0123,
-1183	FD35	MOVEDKTRKSEC                  		  0980,
-1185	FD37	MOVEDKTRKSECLOOP              		  1192,
-0918	FBF7	MUSTPREREADSECTOR             		  0945,  1007,  1013,  1053,
-0890	FBE9	MUSTWRITEBUFFER               		  0840,  1047,  1057,  1091,  1148,
+1181	FD31	MOVEDKTRKSEC                  		  0981,
+1183	FD33	MOVEDKTRKSECLOOP              		  1190,
+0918	FBF7	MUSTPREREADSECTOR             		  0946,  1008,  1014,  1058,
+0890	FBE9	MUSTWRITEBUFFER               		  0840,  1045,  1062,  1096,  1154,
 
 0633	0080	NEEDDEBLOCKING                		  0641,  0739,
-1005	FC5F	NOTRACKCHANGE                 		  1000,
+1006	FC5F	NOTRACKCHANGE                 		  1001,
 0698	0004	NUMBEROFLOGICALDISKS          		  0711,
 
 0005	00D3	OUTOPCODE                     		  0203,  0532,
@@ -1589,37 +1587,36 @@
 0503	F95B	OUTPUTSTATUSPORT              		  0501,
 
 0031	0000	PAGEZERO                      		
-1017	FC6E	PERFORMREADWRITE              		  0948,  1008,
+1018	FC6E	PERFORMREADWRITE              		  0949,  1009,
 0862	0012	PHYSICALSECPERTRACK           		  0864,
-0077	0200	PHYSICALSECTORSIZE            		  0079,  0863,  1324,
+0077	0200	PHYSICALSECTORSIZE            		  0079,  0863,  1322,
 0345	F8BC	PUNCH                         		  0065,
 
 0046	007D	RANDOMRECORDPOSITION          		
 0935	FBFB	READ                          		  0072,
 0358	F8CD	READER                        		  0066,
-1250	FD52	READNODEBLOCK                 		  0938,
-0921	FBF8	READOPERATION                 		  0944,  0969,  1086,
-1290	FD9A	READPHYSICAL                  		  1055,
-1051	FCA3	READSECTORINTOBUFFER          		  1029,
-1009	FC66	REQUESTPREREAD                		  0987,  0994,
+1248	FD4E	READNODEBLOCK                 		  0938,
+0921	FBF8	READOPERATION                 		  0945,  0970,  1091,
+1288	FD96	READPHYSICAL                  		  1060,
+1049	FCA3	READSECTORINTOBUFFER          		  1030,
+1010	FC66	REQUESTPREREAD                		  0988,  0995,
 
 0866	0002	SECTORBITSHIFT                		
-1061	FCB1	SECTORINBUFFER                		  1043,
-0865	0003	SECTORMASK                    		  1063,
-1046	FC9C	SECTORNOTINBUFFER             		  1038,
+1066	FCC0	SECTORINBUFFER                		  1042,
+0865	0003	SECTORMASK                    		  1068,
+1044	FC9C	SECTORNOTINBUFFER             		  1037,
 0825	FBCD	SECTRAN                       		  0075,
 0708	FB2B	SELDSK                        		  0068,
-0896	FBEA	SELECTEDDISK                  		  0714,  1157,  1259,
+0896	FBEA	SELECTEDDISK                  		  0714,  1051,  1257,
 0905	FBF0	SELECTEDDISKDEBLOCK           		
 0904	FBEF	SELECTEDDISKTYPE              		
-0895	FBEA	SELECTEDDKTRKSEC              		  0978,  0991,  1036,
-0902	FBEE	SELECTEDPHYSICALSECTOR        		  1024,  1041,  1161,
-0898	FBED	SELECTEDSECTOR                		  0760,  1020,  1062,  1266,
-0897	FBEB	SELECTEDTRACK                 		  0751,  1159,  1263,
+0895	FBEA	SELECTEDDKTRKSEC              		  0979,  0992,  1035,
+0902	FBEE	SELECTEDPHYSICALSECTOR        		  1025,  1040,  1055,
+0898	FBED	SELECTEDSECTOR                		  0760,  1021,  1067,  1264,
+0897	FBEB	SELECTEDTRACK                 		  0751,  1053,  1261,
 0369	F8DC	SELECTROUTINE                 		  0278,  0292,  0304,  0327,  0339,  0352,  0363,
 0377	F8DD	SELECTROUTINE21               		
 0768	FB65	SETDMA                        		  0071,  0254,
-1156	FD11	SETINBUFFERDKTRKSECTOR        		  1052,
 0758	FB5E	SETSEC                        		  0070,
 0748	FB58	SETTRK                        		  0069,  0846,
 0117	F643	SIGNONMESSAGE                 		  0215,
@@ -1644,27 +1641,27 @@
 0411	F8EA	TTYTABLE                      		  0431,  0444,  0457,  0472,
 
 0910	FBF1	UNALLOCATEDDISK               		
-0909	FBF1	UNALLOCATEDDKTRKSEC           		  0979,  0992,
+0909	FBF1	UNALLOCATEDDKTRKSEC           		  0980,  0993,
 0912	FBF4	UNALLOCATEDSECTOR             		
-0911	FBF2	UNALLOCATEDTRACK              		  1002,  1004,
-0913	FBF5	UNALOCATEDLRECORDCOUNT        		  0942,  0977,  0985,  0989,  1011,
+0911	FBF2	UNALLOCATEDTRACK              		  1003,  1005,
+0913	FBF5	UNALOCATEDLRECORDCOUNT        		  0943,  0978,  0986,  0990,  1012,
 
 0008	3130	VERSION                       		  0120,
 
-1414	FE50	WAITFORBOOTCOMPLETE           		  1417,
-1342	FDF7	WAITFORDISKCOMPLETE           		  1284,  1345,
+1412	FE4C	WAITFORBOOTCOMPLETE           		  1415,
+1340	FDF3	WAITFORDISKCOMPLETE           		  1282,  1343,
 0059	F603	WARMBOOTENTRY                 		  0032,  0247,
-1429	FE67	WARMBOOTERROMESSAGE           		  1425,
-1424	FE5E	WARMBOOTERROR                 		  1421,
-1399	FE3B	WARMBOOTREAD                  		  1393,  1396,
-1403	FE43	WARMBYTEMOVE                  		  1409,
-1390	FE29	WBOOT                         		  0060,  1427,
-0963	FC15	WRITE                         		  0073,
+1427	FE63	WARMBOOTERROMESSAGE           		  1423,
+1422	FE5A	WARMBOOTERROR                 		  1419,
+1397	FE37	WARMBOOTREAD                  		  1391,  1394,
+1401	FE3F	WARMBYTEMOVE                  		  1407,
+1388	FE25	WBOOT                         		  0060,  1425,
+0964	FC15	WRITE                         		  0073,
 0875	0000	WRITEALLOCATED                		
-0876	0001	WRITEDIRECTORY                		  1140,
-1246	FD4D	WRITENODEBLOCK                		  0966,
-1287	FD95	WRITEPHYSICAL                 		  1049,  1149,
-0879	FBE3	WRITETYPE                     		  0947,  0971,  1139,
-0877	0002	WRITEUNALLOCATED              		  0946,  0972,
+0876	0001	WRITEDIRECTORY                		  1146,
+1244	FD49	WRITENODEBLOCK                		  0967,
+1285	FD91	WRITEPHYSICAL                 		  1047,  1155,
+0879	FBE3	WRITETYPE                     		  0948,  0972,  1145,
+0877	0002	WRITEUNALLOCATED              		  0947,  0973,
 
 0011	3531	YEAR                          		  0129,
