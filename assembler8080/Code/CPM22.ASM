@@ -59,6 +59,7 @@ DOLLAR	EQU		024H		; $
 ;   Set origin for CP/M
 ;
 	ORG	(MEM-8)*1024
+CodeStart:
 ;
 CBASE:
 	JMP	COMMAND	;execute command processor (ccp).
@@ -4199,4 +4200,5 @@ SECTRN:	JMP	BIOSEntry + 030H
 ;*
 ;******************   E N D   O F   C P / M   *****************
 ;*
-
+CodeEnd:
+		END

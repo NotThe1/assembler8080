@@ -4,6 +4,7 @@
 					; Andy Johnston-Laird
 
 	ORG	0F981H	; Continue from bios.asm
+CodeStart:
 PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128,
 	
 ; 					High level diskette drivers
@@ -911,5 +912,6 @@ UNALLOCATEDRECORDCOUNT:
 WRITENOBLOCK:
 WRITETYPE:
 
-	
+CodeEnd:
+			END
 

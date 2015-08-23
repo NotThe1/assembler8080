@@ -52,7 +52,7 @@ DefaultDiskBuffer:
 
 
 	ORG		BIOSEntry		; Assemble code at BIOS address
-		
+CodeStart:		
 		; BIOS jum Vector
 		
 	JMP	BOOT			; 00 Checked
@@ -627,7 +627,7 @@ DirectoryBuffer:	DS	128
 
 	; Disk Types
 Floppy5		EQU		1 		; 5 1/4" mini floppy
-Floppy8 	EQU		2 		; 8"  floppy (SS SD)
+Floppy8		EQU		2 		; 8"  floppy (SS SD)
 
 	; blocking/de-blocking indicator
 NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
@@ -915,10 +915,10 @@ UnalocatedlRecordCount:	DB		00H		; Number of unallocated "records"in current pre
 DiskErrorFlag:			DB		00H		; Non-Zero - unrecoverable error output "Bad Sector" message
 
 	; Flags used inside the de-blocking code
-MustPrereadSector:		DB		00H		; non-zero if physical sector must be read into the disk buffer
+PrereadSectorFlag:		DB		00H		; non-zero if physical sector must be read into the disk buffer
 										; either before a write to a allocated block can occur, or
 										; for a normal CP/M 128 byte sector read
-ReadOperation:			DB		00H		; Non-zero when a CP/M 128 byte sector is to be read
+ReadFlag:				DB		00H		; Non-zero when a CP/M 128 byte sector is to be read
 DeblockingRequired:		DB		00H		; Non-zero when the selected disk needs de-blocking (set in SELDSK)
 DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 
@@ -942,8 +942,8 @@ READ:
 		XRA		A						; set record count to 0
 		STA		UnalocatedlRecordCount
 		INR		A
-		STA		ReadOperation			; Indicate that this is a read
-		STA		MustPreReadSector		; force pre-read
+		STA		ReadFlag			; Set to non zero to indicate that this is a read
+		STA		PrereadSectorFlag		; force pre-read
 		MVI		A,WriteUnallocated		; fake de-blocking code into responding as if this
 		STA		WriteType				;  is the first write to an unallocated allocation block
 		JMP		PerformReadWrite		; use common code to execute read
@@ -964,16 +964,16 @@ READ:
 WRITE:
 		LDA		DeblockingRequired
 		ORA		A
-		JZ		WriteNoDeblock			; if 0 use normal non-blocked write
-
+		JZ		WriteNoDeblock			; if 0 use non-blocked write
+; Buffered I/O
 		XRA		A
-		STA		ReadOperation			; its a write (Not a read)
+		STA		ReadFlag				; Set to zero to indicate that this is not a read
 		MOV		A,C
 		STA		WriteType				; save the BDOS write type
 		CPI		WriteUnallocated		; first write to an unallocated allocation block ?
 		JNZ		CheckUnallocatedBlock	; No, - in the middle of writing to an unallocated block ?
-										; Yes, first write to unallocated allocation block. Initialize
-										; variables associated with unallocated writes
+										; Yes, It is the first write to unallocated allocation block.
+; Initialize  variables associated with unallocated writes
 		MVI		A,AllocationBlockSize/ 128	; Number of 128 byte sectors
 		STA		UnalocatedlRecordCount
 		LXI		H,SelectedDkTrkSec		; copy disk, track & sector into unallocated variables
@@ -1005,13 +1005,14 @@ CheckUnallocatedBlock:
 		SHLD	UnallocatedTrack
 NoTrackChange:
 		XRA		A
-		STA		MustPrereadSector		; clear flag
+		STA		PrereadSectorFlag		; clear flag
 		JMP		PerformReadWrite
+		
 RequestPreread:
 		XRA		A
 		STA		UnalocatedlRecordCount	; not a write into an unallocated block
 		INR		A
-		STA		MustPrereadSector		; set flag
+		STA		PrereadSectorFlag		; set flag
 ;*******************************************************
 ; Common code to execute both reads and writes of 128-byte sectors	
 ;*******************************************************	
@@ -1055,7 +1056,7 @@ ReadSectorIntoBuffer:
 		LDA		SelectedPhysicalSector
 		STA		InBufferSector
 		
-		LDA		MustPrereadSector		; do we need to pre-read
+		LDA		PrereadSectorFlag		; do we need to pre-read
 		ORA		A
 		CNZ		ReadPhysical			; yes - pre-read the sector
 		XRA		A						; reset the flag
@@ -1088,8 +1089,8 @@ SectorInBuffer:
 ;	DE	->	DMA address
 ;	HL	->	sector in disk buffer
 ;
-		LDA		ReadOperation			; Move into or out of buffer /
-		ORA		A
+		LDA		ReadFlag				; Move into or out of buffer /
+		ORA		A						; 0 => Write, non Zero => Read
 		JNZ		BufferMove				; Move out of buffer
 		
 		INR		A						; going to force a write
@@ -1224,57 +1225,57 @@ DiskStatusBlock				EQU	043H	; 8" and 5 1/4" status block
 DiskControl5				EQU	045H	; 8" control byte
 CommandBlock5				EQU	046H	; Control Table Pointer
 
-FloppyReadCode				EQU	01H		; Code for Read
-FloppyWriteCode				EQU	02H		; Code for Write
+DiskReadCode				EQU	01H		; Code for Read
+DiskWriteCode				EQU	02H		; Code for Write
 ;***************************************************************************
-;					Floppy Disk Control tables
+;					Disk Control tables
 ;***************************************************************************
-FloppyDCT:
-FloppyCommand:				DB	00H		; Command
-FloppyUnit:					DB	00H		; unit (drive) number = 0 or 1
-FloppyHead:					DB	00H		; head number = 0 or 1
-FloppyTrack:				DB	00H		; track number
-FloppySector:				DB	00H		; sector number
-FloppyByteCount:			DW	0000H	; number of bytes to read/write
-FloppyDMAAddress:			DW	0000H	; transfer address
-FloppyNextStatusBlock:		DW	0000H	; pointer to next status block
-FloppyNextControlLocation:	DW	0000H	; pointer to next control byte
+DiskControlTable:
+DCTCommand:				DB	00H		; Command
+DCTUnit:					DB	00H		; unit (drive) number = 0 or 1
+DCTHead:					DB	00H		; head number = 0 or 1
+DCTTrack:				DB	00H		; track number
+DCTSector:				DB	00H		; sector number
+DCTByteCount:			DW	0000H	; number of bytes to read/write
+DCTDMAAddress:			DW	0000H	; transfer address
+DCTNextStatusBlock:		DW	0000H	; pointer to next status block
+DCTNextControlLocation:	DW	0000H	; pointer to next control byte
 
 ; Write contents of disk buffer to correct sector
 WriteNoDeblock:
-	MVI		A,FloppyWriteCode	; get write function code
+	MVI		A,DiskWriteCode	; get write function code
 	JMP		CommonNoDeblock
 ;Read previously selected sector into disk buffer
 ReadNoDeblock:
-	MVI		A,FloppyReadCode	; get read function code
+	MVI		A,DiskReadCode	; get read function code
 CommonNoDeblock:
-	STA		FloppyCommand		; set the correct command code
+	STA		DCTCommand		; set the correct command code
 	LXI		H,128				; bytes per sector
-	SHLD	FloppyByteCount
+	SHLD	DCTByteCount
 	XRA		A					; 8" has only head 0
-	STA		FloppyHead
+	STA		DCTHead
 	
 	LDA		SelectedDisk		; insure only disk 0 or 1
 	ANI		01H
-	STA		FloppyUnit			; set the unit number
+	STA		DCTUnit			; set the unit number
 	
 	LDA		SelectedTrack
-	STA		FloppyTrack			; set track number
+	STA		DCTTrack			; set track number
 	
 	LDA		SelectedSector
-	STA		FloppySector		; set sector
+	STA		DCTSector		; set sector
 	
 	LHLD	DMAAddress
-	SHLD	FloppyDMAAddress	; set transfer address
+	SHLD	DCTDMAAddress	; set transfer address
 	
 ;  The disk controller can accept chained disk control tables, but in this case
 ; they are not used. so the "Next" pointers must be pointed back at the initial
 ; control bytes in the base page. 
 	LXI		H,DiskStatusBlock
-	SHLD	FloppyNextStatusBlock	; set pointer back to start
+	SHLD	DCTNextStatusBlock	; set pointer back to start
 	LXI		H,DiskControl8
-	SHLD	FloppyNextControlLocation	; set pointer back to start
-	LXI		H,FloppyCommand
+	SHLD	DCTNextControlLocation	; set pointer back to start
+	LXI		H,DCTCommand
 	SHLD	CommandBlock8
 	
 	LXI		H,DiskControl8
@@ -1283,12 +1284,12 @@ CommonNoDeblock:
 	
 ;Write contents of disk buffer to correct sector
 WritePhysical:
-	MVI		A,FloppyWriteCode	; get write function
+	MVI		A,DiskWriteCode	; get write function
 	JMP		CommonPhysical
 ReadPhysical:
-	MVI		A,FloppyReadCode	; get read function
+	MVI		A,DiskReadCode	; get read function
 CommonPhysical:
-	STA		FloppyCommand		; set the command
+	STA		DCTCommand		; set the command
 	
 	LDA		DiskType
 	CPI		Floppy5				; is it 5 1/4 ?
@@ -1299,10 +1300,10 @@ CommonPhysical:
 CorrectDisktype:
 	LDA		InBufferDisk
 	ANI		01H					; only units 0 or 1
-	STA		FloppyUnit			; set disk
+	STA		DCTUnit			; set disk
 	LHLD	InBufferTrack
 	MOV		A,L					; for this controller it is a byte value
-	STA		FloppyTrack			; set track
+	STA		DCTTrack			; set track
 ;  The sector must be converted into a head number and sector number.
 ; Sectors 0 - 8 are head 0, 9 - 17 , are head 1 
 	MVI		B,0					; assume head 0
@@ -1315,21 +1316,21 @@ CorrectDisktype:
 	INR		B					; set head to 1
 Head0:
 	MOV		A,B
-	STA		FloppyHead			; set head number
+	STA		DCTHead			; set head number
 	MOV		A,C
 	INR		A					; physical sectors start at 1
-	STA		FloppySector		; set sector
+	STA		DCTSector		; set sector
 	LXI		H,PhysicalSectorSize
-	SHLD	FloppyByteCount		; set byte count
+	SHLD	DCTByteCount		; set byte count
 	LXI		H,DiskBuffer
-	SHLD	FloppyDMAAddress	; set transfer address
+	SHLD	DCTDMAAddress	; set transfer address
 ;	As only one control table is in use, close the status and busy chain pointers
 ;  back to the main control bytes
 	LXI		H,DiskStatusBlock
-	SHLD	FloppyNextStatusBlock
+	SHLD	DCTNextStatusBlock
 	LXI		H,DiskControl5
-	SHLD	FloppyNextControlLocation
-	LXI		H,FloppyCommand
+	SHLD	DCTNextControlLocation
+	LXI		H,DCTCommand
 	SHLD	CommandBlock5
 	
 	LXI		H,DiskControl5		; activate 5 1/4" disk controller
@@ -1395,7 +1396,7 @@ WBOOT:
 	JMP		EnterCPM
 	
 WarmBootRead:
-	LXI		H,FloppyDCT			; get pointer to the Floppy's Device Control Table
+	LXI		H,DiskControlTable			; get pointer to the Floppy's Device Control Table
 	SHLD	CommandBlock5		; put it into the Command block for drive A:
 	MVI		C,13				; set byte count for move
 WarmByteMove:
@@ -1431,6 +1432,7 @@ WarmBootErroMessage:
 	DB		072H,065H,074H,072,079H,069H,06EH,067H	;retrying
 	DB		02EH,02EH,02EH,0DH,0AH
 	DB		00H
+CodeEnd:
 End:
 
 

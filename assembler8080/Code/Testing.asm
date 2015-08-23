@@ -76,6 +76,7 @@ DiskBuffer:
 AfterDiskBuffer		EQU	$
 
 		ORG		DiskBuffer		; wind the location counter back
+CodeStart:
 
 InitializeStream:		; used by the initialization subroutine. Layout:
 						;	DB	Port number to be initialized
@@ -173,7 +174,7 @@ SignOnMessage:		; Main sign on message
 	
 ;219--------------------BOOT-----------------------------	
 	
-	BOOT:		; entered directly from the BIOS JMP vector
+BOOT:		; entered directly from the BIOS JMP vector
 				; Control transfered by the CP/M bootstrap loader
 				; initial state will be determined by the PROM
 				
@@ -549,3 +550,6 @@ READ:			; NOT YET CODED
 WRITE:			; NOT YET CODED
 ;LISTST:		; CODED
 SECTRAN:		; NOT YET CODED
+
+CodeEnd:
+	END

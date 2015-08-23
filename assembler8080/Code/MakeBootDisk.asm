@@ -13,6 +13,7 @@ DisplayMessage	EQU		0F833H
 
 
 		ORG		01000H
+CodeStart:
 
 
 
@@ -113,4 +114,5 @@ BootControlPart2:
 	DW	DiskControl5	; pointer to next table
 
 ;
-End:
+CodeEnd:
+	END

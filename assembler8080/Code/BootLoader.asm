@@ -65,6 +65,7 @@ SectorsToRead		EQU		(LengthInBytes + SectorSize-1) / SectorSize
 ;--------------------------------------------------------------------------------------
 
 			ORG		0100H
+CodeStart:
 ColdBootLoader:
 			JMP		MainCode
 CR			EQU		0DH		; Carriage Return
@@ -224,5 +225,7 @@ OutputNotReady:
 			
 ; The PROM-based bootstrap loader checks to see that the characters "CP/M" are on the
 ; diskette bootstrap sector before it transfers control to It
-			
+
+CodeEnd:
+		END
 

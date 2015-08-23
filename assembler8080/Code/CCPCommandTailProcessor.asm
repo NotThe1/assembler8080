@@ -4,7 +4,7 @@ TPA			EQU		0100H	; Start of Transient program Area
 Space		EQU		020H	; Blan or Space
 
 			ORG		TPA		; set location counter to base of TPA
-			
+CodeStart:
 Start:		CALL	CTP		; Test bed for CTP
 			NOP
 	; This subroutine breaks the command like tail apart, placing each value
@@ -111,5 +111,6 @@ CTPExitTMP:
 		MVI		A,TooManyParameters	; set error code
 		JMP		CTPexitC		; common exit
 		
-; 		End		Start
+CodeEnd:
+ 		End
 

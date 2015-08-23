@@ -48,6 +48,7 @@ DefaultDiskBuffer:
 
 
 	ORG		BIOSEntry		; Assemble code at BIOS address
+CodeStart:
 		
 		; BIOS jum Vector
 		
@@ -530,6 +531,8 @@ OutputDataPort:
 		DB		00H			; <- set from above
 		RET
 		
+CodeEnd:
+		END
 ;746,795  page 175 -----------------High Level Diskette drivers--------------------		
 ;-------------------------------------------- TEMP Labels---------------------
 ;BOOT:			; CODED
