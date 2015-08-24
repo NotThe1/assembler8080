@@ -5,6 +5,7 @@ import java.awt.EventQueue;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenuBar;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -58,15 +59,19 @@ import parser.SetVariable;
 import parser.Token;
 import parser.Tokenizer;
 
+import java.awt.Color;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
 import java.awt.Font;
 
+import javax.swing.JSplitPane;
+import javax.swing.SwingConstants;
+
 public class ASM implements ActionListener, AdjustmentListener {
 
-	private JFrame frame; 
-//	private JFileChooser chooser;
+	private JFrame frame;
+	// private JFileChooser chooser;
 
 	private File asmSourceFile = null;
 	private JButton btnStart;
@@ -133,10 +138,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			File listFile = new File(listFilePath);
 			FileWriter fw = new FileWriter(listFile);
 			PrintWriter pw = new PrintWriter(fw);
-			
-		
-
-		
 
 			FileReader source = new FileReader(sourceFile);
 			BufferedReader reader = new BufferedReader(source);
@@ -144,7 +145,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			String rawLine = null;
 			lineNumber = 0;
 			currentPC = instructionCounter.getCurrentLocation();
-			
+
 			while ((rawLine = reader.readLine()) != null) {
 				// line = rawLine.replace("\t", " ").toUpperCase();
 				line = rawLine.toUpperCase();
@@ -167,8 +168,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 					passOneList.add(new PassOne(lineNumber, currentPC, symbol, comment));
 				}//
 				saveMemoryImage(currentPC, memImage);
-				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage, rawLine);
-				txtLog2.append(logMessage);
+				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage,
+						rawLine);
+				txtListing.append(logMessage);
 				if (cbSaveToFile.isSelected()) {
 					pw.print(logMessage);
 				}// if - do we send to file?
@@ -178,23 +180,23 @@ public class ASM implements ActionListener, AdjustmentListener {
 			if (cbSaveToFile.isSelected()) {
 				try {
 					String memoryFilePath = baseFileName + ".mem";
-				File memoryFile = new File(memoryFilePath);
-				FileWriter mfw = new FileWriter(memoryFile);
-				mfw.write(doMemoryFile());
-				mfw.close();
+					File memoryFile = new File(memoryFilePath);
+					FileWriter mfw = new FileWriter(memoryFile);
+					mfw.write(doMemoryFile());
+					mfw.close();
 				} catch (Exception e) {
 					// TODO: handle exception
-				}//inner try			
-			}//if
-			
-			txtLog1.setCaretPosition(0);
-			txtLog2.setCaretPosition(0);
+				}// inner try
+			}// if
+
+			txtSource.setCaretPosition(0);
+			txtListing.setCaretPosition(0);
 			reader.close();
 			pw.close();
 			fw.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-		}//  outter TRY
+		}// outter TRY
 	}// performPassTwo
 
 	private String doMemoryFile() {// FileWriter fw
@@ -233,9 +235,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 						sb.append(getThisValue(i, zero));
 						thisLine.append(getThisChar(i, zero));
 					}// pad right
-				}// if - initial pass			
+				}// if - initial pass
 				sb.append(thisLine.toString());
-				
+
 				currentLineStart = sourceLocation & 0XFFF0;
 				currentLocation = currentLineStart + 1;
 				thisLine.setLength(0);
@@ -270,7 +272,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			}// pad right
 		}// if - intial pass
 		sb.append(thisLine.toString());
-		// -----done with cleanup------	
+		// -----done with cleanup------
 		return sb.toString();
 		// process to end of line
 	}// doMemoryFile
@@ -296,7 +298,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			pw.printf("%n%n%n%n%40s%n%n", "Xref");
 		}// if - file?
 
-		txtLog2.append(String.format("%n%n%n%n%40s%n%n", "Xref"));
+		txtListing.append(String.format("%n%n%n%n%40s%n%n", "Xref"));
 
 		HashMap<String, SymbolTableEntry> symbols = symbolTable.getTableEntries();
 		Set<String> keys = symbols.keySet();
@@ -317,7 +319,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			}// for - reference line numbers
 
 			if (fistLetter != name.charAt(0)) {
-				txtLog2.append("\n");
+				txtListing.append("\n");
 				if (cbSaveToFile.isSelected()) {
 					pw.printf("%n");
 				}// if - file?
@@ -327,11 +329,12 @@ public class ASM implements ActionListener, AdjustmentListener {
 				pw.printf("%04d\t%04X\t%-30s\t\t%s%n", lineNumber, value, name, sb.toString());
 			}// if - file?
 			String logEntry = String.format("%04d\t%04X\t%-30s\t\t%s%n", lineNumber, value, name, sb.toString());
-			txtLog2.append(logEntry);
+			txtListing.append(logEntry);
 			sb = null;
 		}// for
 	}// doList
-	// *******************used above
+		// *******************used above
+
 	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection<T> c) {
 		List<T> list = new ArrayList<T>(c);
 		Collections.sort(list);
@@ -339,14 +342,14 @@ public class ASM implements ActionListener, AdjustmentListener {
 	}// sort for key list
 
 	private void saveMemoryImage(int pc, String memImage) {
-		int numOfChars = memImage.length()/2;
+		int numOfChars = memImage.length() / 2;
 		if (numOfChars < 1) {
 			return;
 		}// if - nothing here
 		String strValue;
 		int intValue;
-		for(int i = 0; i < numOfChars;i++){
-			strValue = memImage.substring(i*2,(i +1) * 2);
+		for (int i = 0; i < numOfChars; i++) {
+			strValue = memImage.substring(i * 2, (i + 1) * 2);
 			intValue = Integer.valueOf(strValue, 16);
 			memoryImage.put((Integer) pc + i, (byte) intValue);
 		}
@@ -365,7 +368,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				line = rawLine.toUpperCase();
 				lineNumber++;
 				outputLine = String.format("%04d  %s%n", lineNumber, line);
-				txtLog1.append(outputLine);
+				txtSource.append(outputLine);
 
 				parseLine(lineNumber, line);
 			}// while
@@ -374,7 +377,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			e.printStackTrace();
 		}// TRY
 
-//		symbolTable.passOneDone();
+		// symbolTable.passOneDone();
 		SymbolTable.passOneDone();
 		instructionCounter.reset();
 	}// buildTheSymbolTable
@@ -395,7 +398,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				}// for
 			}// if
 			String logEntry = String.format("%04d  %04X  %s\t%s%n", lineNumber, value, name, references);
-			txtLog2.append(logEntry);
+			txtListing.append(logEntry);
 		}// for
 	}// displaySymbolTable
 
@@ -608,9 +611,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 		return (directives.containsKey(token));
 	}// isDirective
 
-//	private boolean isComment(String token) {
-//		return token.startsWith(";");
-//	}
+	// private boolean isComment(String token) {
+	// return token.startsWith(";");
+	// }
 
 	private void parseLine(int lineNumber, String sourceLine) {
 		String workingLine = sourceLine.replaceAll("\t", " ");
@@ -803,8 +806,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException(errorMsg);
 				// break;
 			case "END":
-				//Ignore
-				//System.err.println(errorMsg);
+				// Ignore
+				// System.err.println(errorMsg);
 				break;
 			case "PUBLIC":
 				throw new AssemblerException(errorMsg);
@@ -824,7 +827,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				lineToCheck = "";
 				break;
 			default:
-				//Ignore
+				// Ignore
 			}// switch for directives
 
 		}
@@ -832,7 +835,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 	}// checkForDirective
 
 	private Integer resolveSimpleArgument(String argument, Integer lineNumbe) {
-//		Integer ans = null;
+		// Integer ans = null;
 		Integer ans = 0;
 		if (argument.equals("$")) {
 			ans = currentPC;
@@ -840,7 +843,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			ans = symbolTable.getValue(argument);
 			symbolTable.referenceSymbol(argument, lineNumber);
 		} else if (argument.matches(stringValuePattern)) {
-			//ans = 0;
+			// ans = 0;
 			String s = argument.replace("'", ""); // remove the 's
 			byte[] ba = s.getBytes();
 			for (byte b : ba) {
@@ -895,20 +898,42 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private void clearElements() {
 		isEmptyLine = false; // ?
 		symbol = null;
-//		isInstruction = false; // ?
+		// isInstruction = false; // ?
 		directive = null;
 		instruction = null;
 		arguments = null;
 		comment = null;
 	}// clearElements
 
+	private String replaceWithListingFileName(String fileName) {
+		String[] fileNameParts;
+		String suffix;
+		fileNameParts = fileName.split("\\.");
+		switch (fileNameParts[1]) {
+		case "asm":
+			suffix = ".list";
+			break;
+		case "ASM":
+			suffix = ".LIST";
+			break;
+		case "Asm":
+			suffix = ".List";
+			break;
+		default:
+			suffix = ".list";
+		}// switch
+		
+		return fileNameParts[0] + suffix;
+
+	}// replaceFileType
+
 	@Override
 	public void adjustmentValueChanged(AdjustmentEvent ae) {
 		if (((Component) ae.getSource()).getName() == "verticalScrollBar") {
-			scrollLog2.getVerticalScrollBar().setValue(scrollLog1.getVerticalScrollBar().getValue());
+			scrollListing.getVerticalScrollBar().setValue(scrollSource.getVerticalScrollBar().getValue());
 		}// if - the left scroll pane
 	}// adjustmentValueChanged
-	
+
 	private JFileChooser getFileChooser(String directory, String filterDescription, String filterExtensions) {
 		JFileChooser chooser = new JFileChooser(directory);
 		chooser.setMultiSelectionEnabled(false);
@@ -926,12 +951,14 @@ public class ASM implements ActionListener, AdjustmentListener {
 			if (chooserOpen.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) {
 				System.out.printf("You cancelled the file open%n", "");
 			} else {
-				txtLog1.setText("");
-				txtLog2.setText("");
+				txtSource.setText("");
+				txtListing.setText("");
 				asmSourceFile = chooserOpen.getSelectedFile();
 				String sourceFileName = asmSourceFile.getName();
 				defaultDirectory = asmSourceFile.getParent();
-				frame.setTitle(sourceFileName);
+				frame.setTitle(defaultDirectory);
+				lblSource.setText(sourceFileName);
+				lblListing.setText(replaceWithListingFileName(sourceFileName));
 				btnStart.setEnabled(true);
 			}//
 			break;
@@ -939,8 +966,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 			instructionCounter.reset();
 			symbolTable.reset();
 			if (asmSourceFile != null) {
-				txtLog1.setText("");
-				txtLog2.setText("");
+				txtSource.setText("");
+				txtListing.setText("");
 				performPassOne(asmSourceFile);
 				performPassTwo(asmSourceFile);
 			}// if
@@ -957,7 +984,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 				SymbolTableEntry entry = symbols.get((String) key);
 				String name = entry.getName();
 				if (fistLetter != name.charAt(0)) {
-					txtLog2.append("\n");
 				}
 				fistLetter = name.charAt(0);
 				int value = entry.getValue();
@@ -969,14 +995,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 				}// for - reference line numbers
 				String logEntry = String.format("%04d\t%04X\t%-30s\t\t%s%n", lineNumber, value, name, sb.toString());
 				sb = null;
-				txtLog2.append(logEntry);
 			}// for
 			break;
 		default:
 		}// switch
 	}// actionPerformed
 
-	public void initApplication() {
+	public void appInit() {
 		passOneList = new LinkedList<PassOne>();
 		instructionCounter = new InstructionCounter();
 		instruction = new Instruction();
@@ -994,19 +1019,31 @@ public class ASM implements ActionListener, AdjustmentListener {
 		r16dPattern = "B|BC|D|DE|H|HL|SP";
 		r8Pattern = "A|B|C|D|E|H|L|M";
 
-	}// initApplication
-		// --------------------------------------------------------------------------------//
-	
-	public void appInit(){
 		Path sourcePath = Paths.get(FILE_LOCATION, "Code");
 		defaultDirectory = sourcePath.resolve(FILE_LOCATION).toString();
-	}
+		frame.setTitle(defaultDirectory);
+
+		lblSource = new JLabel("No File");
+		lblSource.setHorizontalAlignment(SwingConstants.CENTER);
+		lblSource.setFont(new Font("Courier New", Font.BOLD, 16));
+		lblSource.setForeground(Color.BLUE);
+		scrollSource.setColumnHeaderView(lblSource);
+
+		lblListing = new JLabel("No File");
+		lblListing.setHorizontalAlignment(SwingConstants.CENTER);
+		lblListing.setFont(new Font("Courier New", Font.BOLD, 16));
+		lblListing.setForeground(Color.BLUE);
+		scrollListing.setColumnHeaderView(lblListing);
+
+	}// appInit
+		// --------------------------------------------------------------------------------//
 
 	/**
 	 * Create the application.
 	 */
 	public ASM() {
 		initialize();
+
 		appInit();
 	}// Constructor - ASM1()
 
@@ -1018,68 +1055,65 @@ public class ASM implements ActionListener, AdjustmentListener {
 		frame.setBounds(100, 100, 1291, 715);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		GridBagLayout gridBagLayout = new GridBagLayout();
-		gridBagLayout.columnWidths = new int[]{108, 580, 520, 0, 0};
-		gridBagLayout.rowHeights = new int[]{32, 612, 0};
-		gridBagLayout.columnWeights = new double[]{0.0, 0.0, 1.0, 0.0, Double.MIN_VALUE};
-		gridBagLayout.rowWeights = new double[]{0.0, 1.0, Double.MIN_VALUE};
+		gridBagLayout.columnWidths = new int[] { 108, 600, 0, 0 };
+		gridBagLayout.rowHeights = new int[] { 32, 612, 0 };
+		gridBagLayout.columnWeights = new double[] { 0.0, 1.0, 0.0, Double.MIN_VALUE };
+		gridBagLayout.rowWeights = new double[] { 0.0, 1.0, Double.MIN_VALUE };
 		frame.getContentPane().setLayout(gridBagLayout);
-		
-				JPanel panel1 = new JPanel();
-				GridBagConstraints gbc_panel1 = new GridBagConstraints();
-				gbc_panel1.fill = GridBagConstraints.BOTH;
-				gbc_panel1.insets = new Insets(0, 0, 0, 5);
-				gbc_panel1.gridx = 0;
-				gbc_panel1.gridy = 1;
-				frame.getContentPane().add(panel1, gbc_panel1);
-				panel1.setLayout(null);
-				
-						btnStart = new JButton("Start");
-						btnStart.setEnabled(false);
-						btnStart.setActionCommand("btnStart");
-						btnStart.addActionListener(this);
-						btnStart.setBounds(10, 25, 89, 23);
-						panel1.add(btnStart);
-						
-								JButton btnTest = new JButton("Xref");
-								btnTest.setActionCommand("btnTest");
-								btnTest.addActionListener(this);
-								btnTest.setBounds(10, 568, 89, 33);
-								panel1.add(btnTest);
-								
-										cbSaveToFile = new JCheckBox("Save To File");
-										cbSaveToFile.setSelected(true);
-										cbSaveToFile.setBounds(10, 77, 97, 23);
-										panel1.add(cbSaveToFile);
-				
-				scrollLog1 = new JScrollPane();
-				scrollLog1.getVerticalScrollBar().addAdjustmentListener(this);
-				scrollLog1.setName("scrollLog1");
-				scrollLog1.getVerticalScrollBar().setName("verticalScrollBar");
-				GridBagConstraints gbc_scrollLog1 = new GridBagConstraints();
-				gbc_scrollLog1.insets = new Insets(0, 0, 0, 5);
-				gbc_scrollLog1.fill = GridBagConstraints.BOTH;
-				gbc_scrollLog1.gridx = 1;
-				gbc_scrollLog1.gridy = 1;
-				frame.getContentPane().add(scrollLog1, gbc_scrollLog1);
-				
-				txtLog1 = new JTextArea();
-				txtLog1.setFont(new Font("Courier New", Font.PLAIN, 14));
-				txtLog1.setEditable(false);
-				scrollLog1.setViewportView(txtLog1);
-				
-				scrollLog2 = new JScrollPane();
-				scrollLog2.setName("scrollLog2");
-				GridBagConstraints gbc_scrollLog2 = new GridBagConstraints();
-				gbc_scrollLog2.insets = new Insets(0, 0, 0, 5);
-				gbc_scrollLog2.fill = GridBagConstraints.BOTH;
-				gbc_scrollLog2.gridx = 2;
-				gbc_scrollLog2.gridy = 1;
-				frame.getContentPane().add(scrollLog2, gbc_scrollLog2);
-				
-				txtLog2 = new JTextArea();
-				txtLog2.setFont(new Font("Courier New", Font.PLAIN, 14));
-				txtLog2.setEditable(false);
-				scrollLog2.setViewportView(txtLog2);
+
+		JPanel panel1 = new JPanel();
+		GridBagConstraints gbc_panel1 = new GridBagConstraints();
+		gbc_panel1.fill = GridBagConstraints.BOTH;
+		gbc_panel1.insets = new Insets(0, 0, 0, 5);
+		gbc_panel1.gridx = 0;
+		gbc_panel1.gridy = 1;
+		frame.getContentPane().add(panel1, gbc_panel1);
+		panel1.setLayout(null);
+
+		btnStart = new JButton("Start");
+		btnStart.setEnabled(false);
+		btnStart.setActionCommand("btnStart");
+		btnStart.addActionListener(this);
+		btnStart.setBounds(10, 25, 89, 23);
+		panel1.add(btnStart);
+
+		JButton btnTest = new JButton("Xref");
+		btnTest.setVisible(false);
+		btnTest.setEnabled(false);
+		btnTest.setActionCommand("btnTest");
+		btnTest.addActionListener(this);
+		btnTest.setBounds(10, 568, 89, 33);
+		panel1.add(btnTest);
+
+		cbSaveToFile = new JCheckBox("Save To File");
+		cbSaveToFile.setSelected(true);
+		cbSaveToFile.setBounds(10, 77, 97, 23);
+		panel1.add(cbSaveToFile);
+
+		JSplitPane splitPane = new JSplitPane();
+		splitPane.setDividerSize(10);
+		splitPane.setOneTouchExpandable(true);
+		GridBagConstraints gbc_splitPane = new GridBagConstraints();
+		gbc_splitPane.insets = new Insets(0, 0, 0, 5);
+		gbc_splitPane.fill = GridBagConstraints.BOTH;
+		gbc_splitPane.gridx = 1;
+		gbc_splitPane.gridy = 1;
+		frame.getContentPane().add(splitPane, gbc_splitPane);
+
+		scrollSource = new JScrollPane();
+		scrollSource.getVerticalScrollBar().addAdjustmentListener(this);
+		splitPane.setLeftComponent(scrollSource);
+
+		txtSource = new JTextArea();
+		scrollSource.setViewportView(txtSource);
+
+		scrollListing = new JScrollPane();
+		scrollListing.getVerticalScrollBar().addAdjustmentListener(this);
+		splitPane.setRightComponent(scrollListing);
+
+		txtListing = new JTextArea();
+		scrollListing.setViewportView(txtListing);
+		splitPane.setDividerLocation(500);
 
 		JMenuBar menuBar = new JMenuBar();
 		frame.setJMenuBar(menuBar);
@@ -1092,7 +1126,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		mnuFileOpen.addActionListener(this);
 		mnuFile.add(mnuFileOpen);
 
-		initApplication();
+		// initApplication();
 	}// initialize
 
 	// TODO reserved word END
@@ -1121,7 +1155,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 		directives.put("PUBLIC", new Directive("PUBLIC", false, 1, false)); // name-List
 		directives.put("EXTRN", new Directive("EXTRN", false, 1, false)); // name-List
-		directives.put("NAME", new Directive("NAME", false, 1, false)); // Name  for the module
+		directives.put("NAME", new Directive("NAME", false, 1, false)); // Name for the module
 
 		directives.put("STKLN", new Directive("STKLN", false, 1, false)); // name-List
 
@@ -1238,12 +1272,14 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private static final String binaryValuePattern = "[01]B";
 	private static final String decimalValuePattern = "[0-9]{1,4}D?+";
 	private static final String stringValuePattern = "\\A'.*'\\z"; // used for
-	
+
 	public final static String FILE_LOCATION = ".";
 	private final static String CODE = "Code";
 	public final static String ASSEMBLER_SUFFIX = "asm";
-	private JScrollPane scrollLog1;
-	private JScrollPane scrollLog2;
-	private JTextArea txtLog1;
-	private JTextArea txtLog2;
+	private JTextArea txtSource;
+	private JTextArea txtListing;
+	private JScrollPane scrollSource;
+	private JScrollPane scrollListing;
+	JLabel lblSource;
+	JLabel lblListing;
 }// class ASM1
