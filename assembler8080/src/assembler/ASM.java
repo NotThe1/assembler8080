@@ -57,9 +57,11 @@ import parser.ParserException;
 import parser.SetVariable;
 import parser.Token;
 import parser.Tokenizer;
+
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
+import java.awt.Font;
 
 public class ASM implements ActionListener, AdjustmentListener {
 
@@ -78,6 +80,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private String r8Pattern;
 	private Matcher matcher;
 	private JCheckBox cbSaveToFile;
+	private String defaultDirectory;
 
 	private LinkedList<PassOne> passOneList;
 	// private String baseFileName;
@@ -93,7 +96,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private boolean isEmptyLine;
 	private int currentPC;
 	private String symbol;
-//	private boolean isInstruction; 
 	private Instruction instruction;
 	private Directive directive;
 	private String arguments;
@@ -140,11 +142,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 			BufferedReader reader = new BufferedReader(source);
 			String line = null;
 			String rawLine = null;
-//			SymbolTable s = symbolTable;
 			lineNumber = 0;
 			currentPC = instructionCounter.getCurrentLocation();
-//			String outputLine;
-			// instructionCounter.getCurrentLocation();
+			
 			while ((rawLine = reader.readLine()) != null) {
 				// line = rawLine.replace("\t", " ").toUpperCase();
 				line = rawLine.toUpperCase();
@@ -167,8 +167,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 					passOneList.add(new PassOne(lineNumber, currentPC, symbol, comment));
 				}//
 				saveMemoryImage(currentPC, memImage);
-//				String logMessage = String.format("%04d: %04X \t%s\t %s%n", lineNumber, currentPC, memImage, rawLine);
-
 				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage, rawLine);
 				txtLog2.append(logMessage);
 				if (cbSaveToFile.isSelected()) {
@@ -182,15 +180,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 					String memoryFilePath = baseFileName + ".mem";
 				File memoryFile = new File(memoryFilePath);
 				FileWriter mfw = new FileWriter(memoryFile);
-//				String m = doMemoryFile();
 				mfw.write(doMemoryFile());
 				mfw.close();
 				} catch (Exception e) {
 					// TODO: handle exception
-				}
-
-				
-			}
+				}//inner try			
+			}//if
+			
 			txtLog1.setCaretPosition(0);
 			txtLog2.setCaretPosition(0);
 			reader.close();
@@ -198,8 +194,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 			fw.close();
 		} catch (IOException e) {
 			e.printStackTrace();
-		}// TRY
-	}//
+		}//  outter TRY
+	}// performPassTwo
 
 	private String doMemoryFile() {// FileWriter fw
 		Set<Integer> locations = memoryImage.keySet();
@@ -212,16 +208,12 @@ public class ASM implements ActionListener, AdjustmentListener {
 		byte zero = 0;
 		StringBuilder sb = new StringBuilder();
 		StringBuilder thisLine = new StringBuilder();
-//		String thisChar;
 		Byte value;
 		// Scanner sc = new Scanner(txtValues.getText());
 		for (Integer sourceLocation : locationsOrdered) {
 			lastLocation = currentLocation;
-			// sourceLocation = Integer.valueOf(sc.next(), 16);
 			value = memoryImage.get(sourceLocation);
-			if ((sourceLocation & 0XFFF0) == currentLineStart) {// on the same
-																// line
-
+			if ((sourceLocation & 0XFFF0) == currentLineStart) {// on the same line
 				if (currentLocation < sourceLocation) {// need some padding
 					while (currentLocation < sourceLocation) {
 						sb.append(getThisValue(currentLocation, zero));
@@ -232,33 +224,24 @@ public class ASM implements ActionListener, AdjustmentListener {
 				sb.append(getThisValue(currentLocation, value));
 				thisLine.append(getThisChar(currentLocation, value));
 				currentLocation++;
-
 				// ------------------
-
 			} else { // start a new line
-				if ((lastLocation % 16 != 0) && (sb.length() != 0)) {// do pad on
-																	// initial
-																	// pass or
-																	// if not
-																	// needed
+				if ((lastLocation % 16 != 0) && (sb.length() != 0)) {
+					// do pad on initial pass or if not needed
 					int leftPadCount = lastLocation % 16;
 					for (int i = leftPadCount; i < 16; i++) {
 						sb.append(getThisValue(i, zero));
 						thisLine.append(getThisChar(i, zero));
 					}// pad right
-				}// if - intial pass
-
-				// if (sb.length() != 0) {
+				}// if - initial pass			
 				sb.append(thisLine.toString());
-				// }
+				
 				currentLineStart = sourceLocation & 0XFFF0;
 				currentLocation = currentLineStart + 1;
 				thisLine.setLength(0);
 				thisLine.append(" ");
 
 				if (currentLineStart == sourceLocation) {// use actual value
-					// sb.append(String.format("%n%04X: %02X", currentLineStart,
-					// value));
 					sb.append(String.format("%n%04X:", currentLineStart));
 					sb.append(getThisValue(currentLineStart, value));
 					thisLine.append(getThisChar(currentLineStart, value));
@@ -287,33 +270,25 @@ public class ASM implements ActionListener, AdjustmentListener {
 			}// pad right
 		}// if - intial pass
 		sb.append(thisLine.toString());
-
-		// -----done with cleanup------
-		
+		// -----done with cleanup------	
 		return sb.toString();
-
 		// process to end of line
-
 	}// doMemoryFile
 
 	private String getThisValue(int location, byte value) {
 		final String stdFormat = " %02X";
 		final String xtraSpaceFormat = " %02X ";
-
 		String thisFormat = (((location % 16) == 7)) ? xtraSpaceFormat : stdFormat;
 		return String.format(thisFormat, value);
-
 	}
 
 	private String getThisChar(int location, byte value) {
-
 		String c = (((value >= 0X20) && (value <= 0X7F)) ? new String(new byte[] { value }) : ".");
 		if ((location % 16) == 7) {
 			return c + " ";
 		} else {
 			return c;
 		}//
-
 	}// getThischar
 
 	private void doList(PrintWriter pw) {
@@ -356,7 +331,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			sb = null;
 		}// for
 	}// doList
-
 	// *******************used above
 	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection<T> c) {
 		List<T> list = new ArrayList<T>(c);
@@ -448,11 +422,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 							b = (byte) eachLetter;
 							ans += String.format("%02X", b);
 						}// for
-							// instructionCounter.incrementCurrentLocation(arg.length());
 					} else { // expression
 						ansInt = resolveSimpleArgument(arg, lineNumber) & 0XFF;
 						ans += String.format("%02X", ansInt);
-						// instructionCounter.incrementCurrentLocation();
 					}//
 				}// while
 			}// if - arguments null
@@ -471,7 +443,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 					byte hiByte = (byte) (ansInt >> 8);
 					byte loByte = (byte) (ansInt & 0x00FF);
 					ans += String.format("%02X%02X", loByte, hiByte);
-					// instructionCounter.incrementCurrentLocation(2);
 				}// while
 			}// if - arguments null
 
@@ -485,7 +456,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 	}// setMemoryBytesForDirectives
 
 	private String setMemoryBytes(Integer lineNumber, Instruction instruction, String arguments) {
-		// Integer currentPC, String symbol,
 		String ans = null;
 		Integer argumentType = instruction.getOperandType();
 		Byte baseCode = instruction.getBaseCode();
@@ -569,10 +539,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 			if (!R16D.matches(r16dPattern)) {
-//				int a = 0;
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
-
 			opC = baseCode;
 			registerValue = Instruction.getR16DValue(R16D);
 			shiftValue = instruction.getOperand1Shift();
@@ -588,9 +556,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			arg = arg & 0XFFFF; // mod 64K
 			argStr = String.format("%04X", arg).toUpperCase();
 			ans = String.format("%02X%s%s", opC, argStr.substring(2), argStr.substring(0, 2));
-
-			// ans = String.format("%02X\t%s - %s", opC,R16D,D16);
-
 			break;
 		case Instruction.ARGUMENT_R8_D8:
 			Scanner sc2 = new Scanner(arguments);
@@ -604,7 +569,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 			if (!R8.matches(r8Pattern)) {
-//				int a = 0;
 				throw new AssemblerException("Bad argument - " + arguments + " - on line: " + lineNumber);
 			}//
 
@@ -747,12 +711,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			instruction = instructions.get(token);
 			instructionCounter.incrementCurrentLocation(instruction.getOpCodeSize());
 			arguments = (scanner.hasNext()) ? scanner.nextLine().trim() : null;
-			// if (scanner.hasNext()) {
-			// arguments = "";
-			// while (scanner.hasNext()) {
-			// arguments += " " + scanner.next();
-			// }// while
-			// }// if
 			lineToCheck = "";
 		}//
 		return lineToCheck;
@@ -775,7 +733,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 					throw new AssemblerException("DB on line: " + lineNumber + " needs an argument");
 				} else {
 					String arg;
-//					int ans;
 					scannerComma = new Scanner(arguments);
 					scannerComma.useDelimiter(",");
 					while (scannerComma.hasNext()) {
@@ -795,7 +752,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 					throw new AssemblerException("DW on line: " + lineNumber + " needs an argument");
 				} else {
 					String arg;
-//					int ans;
 					scannerComma = new Scanner(arguments);
 					scannerComma.useDelimiter(",");
 					while (scannerComma.hasNext()) {
@@ -847,7 +803,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 				throw new AssemblerException(errorMsg);
 				// break;
 			case "END":
-				System.err.println(errorMsg);
+				//Ignore
+				//System.err.println(errorMsg);
 				break;
 			case "PUBLIC":
 				throw new AssemblerException(errorMsg);
@@ -865,15 +822,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 				// ignore
 				comment = lineToCheck;
 				lineToCheck = "";
-				// throw new AssemblerException(errorMsg);
 				break;
-
 			default:
-				// String msg =
-				// String.format("Assembler error%n  unknown directive: %s  on line : %04d%n",
-				// token,
-				// lineNumber);
-				// throw new AssemblerException(msg);
+				//Ignore
 			}// switch for directives
 
 		}
@@ -904,8 +855,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			ans = Integer.valueOf(argument.replace("D", ""), 10);
 		} else if (argument.matches(binaryValuePattern)) {
 			ans = Integer.valueOf(argument.replace("D", ""), 2);
-			// }else if(argument.matches(stringValuePattern)){
-			// ans =Integer.valueOf(argument,16);
 
 		} else {// send to expression resolver
 			ans = resolveExpression(argument, lineNumbe);
@@ -955,20 +904,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 	@Override
 	public void adjustmentValueChanged(AdjustmentEvent ae) {
-		// ae.getAdjustmentType();
-//		String name = ((Component) ae.getSource()).getName();
 		if (((Component) ae.getSource()).getName() == "verticalScrollBar") {
 			scrollLog2.getVerticalScrollBar().setValue(scrollLog1.getVerticalScrollBar().getValue());
 		}// if - the left scroll pane
-//		int x = ae.getValue();
-
 	}// adjustmentValueChanged
 	
-	private JFileChooser getFileChooser(String subDirectory, String filterDescription, String filterExtensions) {
-		Path sourcePath = Paths.get(FILE_LOCATION, subDirectory);
-		String fp = sourcePath.resolve(FILE_LOCATION).toString();
-
-		JFileChooser chooser = new JFileChooser(fp);
+	private JFileChooser getFileChooser(String directory, String filterDescription, String filterExtensions) {
+		JFileChooser chooser = new JFileChooser(directory);
 		chooser.setMultiSelectionEnabled(false);
 		chooser.addChoosableFileFilter(new FileNameExtensionFilter(filterDescription, filterExtensions));
 		chooser.setAcceptAllFileFilterUsed(false);
@@ -980,7 +922,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		String action = ae.getActionCommand();
 		switch (action) {
 		case "mnuFileOpen":
-			JFileChooser chooserOpen = getFileChooser(CODE, "Assembler Source Code", ASSEMBLER_SUFFIX);
+			JFileChooser chooserOpen = getFileChooser(defaultDirectory, "Assembler Source Code", ASSEMBLER_SUFFIX);
 			if (chooserOpen.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) {
 				System.out.printf("You cancelled the file open%n", "");
 			} else {
@@ -988,8 +930,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				txtLog2.setText("");
 				asmSourceFile = chooserOpen.getSelectedFile();
 				String sourceFileName = asmSourceFile.getName();
-				// String ap = asmSourceFile.getAbsolutePath();
-				// baseFileName = ap.substring(0,ap.length()-4);
+				defaultDirectory = asmSourceFile.getParent();
 				frame.setTitle(sourceFileName);
 				btnStart.setEnabled(true);
 			}//
@@ -1000,15 +941,11 @@ public class ASM implements ActionListener, AdjustmentListener {
 			if (asmSourceFile != null) {
 				txtLog1.setText("");
 				txtLog2.setText("");
-				;
-				// beginAssembly(asmSourceFile);
 				performPassOne(asmSourceFile);
 				performPassTwo(asmSourceFile);
-				// displaySymbolTable();
 			}// if
 			break;
 		case "btnTest":
-
 			HashMap<String, SymbolTableEntry> symbols = symbolTable.getTableEntries();
 			Set<String> keys = symbols.keySet();
 			List<String> list = asSortedList(keys); // *******************************
@@ -1037,7 +974,6 @@ public class ASM implements ActionListener, AdjustmentListener {
 			break;
 		default:
 		}// switch
-			// TODO Auto-generated method stub
 	}// actionPerformed
 
 	public void initApplication() {
@@ -1045,11 +981,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 		instructionCounter = new InstructionCounter();
 		instruction = new Instruction();
 		symbolTable = new SymbolTable(instructionCounter);
-		// symbolTable.defineSymbol("$", 0, 0, SymbolTable.ASSEMBLER);
 		memoryImage = new HashMap<Integer, Byte>();
 		tokenizer = new Tokenizer();
 		parser = new Parser();
-		// directive = new Directive();
 		String labelPattern = "^[$\\?\\@\\w][\\w$]{1,25}:"; // "^[$\\?\\@\\w][\\w$]{1,8}:"
 		patternForLabel = Pattern.compile(labelPattern);
 		String namePattern = "^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}$"; // "^[$\\?\\@\\w][\\w$]{1,8}\\s|[$\\?\\@\\w][\\w$]{1,8}$"
@@ -1062,12 +996,18 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 	}// initApplication
 		// --------------------------------------------------------------------------------//
+	
+	public void appInit(){
+		Path sourcePath = Paths.get(FILE_LOCATION, "Code");
+		defaultDirectory = sourcePath.resolve(FILE_LOCATION).toString();
+	}
 
 	/**
 	 * Create the application.
 	 */
 	public ASM() {
 		initialize();
+		appInit();
 	}// Constructor - ASM1()
 
 	/**
@@ -1078,9 +1018,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 		frame.setBounds(100, 100, 1291, 715);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		GridBagLayout gridBagLayout = new GridBagLayout();
-		gridBagLayout.columnWidths = new int[]{108, 520, 520, 0, 0};
+		gridBagLayout.columnWidths = new int[]{108, 580, 520, 0, 0};
 		gridBagLayout.rowHeights = new int[]{32, 612, 0};
-		gridBagLayout.columnWeights = new double[]{0.0, 1.0, 1.0, 0.0, Double.MIN_VALUE};
+		gridBagLayout.columnWeights = new double[]{0.0, 0.0, 1.0, 0.0, Double.MIN_VALUE};
 		gridBagLayout.rowWeights = new double[]{0.0, 1.0, Double.MIN_VALUE};
 		frame.getContentPane().setLayout(gridBagLayout);
 		
@@ -1107,6 +1047,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 								panel1.add(btnTest);
 								
 										cbSaveToFile = new JCheckBox("Save To File");
+										cbSaveToFile.setSelected(true);
 										cbSaveToFile.setBounds(10, 77, 97, 23);
 										panel1.add(cbSaveToFile);
 				
@@ -1122,6 +1063,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				frame.getContentPane().add(scrollLog1, gbc_scrollLog1);
 				
 				txtLog1 = new JTextArea();
+				txtLog1.setFont(new Font("Courier New", Font.PLAIN, 14));
 				txtLog1.setEditable(false);
 				scrollLog1.setViewportView(txtLog1);
 				
@@ -1135,6 +1077,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				frame.getContentPane().add(scrollLog2, gbc_scrollLog2);
 				
 				txtLog2 = new JTextArea();
+				txtLog2.setFont(new Font("Courier New", Font.PLAIN, 14));
 				txtLog2.setEditable(false);
 				scrollLog2.setViewportView(txtLog2);
 
@@ -1152,13 +1095,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		initApplication();
 	}// initialize
 
-//	private static final String COMMENT = "Comment";
-//	private static final String LABEL = "Label";
-//	private static final String NAME = "Name";
-//	private static final String INSTRUCTION = "Instruction";
-//	private static final String DIRECTIVE = "Directive";
-//	private static final String ARGUMENT = "Argument";
-//	private static final String NONE = "None";
+	// TODO reserved word END
 
 	// TODO reserved words STACK and MEMORY pg 4-19 assembler MAY_81 pdf
 	private static HashMap<String, Directive> directives;
@@ -1184,10 +1121,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 		directives.put("PUBLIC", new Directive("PUBLIC", false, 1, false)); // name-List
 		directives.put("EXTRN", new Directive("EXTRN", false, 1, false)); // name-List
-		directives.put("NAME", new Directive("NAME", false, 1, false)); // Name
-		// for
-		// the
-		// module
+		directives.put("NAME", new Directive("NAME", false, 1, false)); // Name  for the module
 
 		directives.put("STKLN", new Directive("STKLN", false, 1, false)); // name-List
 
