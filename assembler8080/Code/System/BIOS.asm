@@ -952,13 +952,14 @@ READ:
 ;		WRITE
 ;Write a 128-byte sector from the current DMA address to the previously $elected disk, track, and sector.
 ;
-; On arrival here, the BOOS will have set register C to indicate whether this write operation is to
-; an already allocated allocation block (which means a pre-read of the sector may be needed),
-; to the directory (in which case the data will be written to the disk immediately),
-; or to the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
-
-; Only writes to the directory take place immediately. In all other cases, the data will be moved
-; from the DMA address into the disk buffer, and only written out when circumstance, force the transfer.
+; On arrival here, the BOOS will have set register C to indicate whether this write operation is to:
+;	00H [WriteAllocated]	 An already allocated allocation block (which means a pre-read of the sector may be needed),
+;	01H [WriteDirectory]	 To the directory (in which case the data will be written to the disk immediately),
+;	02H	[WriteUnallocated]	 To the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
+;
+; Only writes to the directory take place immediately.
+; In all other cases, the data will be moved from the DMA address into the disk buffer,
+; and only written out when circumstance, force the transfer.
 ; The number of physical disk operations can therefore be reduced considerably.
 ;************************************************************************************************
 WRITE:
@@ -1059,6 +1060,10 @@ ReadSectorIntoBuffer:
 		LDA		PrereadSectorFlag		; do we need to pre-read
 		ORA		A
 		CNZ		ReadPhysical			; yes - pre-read the sector
+		
+; At this point the data is in the buffer.
+; Either it was already here, or we returned from ReadPhysical
+
 		XRA		A						; reset the flag
 		STA		MustWriteBuffer			; and store it away
 		

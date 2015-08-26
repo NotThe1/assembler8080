@@ -1,0 +1,39 @@
+0001: 0000                ;TestBDOSEntry.asm  
+0002: 0000                                    
+0003: 0000                BDOSVector	EQU		0005H;
+0004: 0000                SetPage0	EQU		01000H;
+0005: 0000                                    
+0006: 0000                			ORG		0100H       
+0007: 0100                                    
+0008: 0100                CodeStart:          
+0009: 0100                Start:              
+0010: 0100     310010     			LXI		SP, SetPage0		; Set stack just below SetPage0
+0011: 0103     CD0010     			CALL	SetPage0			; make page zero clen
+0012: 0106     21BBAA     			LXI		HL,0AABBH			; just some dummy value
+0013: 0109     11F77F     			LXI		DE,07FF7H   
+0014: 010C     0655       			MVI		B,055H      
+0015: 010E                			                 
+0016: 010E     0E0D       			MVI		C,0DH				; disk reset
+0017: 0110     76         			HLT              
+0018: 0111                			                 
+0019: 0111     CD0500     			CALL	BDOSVector			; make call
+0020: 0114     76         			HLT              
+0021: 0115     76         			HLT              
+0022: 0116                CodeEnd:            
+0023: 0116                			END              
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0003	0005	BDOSVECTOR                    		  0019,
+
+0022	0116	CODEEND                       		
+0008	0100	CODESTART                     		
+
+0004	1000	SETPAGE0                      		  0010,  0011,
+0009	0100	START                         		

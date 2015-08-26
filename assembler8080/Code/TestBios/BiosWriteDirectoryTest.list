@@ -1,0 +1,92 @@
+0001: 0000                ; BiosWriteDirectoryTest.asm
+0002: 0000                ;                   
+0003: 0000                SELDSK				EQU		0FB2BH
+0004: 0000                SETTRK				EQU		0FB58H
+0005: 0000                SETSEC				EQU		0FB5EH
+0006: 0000                SETDMA				EQU		0FB65H
+0007: 0000                READ				EQU		0FBFBH 
+0008: 0000                WRITE				EQU		0FC15H
+0009: 0000                SetPage0			EQU		01000H
+0010: 0000                                    
+0011: 0000                WriteDirectory		EQU		01H
+0012: 0000                                    
+0013: 0000                DefaultDiskBuffer	EQU		080H
+0014: 0000                TopOfStack			EQU		DefaultDiskBuffer
+0015: 0000                                    
+0016: 0000                Disk				EQU		00H			; A=0, B=1, C=2, D=3
+0017: 0000                Track				EQU		00H   
+0018: 0000                Sector				EQU		01H  
+0019: 0000                                    
+0020: 0000                TPA					EQU		0100H  
+0021: 0000                                    
+0022: 0000                			ORG			TPA        
+0023: 0100                CodeStart:          
+0024: 0100                Start:              
+0025: 0100     CD0010     			CALL	SetPage0					; initialize
+0026: 0103     318000     			LXI		SP,TopOfStack				; set the stack
+0027: 0106     0E00       			MVI		C,Disk	     
+0028: 0108     CD2BFB     			CALL	SELDSK						; Set Disk
+0029: 010B     010000     			LXI		B,Track     
+0030: 010E     CD58FB     			CALL	SETTRK						; Set Track
+0031: 0111     0E01       			MVI		C,Sector    
+0032: 0113     CD5EFB     			CALL	SETSEC						; Set Sector
+0033: 0116     018000     			LXI		B,DefaultDiskBuffer
+0034: 0119     CD65FB     			CALL	SETDMA						; Set DMA
+0035: 011C                			                 
+0036: 011C     76         			HLT              
+0037: 011D     0E01       			MVI		C,WriteDirectory			; Set to write Directory
+0038: 011F     CD15FC     			CALL	WRITE						; do the Write
+0039: 0122     76         			HLT              
+0040: 0123                			                 
+0041: 0123                Part2:              
+0042: 0123     0E01       			MVI		C,Sector					; Set Sector
+0043: 0125     CD5EFB     			CALL	SETSEC      
+0044: 0128     010002     			LXI		B,ReadBackBuffer
+0045: 012B     CD65FB     			CALL	SETDMA						; Set DMA
+0046: 012E                			                 
+0047: 012E     76         			HLT              
+0048: 012F     CDFBFB     			CALL	Read						; read it back into memory
+0049: 0132     76         			HLT              
+0050: 0133                                    
+0051: 0133                CodeEnd:            
+0052: 0133                			ORG TPA + TPA    
+0053: 0200                ReadBackBuffer:     
+0054: 0200                                    
+0055: 0200                END:                
+0056: 0200                			                 
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0051	0133	CODEEND                       		
+0023	0100	CODESTART                     		
+
+0013	0080	DEFAULTDISKBUFFER             		  0014,  0033,
+0016	0000	DISK                          		  0027,
+
+0055	0200	END                           		
+
+0041	0123	PART2                         		
+
+0007	FBFB	READ                          		  0048,
+0053	0200	READBACKBUFFER                		  0044,
+
+0018	0001	SECTOR                        		  0031,  0042,
+0003	FB2B	SELDSK                        		  0028,
+0006	FB65	SETDMA                        		  0034,  0045,
+0009	1000	SETPAGE0                      		  0025,
+0005	FB5E	SETSEC                        		  0032,  0043,
+0004	FB58	SETTRK                        		  0030,
+0024	0100	START                         		
+
+0014	0080	TOPOFSTACK                    		  0026,
+0020	0100	TPA                           		  0022,  0052,
+0017	0000	TRACK                         		  0029,
+
+0008	FC15	WRITE                         		  0038,
+0011	0001	WRITEDIRECTORY                		  0037,
