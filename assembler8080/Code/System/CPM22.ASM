@@ -1423,7 +1423,7 @@ PATTRN2:
 BDOSEntry:
 ;	JMP	BDOSSetup
 ;BDOSSetup:
-	XCHG						; Swap  (DE) and (HL).
+	XCHG						; Swap  (DE) and (HL). **23**
 	SHLD	ParamsDE			; Save (DE)
 	XCHG						; Restore (DE) and (HL) to original values
 	MOV		A,E	
@@ -3826,13 +3826,13 @@ SETRAN:
 	MOV	M,A	;and lastly 'r2'.
 	RET
 ;
-;   This routine select the drive specified in (CurrentDrive) and
-; update the login vector and bitmap table if this drive was
+; This routine selects the drive specified in (CurrentDrive) and
+; updates the login vector and bitmap table if this drive was
 ; not already active.
 ;
 LoginDrive:
-	LHLD	LoggedBitMap	;get the logged Bitmap.
-	LDA	CurrentDrive	;get the default drive.
+	LHLD	LoggedBitMap		;get the "logged In" Bitmap.
+	LDA	CurrentDrive			;get the Subject Drive.
 	MOV	C,A
 	CALL	SHIFTR	;position active bit for this drive
 	PUSH	H	;into bit 0.

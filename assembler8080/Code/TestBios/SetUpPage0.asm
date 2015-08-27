@@ -6,8 +6,9 @@ DefaultDisk			EQU			00H			; disk A:
 SETDMA				EQU			0FB65H
 
 		ORG		1000H
+CodeStart:
 
-EnterCPM:
+Start:
 	MVI		A,0C3H				; JMP op code
 	STA		0000H				; set up the jump in location 0000H
 	STA		0005H				; and at location 0005H
@@ -25,3 +26,6 @@ EnterCPM:
 	LDA		DefaultDisk		; Transfer current default disk to
 	MOV		C,A				; Console Command Processor
 	RET						; transfer to Caller
+	
+CodeEnd:
+	END

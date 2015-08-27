@@ -5,26 +5,30 @@
 0005: 0000                DefaultDisk			EQU			00H			; disk A:
 0006: 0000                SETDMA				EQU			0FB65H
 0007: 0000                                    
-0008: 0000                		ORG		01000H       
-0009: 1000                                    
-0010: 1000                EnterCPM:           
-0011: 1000     3EC3       	MVI		A,0C3H				; JMP op code
-0012: 1002     320000     	STA		0000H				; set up the jump in location 0000H
-0013: 1005     320500     	STA		0005H				; and at location 0005H
-0014: 1008                	                   
-0015: 1008     2103F6     	LXI		H,WarmBootEntry		; get BIOS vector address
-0016: 100B     220100     	SHLD	0001H				; put address in location 1
-0017: 100E                	                   
-0018: 100E     2106E8     	LXI		H,BDOSEntry			; Get BDOS entry point address
-0019: 1011     220600     	SHLD	0006H				; put address at location 5
-0020: 1014                	                   
-0021: 1014     018000     	LXI		B,DefaultDiskBuffer	; set disk I/O address to default
-0022: 1017     CD65FB     	CALL	SETDMA				; use normal BIOS routine		****************************************************************
-0023: 101A                	                   
-0024: 101A     FB         	EI                 
-0025: 101B     3A0000     	LDA		DefaultDisk		; Transfer current default disk to
-0026: 101E     4F         	MOV		C,A				; Console Command Processor
-0027: 101F     C9         	RET						; transfer to Caller
+0008: 0000                		ORG		1000H        
+0009: 1000                CodeStart:          
+0010: 1000                                    
+0011: 1000                Start:              
+0012: 1000     3EC3       	MVI		A,0C3H				; JMP op code
+0013: 1002     320000     	STA		0000H				; set up the jump in location 0000H
+0014: 1005     320500     	STA		0005H				; and at location 0005H
+0015: 1008                	                   
+0016: 1008     2103F6     	LXI		H,WarmBootEntry		; get BIOS vector address
+0017: 100B     220100     	SHLD	0001H				; put address in location 1
+0018: 100E                	                   
+0019: 100E     2106E8     	LXI		H,BDOSEntry			; Get BDOS entry point address
+0020: 1011     220600     	SHLD	0006H				; put address at location 5
+0021: 1014                	                   
+0022: 1014     018000     	LXI		B,DefaultDiskBuffer	; set disk I/O address to default
+0023: 1017     CD65FB     	CALL	SETDMA				; use normal BIOS routine		****************************************************************
+0024: 101A                	                   
+0025: 101A     FB         	EI                 
+0026: 101B     3A0000     	LDA		DefaultDisk		; Transfer current default disk to
+0027: 101E     4F         	MOV		C,A				; Console Command Processor
+0028: 101F     C9         	RET						; transfer to Caller
+0029: 1020                	                   
+0030: 1020                CodeEnd:            
+0031: 1020                	END                
 
 
 
@@ -34,13 +38,15 @@
 
 0000	0000	$                             		
 
-0003	E806	BDOSENTRY                     		  0018,
+0003	E806	BDOSENTRY                     		  0019,
 
-0005	0000	DEFAULTDISK                   		  0025,
-0004	0080	DEFAULTDISKBUFFER             		  0021,
+0030	1020	CODEEND                       		
+0009	1000	CODESTART                     		
 
-0010	1000	ENTERCPM                      		
+0005	0000	DEFAULTDISK                   		  0026,
+0004	0080	DEFAULTDISKBUFFER             		  0022,
 
-0006	FB65	SETDMA                        		  0022,
+0006	FB65	SETDMA                        		  0023,
+0011	1000	START                         		
 
-0002	F603	WARMBOOTENTRY                 		  0015,
+0002	F603	WARMBOOTENTRY                 		  0016,
