@@ -1,0 +1,49 @@
+0001: 0000                ;SelectDisk_0E.asm  
+0002: 0000                ;                   
+0003: 0000                ;		MVI		C,0EH       
+0004: 0000                ;		CALL 	BDOSVector 
+0005: 0000                                    
+0006: 0000                SetUpPage0	EQU		1000H
+0007: 0000                BDOSVector	EQU		0005H
+0008: 0000                SetPage0	EQU		01000H
+0009: 0000                DefaultDiskBuffer	EQU		080H
+0010: 0000                                    
+0011: 0000                                    
+0012: 0000                TPA					EQU		0100H  
+0013: 0000                                    
+0014: 0000                			ORG			TPA        
+0015: 0100                CodeStart:          
+0016: 0100                Start:              
+0017: 0100     CD0010     			CALL	SetPage0					; initialize
+0018: 0103     318000     			LXI		SP,DefaultDiskBuffer		; set the stack
+0019: 0106     76         			HLT              
+0020: 0107                                    
+0021: 0107     1E00       			MVI		E,00H						; set Disk 0=A, 1=B...
+0022: 0109     0E0E       			MVI		C,0EH       
+0023: 010B     CD0500     			CALL 	BDOSVector 
+0024: 010E                			                 
+0025: 010E     76         			HLT              
+0026: 010F                CodeEnd:            
+0027: 010F                			END              
+0028: 010F                			                 
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		
+
+0007	0005	BDOSVECTOR                    		  0023,
+
+0026	010F	CODEEND                       		
+0015	0100	CODESTART                     		
+
+0009	0080	DEFAULTDISKBUFFER             		  0018,
+
+0008	1000	SETPAGE0                      		  0017,
+0006	1000	SETUPPAGE0                    		
+0016	0100	START                         		
+
+0012	0100	TPA                           		  0014,
