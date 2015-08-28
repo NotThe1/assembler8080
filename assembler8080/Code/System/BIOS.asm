@@ -592,8 +592,10 @@ OutputDataPort:
 DiskParameterHeaders:		; described in chapter 3
 
 		; Logical Disk A: (5 1/4" Diskette)
-	DW	Floppy5SkewTable	; 5 1/4" skew table
-	DW	0,0,0F981H			; reserved for CP/M
+	DW	Floppy5SkewTable				; 5 1/4" skew table
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
 	DW	DirectoryBuffer
 	DW	Floppy5ParameterBlock
 	DW	DiskAWorkArea
@@ -601,7 +603,9 @@ DiskParameterHeaders:		; described in chapter 3
 	
 		; Logical Disk B: (5 1/4" Diskette)
 	DW	Floppy5SkewTable	; shares the same skew table as A:
-	DW	0,0,0F981H			; reserved for CP/M
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
 	DW	DirectoryBuffer		; all disks use this buffer
 	DW	Floppy5ParameterBlock
 	DW	DiskBWorkArea
@@ -609,7 +613,9 @@ DiskParameterHeaders:		; described in chapter 3
 	
 		; Logical Disk C: (8" Floppy)
 	DW	Floppy8SkewTable	; 8" skew table
-	DW	0,0,0F981H			; reserved for CP/M
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
 	DW	DirectoryBuffer		; all disks use this buffer
 	DW	Floppy8ParameterBlock
 	DW	DiskCWorkArea
@@ -617,7 +623,9 @@ DiskParameterHeaders:		; described in chapter 3
 	
 		; Logical Disk D: (8" Floppy)
 	DW	Floppy5SkewTable	; shares the same skew table as A:
-	DW	0,0,0F981H			; reserved for CP/M
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
 	DW	DirectoryBuffer		; all disks use this buffer
 	DW	Floppy8ParameterBlock
 	DW	DiskDWorkArea

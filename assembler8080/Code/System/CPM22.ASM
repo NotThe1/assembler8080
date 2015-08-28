@@ -2,15 +2,13 @@
 ;**************************************************************
 ;*
 ;*             C P / M   version   2 . 2
-;*
-;*   Reconstructed from memory image on February 27, 1981
-;*
+;*                    Sourced from:
+;*  Reconstructed from memory image on February 27, 1981
 ;*                by Clark A. Calkins
 ;*
 ;**************************************************************
 ;
-;   Set memory limit here. This is the amount of contiguous
-; ram starting from 0000. CP/M will reside at the end of this space.
+
 ;
 MEM	EQU	64	;for a 64k system 
 ;
@@ -134,8 +132,8 @@ PLINE2:
 ;   Routine to reset the disk system.
 ;
 RESDSK:
-	MVI	C,13
-	JMP	ENTRY
+	MVI			C,13
+	JMP			ENTRY
 ;
 ;   Routine to select disk (A).
 ;
@@ -242,13 +240,13 @@ RENAM:
 ;   Get the current user code.
 ;
 GETUSR:
-	MVI	E,0FFH
+	MVI			E,0FFH			; make it get
 ;
 ;   Routine to get or set the current user code.
 ; If (E) is FF then this is a GET, else it is a SET.
 ;
 GETSETUC:
-MVI	C,32
+	MVI			C,32			; BDOS vector
 	JMP	ENTRY
 ;
 ;   Routine to set the current drive byte at (TDRIVE).
@@ -699,20 +697,22 @@ XRA	A
 ;*
 ;* C C P  -   C o n s o l e   C o m m a n d   P r o c e s s o r
 ;*
+;
+;   On entry (C) points at Current disk & user (defaultDisk 0004)
 ;**************************************************************
 ;*
 COMMAND:
-	LXI	SP,CCPSTACK;setup stack area.
-	PUSH	B	;note that (C) should be equal to:
-	MOV	A,C	;(uuuudddd) where 'uuuu' is the user number
-	RAR		;and 'dddd' is the drive number.
+	LXI			SP,CCPStack				; Use dedicated stack space.
+	PUSH		B						; (C) should be equal to currentDisk where:
+	MOV			A,C						; (uuuudddd) where 'uuuu' is the user number
+	RAR									; and 'dddd' is the drive number.
 	RAR
 	RAR
 	RAR
-	ANI	0FH	;isolate the user number.
-	MOV	E,A
-	CALL	GETSETUC;and set it.
-	CALL	RESDSK	;reset the disk system.
+	ANI			0FH						; isolate the user number.
+	MOV			E,A						; put into E for call
+	CALL	GETSETUC					; to the current user
+	CALL	RESDSK						;reset the disk system.
 	STA	BATCH	;clear batch mode flag.
 	POP	B
 	MOV	A,C
@@ -726,7 +726,7 @@ COMMAND:
 ;   Entry point to get a command line from the console.
 ;
 CMMND1:
-	LXI	SP,CCPSTACK;set stack straight.
+	LXI	SP,CCPStack;set stack straight.
 	CALL	CRLF	;start a new line on the screen.
 	CALL	GETDSK	;get current drive.
 	ADI	061H		; 'a'
@@ -1374,7 +1374,7 @@ GETBACK1:
 ;   ccp stack area.
 ;
 	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-CCPSTACK	EQU	$	;end of ccp stack area.
+CCPStack	EQU	$	;end of ccp stack area.
 ;
 ;   Batch (or SUBMIT) processing information storage.
 ;
@@ -2036,27 +2036,27 @@ DE2HL1:
 ;   Select the desired drive.
 ;
 SelectDisk:
-	LDA	CurrentDrive	;get active disk.
-	MOV	C,A
-	CALL	SELDSK	; (BIOS CALL )select it.
-	MOV	A,H	;valid drive?
-	ORA	L	;valid drive?
-	RZ		;return if not.
+	LDA		CurrentDrive	; get active disk.
+	MOV		C,A				; set up for Bios call, put disk in (C)
+	CALL	SELDSK			; (BIOS CALL )select it.
+	MOV	A,H					;	HL = 0000 if invalid
+	ORA	L					; otherwise it points to the correct Disk Parameter Block
+	RZ						; so, return if HL = 0000
 ;
 ;   Here, the BIOS returned the address of the parameter block
 ; in (HL). We will extract the necessary pointers and save them.
 ;
-	MOV	E,M	;yes, get address of translation table into (DE).
+	MOV	E,M					; first word of DPB points to the drive's skew table
 	INX	H
-	MOV	D,M
-	INX	H
-	SHLD	SCRATCH1	;save pointers to scratch areas.
-	INX	H
-	INX	H
-	SHLD	SCRATCH2	;ditto.
+	MOV	D,M					; Get it and put it into (DE)
+	INX	H					
+	SHLD	FilePosInDir	;save pointers to scratch areas.
 	INX	H
 	INX	H
-	SHLD	SCRATCH3	;ditto.
+	SHLD	LastTrackNumber	;ditto.
+	INX	H
+	INX	H
+	SHLD	LastSectorNumber	;ditto.
 	INX	H
 	INX	H
 	XCHG		;now save the translation table address.
@@ -2086,11 +2086,11 @@ SelectDisk1:
 HOMEDRV:
 	CALL	HOME	;home the head.
 	XRA	A
-	LHLD	SCRATCH2;set our track pointer also.
+	LHLD	LastTrackNumber;set our track pointer also.
 	MOV	M,A
 	INX	H
 	MOV	M,A
-	LHLD	SCRATCH3;and our sector pointer.
+	LHLD	LastSectorNumber;and our sector pointer.
 	MOV	M,A
 	INX	H
 	MOV	M,A
@@ -2130,11 +2130,11 @@ TRKSEC1:
 	MOV	C,M	;move sector number into (BC).
 	INX	H
 	MOV	B,M
-	LHLD	SCRATCH3;get current sector number and
+	LHLD	LastSectorNumber;get current sector number and
 	MOV	E,M	;move this into (DE).
 	INX	H
 	MOV	D,M
-	LHLD	SCRATCH2;get current track number.
+	LHLD	LastTrackNumber;get current track number.
 	MOV	A,M	;and this into (HL).
 	INX	H
 	MOV	H,M
@@ -2186,12 +2186,12 @@ TRKSEC4:
 	MOV	C,L
 	CALL	SETTRK	;select this track.
 	POP	D	;reset current track pointer.
-	LHLD	SCRATCH2
+	LHLD	LastTrackNumber
 	MOV	M,E
 	INX	H
 	MOV	M,D
 	POP	D
-	LHLD	SCRATCH3;reset the first sector on this track.
+	LHLD	LastSectorNumber;reset the first sector on this track.
 	MOV	M,E
 	INX	H
 	MOV	M,D
@@ -2395,24 +2395,7 @@ SHIFTL1:
 	RZ
 	DAD	H	;shift left 1 bit.
 	JMP	SHIFTL1
-;
-;   Routine to set a bit in a 16 bit value contained in (BC).
-; The bit set depends on the current drive selection.
-;
-SETBIT:
-	PUSH	B	;save 16 bit word.
-	LDA	CurrentDrive	;get active drive.
-	MOV	C,A
-	LXI	H,1
-	CALL	SHIFTL	;shift bit 0 into place.
-	POP	B	;now 'or' this with the original word.
-	MOV	A,C
-	ORA	L
-	MOV	L,A	;low byte done, do high byte.
-	MOV	A,B
-	ORA	H
-	MOV	H,A
-	RET
+
 ;
 ;   Extract the write protect status bit for the current drive.
 ; The result is returned in (A), bit 0.
@@ -2438,7 +2421,7 @@ WRTPRTD:
 	LHLD	DIRSIZE	;now save directory size limit.
 	INX	H	;remember the last one.
 	XCHG
-	LHLD	SCRATCH1;and store it here.
+	LHLD	FilePosInDir;and store it here.
 	MOV	M,E	;put low byte.
 	INX	H
 	MOV	M,D	;then high byte.
@@ -2506,15 +2489,15 @@ SETS2B7:
 	MOV	M,A	;then store.
 	RET
 ;
-;   Compare (FILEPOS) with (SCRATCH1) and set flags based on
+;   Compare (FILEPOS) with (FilePosInDir) and set flags based on
 ; the difference. This checks to see if there are more file
 ; names in the directory. We are at (FILEPOS) and there are
-; (SCRATCH1) of them to check.
+; (FilePosInDir) of them to check.
 ;
 MOREFLS:
 	LHLD	FILEPOS	;we are here.
 	XCHG
-	LHLD	SCRATCH1;and don't go past here.
+	LHLD	FilePosInDir;and don't go past here.
 	MOV	A,E	;compute difference but don't keep.
 	SUB	M
 	INX	H
@@ -2522,11 +2505,11 @@ MOREFLS:
 	SBB	M	;set carry if no more names.
 	RET
 ;
-;   Call this routine to prevent (SCRATCH1) from being greater
+;   Call this routine to prevent (FilePosInDir) from being greater
 ; than (FILEPOS).
 ;
 CHKNMBR:
-	CALL	MOREFLS	;SCRATCH1 too big?
+	CALL	MOREFLS	;FilePosInDir too big?
 	RC
 	INX	D	;yes, reset it to (FILEPOS).
 	MOV	M,D
@@ -2791,73 +2774,7 @@ SETFL4:
 	INX	H
 	POP	B
 	JMP	SETFL1
-;
-;   Construct the space used allocation bit map for the active
-; drive. If a file name starts with '$' and it is under the
-; current user number, then (StatusBDOSReturn) is set to minus 1. Otherwise
-; it is not set at all.
-;
-BITMAP:
-	LHLD	DSKSIZE	;compute size of allocation table.
-	MVI	C,3
-	CALL	SHIFTR	;(HL)=(HL)/8.
-	INX	H	;at lease 1 byte.
-	MOV	B,H
-	MOV	C,L	;set (BC) to the allocation table length.
-;
-;   Initialize the bitmap for this drive. Right now, the first
-; two bytes are specified by the disk parameter block. However
-; a patch could be entered here if it were necessary to setup
-; this table in a special mannor. For example, the bios could
-; determine locations of 'bad blocks' and set them as already
-; 'used' in the map.
-;
-	LHLD	ALOCVECT;now zero out the table now.
-BITMAP1:
-	MVI	M,0
-	INX	H
-	DCX	B
-	MOV	A,B
-	ORA	C
-	JNZ	BITMAP1
-	LHLD	ALLOC0	;get initial space used by directory.
-	XCHG
-	LHLD	ALOCVECT;and put this into map.
-	MOV	M,E
-	INX	H
-	MOV	M,D
-;
-;   End of initialization portion.
-;
-	CALL	HOMEDRV	;now home the drive.
-	LHLD	SCRATCH1
-	MVI	M,3	;force next directory request to read
-	INX	H	;in a sector.
-	MVI	M,0
-	CALL	STFILPOS;clear initial file position also.
-BITMAP2:
-	MVI	C,0FFH	;read next file name in directory
-	CALL	NXENTRY	;and set checksum byte.
-	CALL	CKFILPOS;is there another file?
-	RZ
-	CALL	FCB2HL	;yes, get its address.
-	MVI	A,0E5H
-	CMP	M	;empty file entry?
-	JZ	BITMAP2
-	LDA	CurrentUser;no, correct user number?
-	CMP	M
-	JNZ	BITMAP3
-	INX	H
-	MOV	A,M	;yes, does name start with a '$'?
-	SUI	DOLLAR		; '$'
-	JNZ	BITMAP3
-	DCR	A	;yes, set atatus to minus one.
-	STA	StatusBDOSReturn
-BITMAP3:
-	MVI	C,1	;now set this file's space as used in bit map.
-	CALL	SETFILE
-	CALL	CHKNMBR	;keep (SCRATCH1) in bounds.
-	JMP	BITMAP2
+
 ;
 ;   Set the status (StatusBDOSReturn) and return.
 ;
@@ -3316,7 +3233,7 @@ GETMT1:
 	LXI	H,13	;clear the 's1' byte also.
 	DAD	D
 	MOV	M,A
-	CALL	CHKNMBR	;keep (SCRATCH1) within bounds.
+	CALL	CHKNMBR	;keep (FilePosInDir) within bounds.
 	CALL	FCBSET	;write out this fcb entry to directory.
 	JMP	SETS2B7	;set 's2' byte bit 7 (unmodified at present).
 ;
@@ -3831,24 +3748,112 @@ SETRAN:
 ; not already active.
 ;
 LoginDrive:
-	LHLD	LoggedBitMap		;get the "logged In" Bitmap.
-	LDA	CurrentDrive			;get the Subject Drive.
-	MOV	C,A
-	CALL	SHIFTR	;position active bit for this drive
-	PUSH	H	;into bit 0.
+	LHLD	LoggedBitMap		; point at the "logged In" Bitmap.
+	LDA		CurrentDrive		; get the Subject Drive.
+	MOV		C,A					; Save current drive
+	CALL	SHIFTR				; Return with CurrentDrive's bit in L's lsb (byte 0)
+	PUSH	H					; Save it, so we will know if it is already active
 	XCHG
-	CALL	SelectDisk	;select this drive.
-	POP	H
-	CZ	SLCTERR	;valid drive?
-	MOV	A,L	;is this a newly activated drive?
-	RAR
-	RC
-	LHLD	LoggedBitMap	;yes, update the logged Bitmap.
-	MOV	C,L
-	MOV	B,H
-	CALL	SETBIT
-	SHLD	LoggedBitMap	;and save.
-	JMP	BITMAP	;now update the bitmap.
+	CALL	SelectDisk			; select this drive (in BIOS).
+	JZ		SLCTERR				; If not valid then error exit outta here
+	POP	H						; retreive original state of the drive
+	MOV	A,L						; and put it into (A) 
+	RAR							; move the lsb (bit 0) into the carry flag		
+	RC							; if its set then this drive has already been activated
+							;No, then update the logged Bitmap to reflect this drive.
+	LHLD	LoggedBitMap		
+	MOV		C,L
+	MOV		B,H					; put the map into (BC)
+	CALL	SETBIT				; Set it in the LoggedBitMap
+	SHLD	LoggedBitMap		; and save the Bit map.
+;	JMP	BITMAP	;now update the bitmap.
+;-----------------------------------------------------------
+;
+;   Construct the space used allocation bit map for the active
+; drive. If a file name starts with '$' and it is under the
+; current user number, then (StatusBDOSReturn) is set to minus 1. Otherwise
+; it is not set at all.
+;
+BITMAP:
+	LHLD		DSKSIZE		;compute size of allocation table.
+	MVI			C,3			; 2 raised to 3rd power = 8
+	CALL		SHIFTR		;(HL)=(HL)/8.
+	INX			H			;at lease 1 byte.
+	MOV			B,H
+	MOV			C,L	;set (BC) to the allocation table length.
+;
+;   Initialize the bitmap for this drive. Right now, the first
+; two bytes are specified by the disk parameter block. However
+; a patch could be entered here if it were necessary to setup
+; this table in a special mannor. For example, the bios could
+; determine locations of 'bad blocks' and set them as already
+; 'used' in the map.
+;
+	LHLD		ALOCVECT	;now zero out the table now.
+BITMAP1:
+	MVI			M,0			; put zero in vector
+	INX			H			; point at next locatio
+	DCX			B			; count down
+	MOV			A,B
+	ORA			C			; equals zero if both (B) and (B) are Zero
+	JNZ			BITMAP1		; loop for more
+	LHLD		ALLOC0		;get initial space used by directory.
+	XCHG
+	LHLD	ALOCVECT;and put this into map.
+	MOV	M,E
+	INX	H
+	MOV	M,D
+;
+;   End of initialization portion.
+;
+	CALL	HOMEDRV	;now home the drive.
+	LHLD	FilePosInDir
+	MVI	M,3	;force next directory request to read
+	INX	H	;in a sector.
+	MVI	M,0
+	CALL	STFILPOS;clear initial file position also.
+BITMAP2:
+	MVI	C,0FFH	;read next file name in directory
+	CALL	NXENTRY	;and set checksum byte.
+	CALL	CKFILPOS;is there another file?
+	RZ
+	CALL	FCB2HL	;yes, get its address.
+	MVI	A,0E5H
+	CMP	M	;empty file entry?
+	JZ	BITMAP2
+	LDA	CurrentUser;no, correct user number?
+	CMP	M
+	JNZ	BITMAP3
+	INX	H
+	MOV	A,M	;yes, does name start with a '$'?
+	SUI	DOLLAR		; '$'
+	JNZ	BITMAP3
+	DCR	A	;yes, set atatus to minus one.
+	STA	StatusBDOSReturn
+BITMAP3:
+	MVI	C,1	;now set this file's space as used in bit map.
+	CALL	SETFILE
+	CALL	CHKNMBR	;keep (FilePosInDir) in bounds.
+	JMP	BITMAP2
+;-----------------------------------------------------------
+;
+;  Routine to set a bit in a 16 bit value contained in (BC).
+; The bit set depends on the current drive selection.
+;
+SETBIT:
+	PUSH	B					;save original bit (BC)
+	LDA		CurrentDrive		;get active drive.
+	MOV		C,A
+	LXI		H,1
+	CALL	SHIFTL				;shift bit into place for Drive bit .
+	POP		B					;now 'or' this with the original word.
+	MOV		A,C
+	ORA		L
+	MOV		L,A					;low byte done, do high byte.
+	MOV		A,B
+	ORA		H
+	MOV		H,A
+	RET							; HL has the result
 ;
 ;   Function to set the active disk number.
 ;
@@ -4035,14 +4040,15 @@ GETPRM1:
 ; Else set the user number from (E).
 ;
 GETUSER:
-	LDA	ParamE	;get parameter.
-	CPI	0FFH	;get user number?
-	JNZ	SETUSER
-	LDA	CurrentUser;yes, just do it.
-	JMP	SETSTAT
+	LDA			ParamE			; get parameter.
+	CPI			0FFH			; want to get user number?
+	JNZ			SETUSER			; No, then set it
+	LDA			CurrentUser		;yes, just return it in A
+	JMP			SETSTAT			; exit while setting return status
+	
 SETUSER:
-	ANI	1FH	;no, we should set it instead. keep low
-	STA	CurrentUser;bits (0-4) only.
+	ANI			1FH				;no,just keep the low bits (000X XXXX)
+	STA			CurrentUser		;and save in Current user
 	RET
 ;
 ;   Function to read a random record from a file.
@@ -4120,60 +4126,60 @@ WTSPECL:
 ;*
 ;**************************************************************
 
-CurrentUser:	DB	0	;current user number.
-CurrentDrive:	DB	0	;currently active drive.
+CurrentUser:			DB	0	;current user number.
+CurrentDrive:			DB	0	;currently active drive.
 
 ;
-EMPTYFCB:	DB	0E5H	;empty directory segment indicator.
-ROBitMap:		DW	0	;write protect status for all 16 drives.
-LoggedBitMap:		DW	0	;drive active word (1 bit per drive).
-UsersDMA:	DW	080H	;user's dma address (defaults to 80h).
+EMPTYFCB:				DB	0E5H	;empty directory segment indicator.
+ROBitMap:				DW	0	;write protect status for all 16 drives.
+LoggedBitMap:			DW	0	;drive active word (1 bit per drive).
+UsersDMA:				DW	080H	;user's dma address (defaults to 80h).
 ;
 ;   Scratch areas from parameter block.
 ;
-SCRATCH1:	DW	0	;relative position within dir segment for file (0-3).
-SCRATCH2:	DW	0	;last selected track number.
-SCRATCH3:	DW	0	;last selected sector number.
+FilePosInDir:			DW	0	;relative position within dir segment for file (0-3).
+LastTrackNumber:		DW	0	;last selected track number.
+LastSectorNumber:		DW	0	;last selected sector number.
 ;
 ;   Disk storage areas from parameter block.
 ;
-DIRBUF:		DW	0	;address of directory buffer to use.
-DISKPB:		DW	0	;contains address of disk parameter block.
-CHKVECT:	DW	0	;address of check vector.
-ALOCVECT:	DW	0	;address of allocation vector (bit map).
+DIRBUF:					DW	0	;address of directory buffer to use.
+DISKPB:					DW	0	;contains address of disk parameter block.
+CHKVECT:				DW	0	;address of check vector.
+ALOCVECT:				DW	0	;address of allocation vector (bit map).
 ;
 ;   Parameter block returned from the bios.
 ;
-SECTORS:	DW	0	;sectors per track from bios.
-BLKSHFT:	DB	0	;block shift.
-BLKMASK:	DB	0	;block mask.
-EXTMASK:	DB	0	;extent mask.
-DSKSIZE:	DW	0	;disk size from bios (number of blocks-1).
-DIRSIZE:	DW	0	;directory size.
-ALLOC0:		DW	0	;storage for first bytes of bit map (dir space used).
-ALLOC1:		DW	0
-OFFSET:		DW	0	;first usable track number.
-XLATE:		DW	0	;sector translation table address.
+SECTORS:				DW	0	;sectors per track from bios.
+BLKSHFT:				DB	0	;block shift.
+BLKMASK:				DB	0	;block mask.
+EXTMASK:				DB	0	;extent mask.
+DSKSIZE:				DW	0	;disk size from bios (number of blocks-1).
+DIRSIZE:				DW	0	;directory size.
+ALLOC0:					DW	0	;storage for first bytes of bit map (dir space used).
+ALLOC1:					DW	0
+OFFSET:					DW	0	;first usable track number.
+XLATE:					DW	0	;sector translation table address.
 ;
 ;
-CLOSEFLG:	DB	0	;close flag (=0ffh is extent written ok).
-RDWRTFLG:	DB	0	;read/write flag (0ffh=read, 0=write).
-FNDSTAT:	DB	0	;filename found status (0=found first entry).
-MODE:		DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
-RELBLOCK:	DB	0	;relative position within fcb of block number written.
-COUNTER:	DB	0	;byte counter for directory name searches.
-SAVEFCB:	DW	0,0	;save space for address of fcb (for directory searches).
-BIGDISK:	DB	0	;if =0 then disk is > 256 blocks long.
+CLOSEFLG:				DB	0	;close flag (=0ffh is extent written ok).
+RDWRTFLG:				DB	0	;read/write flag (0ffh=read, 0=write).
+FNDSTAT:				DB	0	;filename found status (0=found first entry).
+MODE:					DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
+RELBLOCK:				DB	0	;relative position within fcb of block number written.
+COUNTER:				DB	0	;byte counter for directory name searches.
+SAVEFCB:				DW	0,0	;save space for address of fcb (for directory searches).
+BIGDISK:				DB	0	;if =0 then disk is > 256 blocks long.
 AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
-OLDDRV:		DB	0	;on auto select, storage for previous drive.
-AutoSelectFlag:	DB	0	;if non-zero, then auto select changed drives.
-SAVNXT:		DB	0	;storage for next record number to access.
-SAVEXT:		DB	0	;storage for extent number of file.
-SAVNREC:	DW	0	;storage for number of records in file.
-BLKNMBR:	DW	0	;block number (physical sector) used within a file or logical sector.
-LOGSECT:	DW	0	;starting logical (128 byte) sector of block (physical sector).
-FCBPOS:		DB	0	;relative position within buffer for fcb of file of interest.
-FILEPOS:	DW	0	;files position within directory (0 to max entries -1).
+OLDDRV:					DB	0	;on auto select, storage for previous drive.
+AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
+SAVNXT:					DB	0	;storage for next record number to access.
+SAVEXT:					DB	0	;storage for extent number of file.
+SAVNREC:				DW	0	;storage for number of records in file.
+BLKNMBR:				DW	0	;block number (physical sector) used within a file or logical sector.
+LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
+FCBPOS:					DB	0	;relative position within buffer for fcb of file of interest.
+FILEPOS:				DW	0	;files position within directory (0 to max entries -1).
 ;
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
