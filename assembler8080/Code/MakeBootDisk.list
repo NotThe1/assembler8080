@@ -108,14 +108,15 @@
 0108: 1073     00         	DB	00H				; track number
 0109: 1074     01         	DB	01H				; Starting sector number
 0110: 1075                ;	DW	3 * 512			; Number of bytes to write
-0111: 1075     0012       	DW	9 * 512			; Number of bytes to write
-0112: 1077     00F0       	DW	CCPEntry + ( 8 * 512)		; write into this address
-0113: 1079     4300       	DW	DiskStatusBlock	; pointer to next block
-0114: 107B     4500       	DW	DiskControl5	; pointer to next table
-0115: 107D                                    
-0116: 107D                ;                   
-0117: 107D                CodeEnd:            
-0118: 107D                	END                
+0111: 1075                ;	DW	9 * 512			; Number of bytes to write
+0112: 1075     0010       	DW	8 * 512			; Number of bytes to write
+0113: 1077     00F0       	DW	CCPEntry + ( 8 * 512)		; write into this address
+0114: 1079     4300       	DW	DiskStatusBlock	; pointer to next block
+0115: 107B     4500       	DW	DiskControl5	; pointer to next table
+0116: 107D                                    
+0117: 107D                ;                   
+0118: 107D                CodeEnd:            
+0119: 107D                	END                
 
 
 
@@ -128,15 +129,15 @@
 0094	1063	BOOTCONTROLPART1              		  0022,
 0104	1070	BOOTCONTROLPART2              		  0025,
 
-0010	E000	CCPENTRY                      		  0101,  0112,
-0117	107D	CODEEND                       		
+0010	E000	CCPENTRY                      		  0101,  0113,
+0118	107D	CODEEND                       		
 0016	1000	CODESTART                     		
 0074	0046	COMMANDBLOCK5                 		  0032,
 0069	0041	COMMANDBLOCK8                 		
 
-0073	0045	DISKCONTROL5                  		  0042,  0103,  0114,
+0073	0045	DISKCONTROL5                  		  0042,  0103,  0115,
 0068	0040	DISKCONTROL8                  		
-0011	0043	DISKSTATUSBLOCK               		  0050,  0102,  0113,
+0011	0043	DISKSTATUSBLOCK               		  0050,  0102,  0114,
 0012	F833	DISPLAYMESSAGE                		  0057,
 
 0086	105B	FLOPPYBYTECOUNT               		

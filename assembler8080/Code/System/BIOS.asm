@@ -3,12 +3,15 @@
 
 INopCode	EQU		0DBH
 OUTopCode	EQU		0D3H
+SPACE		EQU		020H
+SLASH		EQU		02FH
 ; programmers CPM Handbook by Andy Johnson
 
-VERSION		EQU		03130H		;Equates for the sign-on Screen
-MONTH		EQU		03830H		; '08'
-DAY			EQU		03930H		; '09'
-Year		EQU		03531H		; '15'
+
+VERSION		EQU		'0A'		;Equates for the sign-on Screen
+MONTH		EQU		'08'		; '08'
+DAY			EQU		'25'		; '09'
+Year		EQU		'45'		; '15'
 
 MemorySize	EQU 64
 
@@ -115,65 +118,25 @@ CR		EQU	0DH		; Carriage Return
 LF		EQU	0AH		; Line Feed
 
 SignOnMessage:		; Main sign on message
-		DB	43H,50H,2FH,4DH,20H		; CP/M 2.2.
-		DB	32H,2EH,32H,2EH			;(2.2.)
+		DB	'CP/M 2.2.'
+;		DB	'(2.2.)'
 		DW	VERSION
-;		DB	30H,30H		; VERSION
-		DB	20H
+		DB	SPACE
 		DW	MONTH
-;		DB	30H,37H		; MONTH
-		DB	2FH			; /
+		DB	SLASH			; /
 		DW	DAY
-;		DB	31H,35H		; DAY
-		DB	2FH			; /
+		DB	SLASH			; /
 		DW	YEAR
-;		DB	38H,32H		; YEAR
 		DB	CR,LF,LF
 		
-		DB	53H,69H,6DH,70H,6CH		;Simple BIOS
-		DB	65H,20H,42H,49H,4fH,53H
-		DB	CR,LF,LF
-		
-		DB	44H,69H,73H,6BH,20H		; Disk configuration :
-		DB 	63H,6FH,6EH,66H,69H
-		DB	67H,75H,72H,61H,74H
-		DB	69H,6FH,6EH,20H,3Ah
-		DB	CR,LF,LF
-		
-		DB	20H,20H,20H,20H,20H		; A: 0.35 Mbyte 5" Floppy' 
-		DB	41H,3AH,20H,30H,2EH,33H,35H
-		DB	20H,4DH,62H,79H,74H,65H
-		DB	20H,35H,22H,20H
-		DB	46H,6CH,6FH,70H,70H,79H
-		DB	CR,LF
-		
-		DB	20H,20H,20H,20H,20H		; B: 0.35 Mbyte 5" Floppy'
-		DB	42H,3AH,20H,30H,2EH,33H,35H
-		DB	20H,4DH,62H,79H,74H,65H
-		DB	20H,35H,22H,20H
-		DB	46H,6CH,6FH,70H,70H,79H
-		DB	CR,LF,LF
-		
-		DB	20H,20H,20H,20H,20H		; C: 0.24 Mbyte 8" Floppy
-		DB	43H,3AH,20H,30H,2EH,32H,34H
-		DB	20H,4DH,62H,79H,74H,65H
-		DB	20H,35H,22H,20H
-		DB	46H,6CH,6FH,70H,70H,79H
-		DB	CR,LF
-		
-		DB	20H,20H,20H,20H,20H		; D: 0.24 Mbyte 8" Floppy
-		DB	44H,3AH,20H,30H,2EH,32H,34H
-		DB	20H,4DH,62H,79H,74H,65H
-		DB	20H,35H,22H,20H
-		DB	46H,6CH,6FH,70H,70H,79H
-		DB	CR,LF
-		
-;		DB	20H,20H,20H,20H,20H
-;		DB	20H,20H,20H,20H,20H
-;		DB	20H,20H,20H,20H,20H
-;		DB	20H,20H,20H,20H,20H
-		
-;		DS	84H		; 132  sign on message goes here
+		DB	'Simple BIOS',CR,LF,LF
+		DB	'Disk Configuration :',CR,LF,LF	
+
+		DB	'     A: 0.35 MByte 5" Floppy',CR,LF
+		DB	'     B: 0.35 MByte 5" Floppy',CR,LF,LF
+		DB	'     C: 0.24 MByte 8" Floppy',CR,LF
+		DB	'     D: 0.24 MByte 8" Floppy',CR,LF
+
 		
 		DB	00
 		
@@ -740,7 +703,8 @@ SELDSK:
 	MOV		D,M	
 	XCHG						; DE ->DPB
 	DCX		H					; DE -> prefix byte
-	MOV		A,M					; get prefix byte
+	MOV		A,M					; get Disk Type/Blocking byte
+								; Disk Type bottom nibble - Blocking MSB (bit 7)
 	ANI		0FH					; isolate disk type
 	STA		DiskType			; save for use in low level driver
 	MOV		A,M					; get another copy
@@ -1448,8 +1412,3 @@ WarmBootErroMessage:
 CodeEnd:
 End:
 
-
-	
-
-
-	

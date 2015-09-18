@@ -108,7 +108,8 @@ BootControlPart2:
 	DB	00H				; track number
 	DB	01H				; Starting sector number
 ;	DW	3 * 512			; Number of bytes to write
-	DW	9 * 512			; Number of bytes to write
+;	DW	9 * 512			; Number of bytes to write
+	DW	8 * 512			; Number of bytes to write
 	DW	CCPEntry + ( 8 * 512)		; write into this address
 	DW	DiskStatusBlock	; pointer to next block
 	DW	DiskControl5	; pointer to next table

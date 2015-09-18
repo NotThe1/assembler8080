@@ -10,48 +10,48 @@
 ;
 
 ;
-MEM	EQU	64	;for a 64k system 
+MEM			EQU		64			;for a 64k system 
 ;
-IOBYTE	EQU	3	;i/o definition byte.
-TDRIVE	EQU	4	;current drive name and user number.
-ENTRY	EQU	5	;entry point for the cp/m bdos.
-TFCB	EQU	5CH	;default file control block.
-Pg0Buffer	EQU	80H	;i/o buffer and command line storage.
-TBASE	EQU	100H	;transiant program storage area.
+IOBYTE		EQU		3			;i/o definition byte.
+TDRIVE		EQU		4			;current drive name and user number.
+ENTRY		EQU		5			;entry point for the cp/m bdos.
+TFCB		EQU		5CH			;default file control block.
+Pg0Buffer	EQU		80H			;i/o buffer and command line storage.
+TBASE		EQU		100H		;transiant program storage area.
 ;
 ;   Set control character equates.
 ;
-CNTRLC	EQU	3	;control-c
-CNTRLE	EQU	05H	;control-e
-BS	EQU	08H	;backspace
-TAB	EQU	09H	;tab
-LF	EQU	0AH	;line feed
-FF	EQU	0CH	;form feed
-CR	EQU	0DH	;carriage return
-CNTRLP	EQU	10H	;control-p
-CNTRLR	EQU	12H	;control-r
-CNTRLS	EQU	13H	;control-s
-CNTRLU	EQU	15H	;control-u
-CNTRLX	EQU	18H	;control-x
-CNTRLZ	EQU	1AH	;control-z (end-of-file mark)
-DEL	EQU	7FH	;rubout
+CNTRLC		EQU		03H			;control-c
+CNTRLE		EQU		05H			;control-e
+BS			EQU		08H			;backspace
+TAB			EQU		09H			;tab
+LF			EQU		0AH			;line feed
+FF			EQU		0CH			;form feed
+CR			EQU		0DH			;carriage return
+CNTRLP		EQU		10H			;control-p
+CNTRLR		EQU		12H			;control-r
+CNTRLS		EQU		13H			;control-s
+CNTRLU		EQU		15H			;control-u
+CNTRLX		EQU		18H			;control-x
+CNTRLZ		EQU		1AH			;control-z (end-of-file mark)
+DEL			EQU		7FH			;rubout
 ;
-BLANK	EQU	020H	; Space/Blank
-BRACKETLEFT		EQU	07BH	; {
-BRACKETRIGHT	EQU	07DH	; }
-QMARK	EQU		03FH		; ?
-EQUALS	EQU		03DH		; =
-USCORE	EQU		05FH		; _
-PERIOD	EQU		02EH		; .
-COLON	EQU		03AH		; :
-SEMIC	EQU		03BH		; ;
-LESSTH	EQU		03CH		; <
-GRTTHAN	EQU		03EH		; >
-ASTRK	EQU		02AH		; *
-CARET	EQU		05EH		; ^
-ATSIGN	EQU		040H		; @
-POUNDSN	EQU		023H		; #
-DOLLAR	EQU		024H		; $
+BLANK		EQU		020H		; Space/Blank
+BRACKETLEFT		EQU	07BH		; {
+BRACKETRIGHT	EQU	07DH		; }
+QMARK		EQU		03FH		; ?
+EQUALS		EQU		03DH		; =
+USCORE		EQU		05FH		; _
+PERIOD		EQU		02EH		; .
+COLON		EQU		03AH		; :
+SEMIC		EQU		03BH		; ;
+LESSTH		EQU		03CH		; <
+GRTTHAN		EQU		03EH		; >
+ASTRK		EQU		02AH		; *
+CARET		EQU		05EH		; ^
+ATSIGN		EQU		040H		; @
+POUNDSN		EQU		023H		; #
+DOLLAR		EQU		024H		; $
 
 ;
 ;   Set origin for CP/M
@@ -60,57 +60,57 @@ DOLLAR	EQU		024H		; $
 CodeStart:
 ;
 CBASE:
-	JMP	COMMAND	;execute command processor (ccp).
-	JMP	CLEARBUF	;entry to empty input buffer before starting ccp.
+		JMP		COMMAND		;execute command processor (ccp).
+		JMP		CLEARBUF	;entry to empty input buffer before starting ccp.
 
 ;
 ;   Standard cp/m ccp input buffer. Format is (max length),
 ; (actual length), (char #1), (char #2), (char #3), etc.
 ;
 INBUFF:
-	DB	127	;length of input buffer.
-	DB	0	;current length of contents.
-	DB	'Copyright'
-	DB	' 1979 (c) by Digital Research      '
-	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		DB		127			;length of input buffer.
+		DB		0			;current length of contents.
+		DB		'Copyright'
+		DB		' 1979 (c) by Digital Research      '
+		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 INPOINT:
-	DW	INBUFF+2;input line pointer
+		DW		INBUFF+2	;input line pointer
 NAMEPNT:
-	DW	0	;input line pointer used for error message. Points to
+		DW		0			;input line pointer used for error message. Points to
 ;			;start of name in error.
 ;
 ;   Routine to print (A) on the console. All registers used.
 ;
 PRINT:
-	MOV	E,A	;setup bdos call.
-	MVI	C,2
-	JMP	ENTRY
+	MOV		E,A			;setup bdos call.
+	MVI		C,2
+	JMP		ENTRY
 ;
 ;   Routine to print (A) on the console and to save (BC).
 ;
 PRINTB:
 	PUSH	B
 	CALL	PRINT
-	POP	B
+	POP		B
 	RET
 ;
 ;   Routine to send a carriage return, line feed combination
 ; to the console.
 ;
 CRLF:
-	MVI	A,CR
+	MVI		A,CR
 	CALL	PRINTB
-	MVI	A,LF
-	JMP	PRINTB
+	MVI		A,LF
+	JMP		PRINTB
 ;
 ;   Routine to send one space to the console and save (BC).
 ;
 SPACE:
-	MVI	A,BLANK		; blank/Space
-	JMP	PRINTB
+	MVI		A,BLANK		; blank/Space
+	JMP		PRINTB
 ;
 ;   Routine to print character string pointed to be (BC) on the
 ; console. It must terminate with a null byte.
@@ -118,166 +118,166 @@ SPACE:
 PLINE:
 	PUSH	B
 	CALL	CRLF
-	POP	H
+	POP		H
 PLINE2:
-	MOV	A,M
-	ORA	A
+	MOV		A,M
+	ORA		A
 	RZ
-	INX	H
+	INX		H
 	PUSH	H
 	CALL	PRINT
-	POP	H
-	JMP	PLINE2
+	POP		H
+	JMP		PLINE2
 ;
 ;   Routine to reset the disk system.
 ;
 RESDSK:
-	MVI			C,13
-	JMP			ENTRY
+	MVI		C,13
+	JMP		ENTRY
 ;
 ;   Routine to select disk (A).
 ;
 DSKSEL:
-	MOV	E,A
-	MVI	C,14
-	JMP	ENTRY
+	MOV		E,A
+	MVI		C,14
+	JMP		ENTRY
 ;
 ;   Routine to call bdos and save the return code. The zero
 ; flag is set on a return of 0ffh.
 ;
 ENTRY1:
 	CALL	ENTRY
-	STA	RTNCODE	;save return code.
-	INR	A	;set zero if 0ffh returned.
+	STA		RTNCODE		;save return code.
+	INR		A			;set zero if 0ffh returned.
 	RET
 ;
 ;   Routine to open a file. (DE) must point to the FCB.
 ;
 OPEN:
-	MVI	C,15
-	JMP	ENTRY1
+	MVI		C,15
+	JMP		ENTRY1
 ;
 ;   Routine to open file at (FCB).
 ;
 OPENFCB:
-	XRA	A	;clear the record number byte at fcb+32
-	STA	FCB+32
-	LXI	D,FCB
-	JMP	OPEN
+	XRA		A		;clear the record number byte at fcb+32
+	STA		FCB+32
+	LXI		D,FCB
+	JMP		OPEN
 ;
 ;   Routine to close a file. (DE) points to FCB.
 ;
 CLOSE:
-	MVI	C,16
-	JMP	ENTRY1
+	MVI		C,16
+	JMP		ENTRY1
 ;
 ;   Routine to search for the first file with ambigueous name
 ; (DE).
 ;
 SRCHFST:
-	MVI	C,17
-	JMP	ENTRY1
+	MVI		C,17
+	JMP		ENTRY1
 ;
 ;   Search for the next ambigeous file name.
 ;
 SRCHNXT:
-	MVI	C,18
-	JMP	ENTRY1
+	MVI		C,18
+	JMP		ENTRY1
 ;
 ;   Search for file at (FCB).
 ;
 SRCHFCB:
-	LXI	D,FCB
-	JMP	SRCHFST
+	LXI		D,FCB
+	JMP		SRCHFST
 ;
 ;   Routine to delete a file pointed to by (DE).
 ;
 DELETE:
-	MVI	C,19
-	JMP	ENTRY
+	MVI		C,19
+	JMP		ENTRY
 ;
 ;   Routine to call the bdos and set the zero flag if a zero
 ; status is returned.
 ;
 ENTRY2:
 	CALL	ENTRY
-	ORA	A	;set zero flag if appropriate.
+	ORA		A		;set zero flag if appropriate.
 	RET
 ;
 ;   Routine to read the next record from a sequential file.
 ; (DE) points to the FCB.
 ;
 RDREC:
-	MVI	C,20
-	JMP	ENTRY2
+	MVI		C,20
+	JMP		ENTRY2
 ;
 ;   Routine to read file at (FCB).
 ;
 READFCB:
-	LXI	D,FCB
-	JMP	RDREC
+	LXI		D,FCB
+	JMP		RDREC
 ;
 ;   Routine to write the next record of a sequential file.
 ; (DE) points to the FCB.
 ;
 WRTREC:
-	MVI	C,21
-	JMP	ENTRY2
+	MVI		C,21
+	JMP		ENTRY2
 ;
 ;   Routine to create the file pointed to by (DE).
 ;
 CREATE:
-	MVI	C,22
-	JMP	ENTRY1
+	MVI		C,22
+	JMP		ENTRY1
 ;
 ;   Routine to rename the file pointed to by (DE). Note that
 ; the new name starts at (DE+16).
 ;
 RENAM:
-	MVI	C,23
-	JMP	ENTRY
+	MVI		C,23
+	JMP		ENTRY
 ;
 ;   Get the current user code.
 ;
 GETUSR:
-	MVI			E,0FFH			; make it get
+	MVI		E,0FFH			; make it get
 ;
 ;   Routine to get or set the current user code.
 ; If (E) is FF then this is a GET, else it is a SET.
 ;
 GETSETUC:
-	MVI			C,32			; BDOS vector
-	JMP	ENTRY
+	MVI		C,32			; BDOS vector
+	JMP		ENTRY
 ;
 ;   Routine to set the current drive byte at (TDRIVE).
 ;
 SETCDRV:
-	CALL	GETUSR	;get user number
-	ADD	A	;and shift into the upper 4 bits.
-	ADD	A
-	ADD	A
-	ADD	A
-	LXI	H,CDRIVE;now add in the current drive number.
-	ORA	M
-	STA	TDRIVE	;and save.
+	CALL	GETUSR			;get user number
+	ADD		A				;and shift into the upper 4 bits.
+	ADD		A
+	ADD		A
+	ADD		A
+	LXI		H,CDRIVE		;now add in the current drive number.
+	ORA		M
+	STA		TDRIVE			;and save.
 	RET
 ;
 ;   Move currently active drive down to (TDRIVE).
 ;
 MOVECD:
-	LDA	CDRIVE
-	STA	TDRIVE
+	LDA		CDRIVE
+	STA		TDRIVE
 	RET
 ;
 ;   Routine to convert (A) into upper case ascii. Only letters
 ; are affected.
 ;
 UPPER:
-	CPI	061H	; 'a'	;check for letters in the range of 'a' to 'z'.
+	CPI		061H			; 'a'	;check for letters in the range of 'a' to 'z'.
 	RC
-	CPI	BRACKETLEFT		;'{'
+	CPI		BRACKETLEFT		;'{'
 	RNC
-	ANI	5FH	;convert it if found.
+	ANI		5FH				;convert it if found.
 	RET
 ;
 ;   Routine to get a line of input. We must check to see if the
@@ -285,152 +285,152 @@ UPPER:
 ; ($$$.SUB). At the end, reset to console input.
 ;
 GETINP:
-	LDA	BATCH	;if =0, then use console input.
-	ORA	A
-	JZ	GETINP1
+	LDA		BATCH			;if =0, then use console input.
+	ORA		A
+	JZ		GETINP1
 ;
 ;   Use the submit file ($$$.sub) which is prepared by a
 ; SUBMIT run. It must be on drive (A) and it will be deleted
 ; if and error occures (like eof).
 ;
-	LDA	CDRIVE	;select drive 0 if need be.
-	ORA	A
-	MVI	A,0	;always use drive A for submit.
-	CNZ	DSKSEL	;select it if required.
-	LXI	D,BATCHFCB
-	CALL	OPEN	;look for it.
-	JZ	GETINP1	;if not there, use normal input.
-	LDA	BATCHFCB+15;get last record number+1.
-	DCR	A
-	STA	BATCHFCB+32
-	LXI	D,BATCHFCB
-	CALL	RDREC	;read last record.
-	JNZ	GETINP1	;quit on end of file.
+	LDA		CDRIVE		;select drive 0 if need be.
+	ORA		A
+	MVI		A,0			;always use drive A for submit.
+	CNZ		DSKSEL		;select it if required.
+	LXI		D,BATCHFCB
+	CALL	OPEN		;look for it.
+	JZ		GETINP1		;if not there, use normal input.
+	LDA		BATCHFCB+15	;get last record number+1.
+	DCR		A
+	STA		BATCHFCB+32
+	LXI		D,BATCHFCB
+	CALL	RDREC		;read last record.
+	JNZ		GETINP1		;quit on end of file.
 ;
 ;   Move this record into input buffer.
 ;
-	LXI	D,INBUFF+1
-	LXI	H,Pg0Buffer	;data was read into buffer here.
-	MVI	B,128	;all 128 characters may be used.
-	CALL	HL2DE	;(HL) to (DE), (B) bytes.
-	LXI	H,BATCHFCB+14
-	MVI	M,0	;zero out the 's2' byte.
-	INX	H	;and decrement the record count.
-	DCR	M
-	LXI	D,BATCHFCB;close the batch file now.
+	LXI		D,INBUFF+1
+	LXI		H,Pg0Buffer	;data was read into buffer here.
+	MVI		B,128		;all 128 characters may be used.
+	CALL	HL2DE		;(HL) to (DE), (B) bytes.
+	LXI		H,BATCHFCB+14
+	MVI		M,0			;zero out the 's2' byte.
+	INX		H			;and decrement the record count.
+	DCR		M
+	LXI		D,BATCHFCB	;close the batch file now.
 	CALL	CLOSE
-	JZ	GETINP1	;quit on an error.
-	LDA	CDRIVE	;re-select previous drive if need be.
-	ORA	A
-	CNZ	DSKSEL	;don't do needless selects.
+	JZ		GETINP1		;quit on an error.
+	LDA		CDRIVE		;re-select previous drive if need be.
+	ORA		A
+	CNZ		DSKSEL		;don't do needless selects.
 ;
 ;   Print line just read on console.
 ;
-	LXI	H,INBUFF+2
+	LXI		H,INBUFF+2
 	CALL	PLINE2
-	CALL	CHKCON	;check console, quit on a key.
-	JZ	GETINP2	;jump if no key is pressed.
+	CALL	CHKCON		;check console, quit on a key.
+	JZ		GETINP2		;jump if no key is pressed.
 ;
 ;   Terminate the submit job on any keyboard input. Delete this
 ; file such that it is not re-started and jump to normal keyboard
 ; input section.
 ;
-	CALL	DELBATCH;delete the batch file.
-	JMP	CMMND1	;and restart command input.
+	CALL	DELBATCH	;delete the batch file.
+	JMP		CMMND1		;and restart command input.
 ;
 ;   Get here for normal keyboard input. Delete the submit file
 ; incase there was one.
 ;
 GETINP1:
-	CALL	DELBATCH;delete file ($$$.sub).
-	CALL	SETCDRV	;reset active disk.
-	MVI	C,10	;get line from console device.
-	LXI	D,INBUFF
+	CALL	DELBATCH	;delete file ($$$.sub).
+	CALL	SETCDRV		;reset active disk.
+	MVI		C,10		;get line from console device.
+	LXI		D,INBUFF
 	CALL	ENTRY
-	CALL	MOVECD	;reset current drive (again).
+	CALL	MOVECD		;reset current drive (again).
 ;
 ;   Convert input line to upper case.
 ;
 GETINP2:
-	LXI	H,INBUFF+1
-	MOV	B,M	;(B)=character counter.
+	LXI		H,INBUFF+1
+	MOV		B,M			;(B)=character counter.
 GETINP3:
-	INX	H
-	MOV	A,B	;end of the line?
-	ORA	A
-	JZ	GETINP4
-	MOV	A,M	;convert to upper case.
+	INX		H
+	MOV		A,B			;end of the line?
+	ORA		A
+	JZ		GETINP4
+	MOV		A,M			;convert to upper case.
 	CALL	UPPER
-	MOV	M,A
-	DCR	B	;adjust character count.
-	JMP	GETINP3
+	MOV		M,A
+	DCR		B			;adjust character count.
+	JMP		GETINP3
 GETINP4:
-	MOV	M,A	;add trailing null.
-	LXI	H,INBUFF+2
-	SHLD	INPOINT	;reset input line pointer.
+	MOV		M,A			;add trailing null.
+	LXI		H,INBUFF+2
+	SHLD	INPOINT		;reset input line pointer.
 	RET
 ;
 ;   Routine to check the console for a key pressed. The zero
 ; flag is set is none, else the character is returned in (A).
 ;
 CHKCON:
-	MVI	C,11	;check console.
+	MVI		C,11		;check console.
 	CALL	ENTRY
-	ORA	A
-	RZ		;return if nothing.
-	MVI	C,1	;else get character.
+	ORA		A
+	RZ					;return if nothing.
+	MVI		C,1			;else get character.
 	CALL	ENTRY
-	ORA	A	;clear zero flag and return.
+	ORA		A			;clear zero flag and return.
 	RET
 ;
 ;   Routine to get the currently active drive number.
 ;
 GETDSK:
-	MVI	C,25
-	JMP	ENTRY
+	MVI		C,25
+	JMP		ENTRY
 ;
 ;   Set the stabdard dma address.
 ;
 STDDMA:
-	LXI	D,Pg0Buffer
+	LXI		D,Pg0Buffer
 ;
 ;   Routine to set the dma address to (DE).
 ;
 DMASET:
-	MVI	C,26
-	JMP	ENTRY
+	MVI		C,26
+	JMP		ENTRY
 ;
 ;  Delete the batch file created by SUBMIT.
 ;
 DELBATCH:
-LXI	H,BATCH	;is batch active?
-	MOV	A,M
-	ORA	A
+	LXI		H,BATCH			;is batch active?
+	MOV		A,M
+	ORA		A
 	RZ
-	MVI	M,0	;yes, de-activate it.
-	XRA	A
-	CALL	DSKSEL	;select drive 0 for sure.
-	LXI	D,BATCHFCB;and delete this file.
+	MVI		M,0				;yes, de-activate it.
+	XRA		A
+	CALL	DSKSEL			;select drive 0 for sure.
+	LXI		D,BATCHFCB		;and delete this file.
 	CALL	DELETE
-	LDA	CDRIVE	;reset current drive.
-	JMP	DSKSEL
+	LDA		CDRIVE			;reset current drive.
+	JMP		DSKSEL
 ;
 ;   Check to two strings at (PATTRN1) and (PATTRN2). They must be
 ; the same or we halt....
 ;
-VERIFY:
-	LXI	D,PATTRN1;these are the serial number bytes.
-	LXI	H,PATTRN2;ditto, but how could they be different?
-	MVI	B,6	;6 bytes each.
-VERIFY1:
-	LDAX	D
-	CMP	M
-	JNZ	HALT	;jump to halt routine.
-	INX	D
-	INX	H
-	DCR	B
-	JNZ	VERIFY1
-	RET
+;VERIFY:
+;	LXI		D,PATTRN1		;these are the serial number bytes.
+;	LXI		H,PATTRN2		;ditto, but how could they be different?
+;	MVI		B,6				;6 bytes each.
+;VERIFY1:
+;	LDAX	D
+;	CMP		M
+;	JNZ		HALT			;jump to halt routine.
+;	INX		D
+;	INX		H
+;	DCR		B
+;	JNZ		VERIFY1
+;	RET
 ;
 ;   Print back file name with a '?' to indicate a syntax error.
 ;
@@ -511,12 +511,12 @@ CONVFST:
 ; the position within the fcb for the name (either 0 or 16).
 ;
 CONVERT:
-	LXI	H,FCB
+	LXI		H,FCB
 	CALL	ADDHL
 	PUSH	H
 	PUSH	H
-	XRA	A
-	STA	CHGDRV	;initialize drive change flag.
+	XRA		A
+	STA		CHGDRV		;initialize drive change flag - no change.
 	LHLD	INPOINT	;set (HL) as pointer into input line.
 	XCHG
 	CALL	NONBLANK;get next non-blank character.
@@ -636,18 +636,19 @@ GETEXT9:
 ;
 NUMCMDS	EQU	6	;number of commands
 CMDTBL:
-	DB	'DIR '
-	DB	'ERA '
-	DB	'TYPE'
-	DB	'SAVE'
-	DB	'REN '
-	DB	'USER'
+	DB	'DIR '		; 0
+	DB	'ERA '		; 1
+	DB	'TYPE'		; 2
+	DB	'SAVE'		; 3
+	DB	'REN '		; 4
+	DB	'USER'		; 5
+	;Unknown		; 6
 ;
 ;   The following six bytes must agree with those at (PATTRN2)
 ; or cp/m will HALT. Why?
 ;
-PATTRN1:
-	DB	0,22,0,0,0,0;(* serial number bytes *).
+;PATTRN1:
+;	DB	0,22,0,0,0,0;(* serial number bytes *).
 ;
 ;   Search the command table for a match with what has just
 ; been entered. If a match is found, then we jump to the
@@ -767,8 +768,13 @@ CMMND2:
 ;   CP/M command address table.
 ;
 CMDADR:
-	DW	DIRECT,ERASE,TYPE,SAVE
-	DW	RENAME,USER,UNKNOWN
+	DW	DIRECT		; 0
+	DW	ERASE		; 1
+	DW	TYPE		; 2
+	DW	SAVE		; 3
+	DW	RENAME		; 4
+	DW	USER		; 5
+	DW	UNKNOWN		; 6
 ;
 ;   Halt the system. Reason for this is unknown at present.
 ;
@@ -1086,57 +1092,57 @@ TYPE5:
 ;**************************************************************
 ;
 SAVE:
-	CALL	DECODE	;get numeric number that follows SAVE.
-	PUSH	PSW	;save number of pages to write.
-	CALL	CONVFST	;convert file name.
-	JNZ	SYNERR	;wild cards not allowed.
-	CALL	DSELECT	;select specified drive.
-	LXI	D,FCB	;now delete this file.
+	CALL	DECODE		;get numeric number that follows SAVE.
+	PUSH	PSW			;save number of pages to write.
+	CALL	CONVFST		;convert file name.
+	JNZ		SYNERR		;wild cards not allowed.
+	CALL	DSELECT		;select specified drive.
+	LXI		D,FCB		;now delete this file.
 	PUSH	D
 	CALL	DELETE
-	POP	D
-	CALL	CREATE	;and create it again.
-	JZ	SAVE3	;can't create?
-	XRA	A	;clear record number byte.
-	STA	FCB+32
-	POP	PSW	;convert pages to sectors.
-	MOV	L,A
-	MVI	H,0
-	DAD	H	;(HL)=number of sectors to write.
-	LXI	D,TBASE	;and we start from here.
+	POP		D
+	CALL	CREATE		;and create it again.
+	JZ		SAVE3		;can't create?
+	XRA		A			;clear record number byte.
+	STA		FCB+32
+	POP		PSW			;convert pages to sectors.
+	MOV		L,A
+	MVI		H,0
+	DAD		H			;(HL)=number of sectors to write.
+	LXI		D,TBASE		;and we start from here.
 SAVE1:
-	MOV	A,H	;done yet?
-	ORA	L
-	JZ	SAVE2
-	DCX	H	;nope, count this and compute the start
-	PUSH	H	;of the next 128 byte sector.
-	LXI	H,128
-	DAD	D
-	PUSH	H	;save it and set the transfer address.
+	MOV		A,H			;done yet?
+	ORA		L
+	JZ		SAVE2
+	DCX		H			;nope, count this and compute the start
+	PUSH	H			;of the next 128 byte sector.
+	LXI		H,128
+	DAD		D
+	PUSH	H			;save it and set the transfer address.
 	CALL	DMASET
-	LXI	D,FCB	;write out this sector now.
+	LXI		D,FCB		;write out this sector now.
 	CALL	WRTREC
-	POP	D	;reset (DE) to the start of the last sector.
-	POP	H	;restore sector count.
-	JNZ	SAVE3	;write error?
-	JMP	SAVE1
+	POP		D			;reset (DE) to the start of the last sector.
+	POP		H			;restore sector count.
+	JNZ		SAVE3		;write error?
+	JMP		SAVE1
 ;
 ;   Get here after writing all of the file.
 ;
 SAVE2:
-	LXI	D,FCB	;now close the file.
+	LXI		D,FCB		;now close the file.
 	CALL	CLOSE
-	INR	A	;did it close ok?
-	JNZ	SAVE4
+	INR		A			;did it close ok?
+	JNZ		SAVE4
 ;
 ;   Print out error message (no space).
 ;
 SAVE3:
-	LXI	B,NOSPACE
+	LXI		B,NOSPACE
 	CALL	PLINE
 SAVE4:
-	CALL	STDDMA	;reset the standard dma address.
-	JMP	GETBACK
+	CALL	STDDMA		;reset the standard dma address.
+	JMP		GETBACK
 NOSPACE:
 	DB	'No space',0
 ;
@@ -1230,14 +1236,14 @@ USER:
 ;**************************************************************
 ;
 UNKNOWN:
-	CALL	VERIFY	;check for valid system (why?).
-	LDA	FCB+1	;anything to execute?
-	CPI	BLANK
-	JNZ	UNKWN1
-	LDA	CHGDRV	;nope, only a drive change?
-	ORA	A
-	JZ	GETBACK1;neither???
-	DCR	A
+;e68b	CALL	VERIFY	;check for valid system (why?).
+	LDA		FCB+1		;anything to execute?
+	CPI		BLANK		; is it a Space?
+	JNZ		UNKWN1
+	LDA		CHGDRV		; No, only a drive change?
+	ORA		A			; Is itEmpty (00)
+	JZ		GETBACK1	; Yes, get otta here?
+	DCR		A
 	STA	CDRIVE	;ok, store new drive.
 	CALL	MOVECD	;set (TDRIVE) also.
 	CALL	DSKSEL	;and select this drive.
@@ -1403,8 +1409,8 @@ NBYTES:
 ;   Note that the following six bytes must match those at
 ; (PATTRN1) or cp/m will HALT. Why?
 ;
-PATTRN2:
-	DB	0,22,0,0,0,0;(* serial number bytes *).
+;PATTRN2:
+;	DB	0,22,0,0,0,0;(* serial number bytes *).
 ;
 ;**************************************************************
 ;*
@@ -1420,6 +1426,7 @@ PATTRN2:
 ;	The Function number is checked
 ;	The corect routine is calcualted using the FunctionVector and (C)
 ;
+	ORG  0E806H					; forces - see start of bios fix later
 BDOSEntry:
 ;	JMP	BDOSSetup
 ;BDOSSetup:
@@ -2036,42 +2043,43 @@ DE2HL1:
 ;   Select the desired drive.
 ;
 SelectDisk:
-	LDA		CurrentDrive	; get active disk.
-	MOV		C,A				; set up for Bios call, put disk in (C)
-	CALL	SELDSK			; (BIOS CALL )select it.
-	MOV	A,H					;	HL = 0000 if invalid
-	ORA	L					; otherwise it points to the correct Disk Parameter Block
-	RZ						; so, return if HL = 0000
+	LDA		CurrentDrive		; get active disk.
+	MOV		C,A					; set up for Bios call, put disk in (C)
+	CALL	SELDSK				; BIOS CALL )select it.
+	MOV		A,H					; HL = 0000 if invalid
+	ORA		L					; otherwise it points to the correct Disk Parameter Block
+	RZ							; so, return if HL = 0000
 ;
 ;   Here, the BIOS returned the address of the parameter block
 ; in (HL). We will extract the necessary pointers and save them.
 ;
-	MOV	E,M					; first word of DPB points to the drive's skew table
-	INX	H
-	MOV	D,M					; Get it and put it into (DE)
-	INX	H					
-	SHLD	FilePosInDir	;save pointers to scratch areas.
-	INX	H
-	INX	H
-	SHLD	LastTrackNumber	;ditto.
-	INX	H
-	INX	H
+	MOV		E,M					; first word of DPB points to the drive's skew table
+	INX		H
+	MOV		D,M						; Get it and put it into (DE)
+	INX		H					
+	SHLD	FilePosInDir		;save pointers to scratch areas.
+	INX		H
+	INX		H
+	SHLD	LastTrackNumber		;ditto.
+	INX		H
+	INX		H
 	SHLD	LastSectorNumber	;ditto.
-	INX	H
-	INX	H
-	XCHG		;now save the translation table address.
-	SHLD	XLATE
-	LXI	H,DIRBUF	;put the next 8 bytes here.
-	MVI	C,8	;they consist of the directory buffer
-	CALL	DE2HL	;pointer, parameter block pointer,
-	LHLD	DISKPB	;check and allocation vectors.
-	XCHG
-	LXI	H,SECTORS	;move parameter block into our ram.
-	MVI	C,15	;it is 15 bytes long.
-	CALL	DE2HL
+	INX		H
+	INX		H
+	XCHG						; been holding the translation table address in DE, now in HL
+								; Moved Directory buffer pointer into DE (from HL
+	SHLD	XLATE				
+	LXI		H,DIRBUF			; get address of the directory buffer vector
+	MVI		C,8					;they consist of the directory buffer
+	CALL	DE2HL				;pointer, parameter block pointer,
+	LHLD	DISKPB	;check and allocation vectors. (* DISK PARAMTER BLOCK POINTER)
+	XCHG					; put into DE
+	LXI	H,SECTORS	;get Sectors per Block
+	MVI	C,15	;it is 15 bytes long. 
+	CALL	DE2HL	;( move disk parameter block from BIOS to BDOS for current disk)
 	LHLD	DSKSIZE	;check disk size.
 	MOV	A,H	;more than 256 blocks on this?
-	LXI	H,BIGDISK
+	LXI	H,BIGDISK		;(should be called SmallDisk [ if BIGDISK =0 then > 256 block long])
 	MVI	M,0FFH	;set to samll.
 	ORA	A
 	JZ	SelectDisk1
@@ -2452,41 +2460,41 @@ CHKWPRT:
 ; directory buffer.
 ;
 FCB2HL:
-	LHLD	DIRBUF	;get address of buffer.
-	LDA	FCBPOS	;relative position of file.
+	LHLD	DIRBUF		;get address of buffer.
+	LDA		FCBPOS		;relative position of file.
 ;
 ;   Routine to add (A) to (HL).
 ;
 ADDA2HL:
-	ADD	L
-	MOV	L,A
-	RNC
-	INR	H	;take care of any carry.
+	ADD		L
+	MOV		L,A
+	RNC	
+	INR		H			;take care of any carry.
 	RET
 ;
-;   Routine to get the 's2' byte from the fcb supplied in
+;   Routine to get the 's2' byte(Extent Count) from the fcb supplied in
 ; the initial parameter specification.
 ;
 GETS2:
 	LHLD	ParamsDE	;get address of fcb.
-	LXI	D,14	;relative position of 's2'.
-	DAD	D
-	MOV	A,M	;extract this byte.
+	LXI		D,14		;relative position of 's2'.
+	DAD		D
+	MOV		A,M			;extract this byte.
 	RET
 ;
 ;   Clear the 's2' byte in the fcb.
 ;
 CLEARS2:
-	CALL	GETS2	;this sets (HL) pointing to it.
-	MVI	M,0	;now clear it.
+	CALL	GETS2		;this sets (HL) pointing to it.
+	MVI		M,0			;now clear it.
 	RET
 ;
 ;   Set bit 7 in the 's2' byte of the fcb.
 ;
 SETS2B7:
-	CALL	GETS2	;get the byte.
-	ORI	80H	;and set bit 7.
-	MOV	M,A	;then store.
+	CALL	GETS2		;get the byte.
+	ORI		80H			;and set bit 7.
+	MOV		M,A			;then store.
 	RET
 ;
 ;   Compare (FILEPOS) with (FilePosInDir) and set flags based on
@@ -2495,37 +2503,37 @@ SETS2B7:
 ; (FilePosInDir) of them to check.
 ;
 MOREFLS:
-	LHLD	FILEPOS	;we are here.
+	LHLD	FILEPOS			;we are here.
 	XCHG
-	LHLD	FilePosInDir;and don't go past here.
-	MOV	A,E	;compute difference but don't keep.
-	SUB	M
-	INX	H
-	MOV	A,D
-	SBB	M	;set carry if no more names.
+	LHLD	FilePosInDir	;and don't go past here.
+	MOV		A,E				;compute difference but don't keep.
+	SUB		M
+	INX		H
+	MOV		A,D
+	SBB		M				;set carry if no more names.
 	RET
 ;
 ;   Call this routine to prevent (FilePosInDir) from being greater
 ; than (FILEPOS).
 ;
 CHKNMBR:
-	CALL	MOREFLS	;FilePosInDir too big?
+	CALL	MOREFLS		;FilePosInDir too big?
 	RC
-	INX	D	;yes, reset it to (FILEPOS).
-	MOV	M,D
-	DCX	H
-	MOV	M,E
+	INX		D		;yes, reset it to (FILEPOS).
+	MOV		M,D
+	DCX		H
+	MOV		M,E
 	RET
 ;
 ;   Compute (HL)=(DE)-(HL)
 ;
 SUBHL:
-	MOV	A,E	;compute difference.
-	SUB	L
-	MOV	L,A	;store low byte.
-	MOV	A,D
-	SBB	H
-	MOV	H,A	;and then high byte.
+	MOV		A,E		;compute difference.
+	SUB		L
+	MOV		L,A		;store low byte.
+	MOV		A,D
+	SBB		H
+	MOV		H,A		;and then high byte.
 	RET
 ;
 ;   Set the directory checksum byte.
@@ -2621,7 +2629,7 @@ CKFILPOS:
 ;   Set location (FILEPOS) to 0ffffh.
 ;
 STFILPOS:
-	LXI	H,0FFFFH
+	LXI	H,-1
 	SHLD	FILEPOS
 	RET
 ;
@@ -2634,30 +2642,31 @@ STFILPOS:
 ; be read).
 ;
 NXENTRY:
-	LHLD	DIRSIZE	;get directory entry size limit.
+	LHLD	DIRSIZE		; Get directory entry size limit.
 	XCHG
-	LHLD	FILEPOS	;get current count.
-	INX	H	;go on to the next one.
-	SHLD	FILEPOS
-	CALL	SUBHL	;(HL)=(DIRSIZE)-(FILEPOS)
-	JNC	NXENT1	;is there more room left?
-	JMP	STFILPOS;no. Set this flag and return.
+	LHLD	FILEPOS		; Get index into directory.
+	INX		H			; Point at the next one
+	SHLD	FILEPOS		; Save it
+	CALL	SUBHL		;(HL)=(DIRSIZE)-(FILEPOS)
+	JNC		NXENT1		; Are there any more entries?
+	JMP		STFILPOS	; No. - Set this flag and return.
+	
 NXENT1:
-	LDA	FILEPOS	;get file position within directory.
-	ANI	03H	;only look within this sector (only 4 entries fit).
-	MVI	B,5	;convert to relative position (32 bytes each).
+	LDA		FILEPOS		; Get current index for dirctory directory.
+	ANI		03H			;only look within this sector (only 4 entries fit).
+	MVI		B,5			;convert to relative position (32 bytes each).
 NXENT2:
-	ADD	A	;note that this is not efficient code.
-	DCR	B	;5 'ADD A's would be better.
-	JNZ	NXENT2
-	STA	FCBPOS	;save it as position of fcb.
-	ORA	A
-	RNZ		;return if we are within buffer.
+	ADD		A			;note that this is not efficient code.
+	DCR		B			;5 'ADD A's would be better.
+	JNZ		NXENT2
+	STA		FCBPOS		;save it as position of fcb.
+	ORA		A
+	RNZ					;return if we are within buffer.
 	PUSH	B
-	CALL	TRKSEC	;we need the next directory sector.
+	CALL	TRKSEC		;we need the next directory sector.
 	CALL	DIRREAD
-	POP	B
-	JMP	CHECKDIR
+	POP		B
+	JMP		CHECKDIR
 ;
 ;   Routine to to get a bit from the disk space allocation
 ; map. It is returned in (A), bit position 0. On entry to here,
@@ -2808,22 +2817,22 @@ SAMEXT:
 ; that must match.
 ;
 FINDFST:
-	MVI	A,0FFH
-	STA	FNDSTAT
-	LXI	H,COUNTER;save character count.
-	MOV	M,C
+	MVI		A,0FFH
+	STA		FNDSTAT		; set flag to not match found
+	LXI		H,COUNTER	;get character count.
+	MOV		M,C			; put in number of bytes to match
 	LHLD	ParamsDE	;get filename to match.
-	SHLD	SAVEFCB	;and save.
-	CALL	STFILPOS;clear initial file position (set to 0ffffh).
-	CALL	HOMEDRV	;home the drive.
+	SHLD	SAVEFCB		;and save.
+	CALL	STFILPOS	;clear initial file position (set to 0ffffh).
+	CALL	HOMEDRV		;home the drive.
 ;
 ;   Entry to locate the next occurence of a filename within the
 ; directory. The disk is not expected to have been changed. If
 ; it was, then it will be write protected.
 ;
 FINDNXT:
-	MVI	C,0	;write protect the disk if changed.
-	CALL	NXENTRY	;get next filename entry in directory.
+	MVI		C,0			;write protect the disk if changed.
+	CALL	NXENTRY		;get next filename entry in directory.
 	CALL	CKFILPOS;is file position = 0ffffh?
 	JZ	FNDNXT6	;yes, exit now then.
 	LHLD	SAVEFCB	;set (DE) pointing to filename to match.
@@ -2896,12 +2905,12 @@ FNDNXT6:
 ; fcb will be affected. It is set to (E5).
 ;
 ERAFILE:
-	CALL	CHKWPRT	;is disk write protected?
-	MVI	C,12	;only compare file names.
-	CALL	FINDFST	;get first file name.
+	CALL	CHKWPRT		;is disk write protected?
+	MVI		C,12		;only compare file names.
+	CALL	FINDFST		;get first file name.
 ERAFIL1:
-	CALL	CKFILPOS;any found?
-	RZ		;nope, we must be done.
+	CALL	CKFILPOS	;any found?
+	RZ					;nope, we must be done.
 	CALL	CHKROFL	;is file read only?
 	CALL	FCB2HL	;nope, get address of fcb and
 	MVI	M,0E5H	;set first byte to 'empty'.
@@ -3209,10 +3218,10 @@ CLOSEIT7:
 ; will then be cleared for use.
 ;
 GETEMPTY:
-	CALL	CHKWPRT	;make sure disk is not write protected.
+	CALL	CHKWPRT		;make sure disk is not write protected.
 	LHLD	ParamsDE	;save current parameters (fcb).
 	PUSH	H
-	LXI	H,EMPTYFCB;use special one for empty space.
+	LXI		H,EMPTYFCB	;use special one for empty space.
 	SHLD	ParamsDE
 	MVI	C,1	;search for first empty spot in directory.
 	CALL	FINDFST	;(* only check first byte *)
@@ -3775,12 +3784,13 @@ LoginDrive:
 ; it is not set at all.
 ;
 BITMAP:
-	LHLD		DSKSIZE		;compute size of allocation table.
+								;compute size of allocation table.
+	LHLD		DSKSIZE		; get maximum  Allocation Block number
 	MVI			C,3			; 2 raised to 3rd power = 8
 	CALL		SHIFTR		;(HL)=(HL)/8.
 	INX			H			;at lease 1 byte.
 	MOV			B,H
-	MOV			C,L	;set (BC) to the allocation table length.
+	MOV			C,L			;set (BC) to the allocation table length.
 ;
 ;   Initialize the bitmap for this drive. Right now, the first
 ; two bytes are specified by the disk parameter block. However
@@ -3959,7 +3969,7 @@ GETNXT:
 DELFILE:
 	CALL	AUTOSEL	;select proper drive.
 	CALL	ERAFILE	;erase the file.
-	JMP	STSTATUS;set status and return.
+	JMP		STSTATUS;set status and return.
 ;
 ;   Function to execute a sequential read of the specified
 ; record number.
@@ -3977,9 +3987,9 @@ WRTSEQ:
 ;   Create a file function.
 ;
 FCREATE:
-	CALL	CLEARS2	;clear the 's2' byte on all creates.
+	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
 	CALL	AUTOSEL	;select proper drive and get the next
-	JMP	GETEMPTY;empty directory space.
+	JMP		GETEMPTY;empty directory space.
 ;
 ;   Function to rename a file.
 ;
@@ -4217,24 +4227,6 @@ WRITE	EQU		BIOSEntry + 02AH
 PRSTAT	EQU		BIOSEntry + 02DH
 SECTRN	EQU		BIOSEntry + 030H
 
-;BOOT:	JMP	BIOSEntry + 000H	
-;WBOOT:	JMP	BIOSEntry + 003H
-;CONST:	JMP	BIOSEntry + 006H
-;CONIN:	JMP	BIOSEntry + 009H
-;CONOUT:	JMP	BIOSEntry + 00CH
-;LIST:	JMP	BIOSEntry + 00FH
-;PUNCH:	JMP	BIOSEntry + 012H
-;READER:	JMP	BIOSEntry + 015H
-;HOME:	JMP	BIOSEntry + 018H
-;SELDSK:	JMP	BIOSEntry + 01BH
-;SETTRK:	JMP	BIOSEntry + 01EH
-;SETSEC:	JMP	BIOSEntry + 021H
-;SETDMA:	JMP	BIOSEntry + 024H
-;READ:	JMP	BIOSEntry + 027H
-;WRITE:	JMP	BIOSEntry + 02AH
-;PRSTAT:	JMP	BIOSEntry + 02DH
-;SECTRN:	JMP	BIOSEntry + 030H
-;
 ;*
 ;******************   E N D   O F   C P / M   *****************
 ;*
