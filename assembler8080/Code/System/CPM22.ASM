@@ -459,177 +459,186 @@ SYNERR2:
 ; zero flag is set if the character is a delimiter.
 ;
 CHECK:
-	LDAX	D
-	ORA	A
+	LDAX	D			; Grab the character
+	ORA		A
+	RZ					; Exit, its a Null (00)
+	
+	CPI		BLANK		; Is  less than 020H - controls character
+	JC		SYNERR		; Yes,  Syntax error - exit CCP
+	RZ					; Exit because Space is valid delimiter.
+	
+	CPI	EQUALS			; '='
 	RZ
-	CPI	BLANK	;control characters are not legal here.
-	JC	SYNERR
-	RZ		;check for valid delimiter.
-	CPI	EQUALS		; '='
+	CPI	USCORE			; '_'
 	RZ
-	CPI	USCORE		; '_'
+	CPI	PERIOD			; '.'
 	RZ
-	CPI	PERIOD		; '.'
+	CPI	COLON			; ':'
 	RZ
-	CPI	COLON		; ':'
+	CPI	SEMIC			; ';'
 	RZ
-	CPI	SEMIC		; ';'
+	CPI	LESSTH			; '<'
 	RZ
-	CPI	LESSTH		; '<'
+	CPI	GRTTHAN			; '>'
 	RZ
-	CPI	GRTTHAN		; '>'
-	RZ
-	RET
+	RET					; Character is legal, but not a delimiter
 ;
 ;   Get the next non-blank character from (DE).
 ;
 NONBLANK:
-LDAX	D
-	ORA	A	;string ends with a null.
-	RZ
-	CPI	BLANK
-	RNZ
-	INX	D
-	JMP	NONBLANK
+	LDAX	D			; get the next character
+	ORA		A			;Since string ends with a null.
+	RZ					; we return here if its 00
+	CPI		BLANK		; Is it a space?
+	RNZ					; No, then we have the next non-space char
+	
+	INX		D			; since it a space we need to look at the next character
+	JMP		NONBLANK
 ;
 ;   Add (HL)=(HL)+(A)
 ;
 ADDHL:
-	ADD	L
-	MOV	L,A
-	RNC	;take care of any carry.
-	INR	H
+	ADD		L
+	MOV		L,A
+	RNC					;take care of any carry.
+	INR		H
 	RET
 ;
 ;   Convert the first name in (FCB).
 ;
 CONVFST:
-	MVI	A,0
+	MVI	A,0		; set up index for first filename
 ;
 ;   Format a file name (convert * to '?', etc.). On return,
 ; (A)=0 is an unambigeous name was specified. Enter with (A) equal to
 ; the position within the fcb for the name (either 0 or 16).
 ;
 CONVERT:
-	LXI		H,FCB
-	CALL	ADDHL
-	PUSH	H
+	LXI		H,FCB		; point at FCB setup by CCP
+	CALL	ADDHL		; now pointing at correct FCB
+	PUSH	H			; save
 	PUSH	H
 	XRA		A
-	STA		CHGDRV		;initialize drive change flag - no change.
-	LHLD	INPOINT	;set (HL) as pointer into input line.
-	XCHG
-	CALL	NONBLANK;get next non-blank character.
-	XCHG
-	SHLD	NAMEPNT	;save pointer here for any error message.
-	XCHG
-	POP	H
-	LDAX	D	;get first character.
-	ORA	A
-	JZ	CONVRT1
-	SBI	040H		;'A'-1	;might be a drive name, convert to binary.
-	MOV	B,A	;and save.
-	INX	D	;check next character for a ':'.
+	STA		CHGDRV		; initialize drive change flag - no change.
+	LHLD	INPOINT		; set (HL) as pointer into input line.
+	XCHG				; put line pointer in DE for call
+	CALL	NONBLANK	; return the next non-blank character in A
+	XCHG				; put line buffer pointer in HL for now
+	SHLD	NAMEPNT		; save pointer here for any error message.
+	XCHG				; put line buffer pointer back in DE
+	POP		H			; retreive the CCP created FCB
+	LDAX	D			; get first character.
+	ORA		A			; is it a null 00 ?
+	JZ		CONVRT1		; Yes, this FCB is empty (no argument)
+	
+	SBI		040H		; 'A'-1	;might be a drive name, convert to binary.
+	MOV		B,A			; and save in case its a drive specifier.
+	INX		D			; get the next character 
 	LDAX	D
-	CPI	COLON		;':'
-	JZ	CONVRT2
-	DCX	D	;nope, move pointer back to the start of the line.
+	CPI		COLON		; is it ':'
+	JZ		CONVRT2		; Yes, then we have a drive specification
+	DCX		D			; No, move pointer back to the start of the line.
 CONVRT1:
-	LDA	CDRIVE
-	MOV	M,A
-	JMP	CONVRT3
+	LDA		CDRIVE		; get current drive
+	MOV		M,A			; put into the CCP FCB
+	JMP		CONVRT3
 CONVRT2:
-	MOV	A,B
-	STA	CHGDRV	;set change in drives flag.
-	MOV	M,B
-	INX	D
+	MOV		A,B			; get the saved drive number
+	STA		CHGDRV		; set change in drives flag.
+	MOV		M,B			; put new drive number in FCB
+	INX		D			; point past drive number
 ;
 ;   Convert the basic file name.
 ;
 CONVRT3:
-	MVI	B,08H
+	MVI		B,08H		; File name size
 CONVRT4:
-	CALL	CHECK
-	JZ	CONVRT8
-	INX	H
-	CPI	ASTRK		; '*'	;note that an '*' will fill the remaining
-	JNZ	CONVRT5	;field with '?'.
-	MVI	M,QMARK		; '?'
-	JMP	CONVRT6
-CONVRT5:
-	MOV	M,A
-	INX	D
+	CALL	CHECK		; Legal input character ?
+	JZ		PADNAME		; its a delimiter, skip the rest of the filename
+	INX		H
+	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
+	JNZ		CONVRT5		; otherwise move to the next character and process.
+	
+	MVI		M,QMARK		; '?'
+	JMP		CONVRT6
+CONVRT5:				; move on to the next character
+	MOV		M,A			; put character in FCB
+	INX		D			; move to next character in input line buffer
 CONVRT6:
-	DCR	B
-	JNZ	CONVRT4
+	DCR		B			; decrement counter
+	JNZ		CONVRT4		; loop if not done with fileName
 CONVRT7:
-	CALL	CHECK	;get next delimiter.
-	JZ	GETEXT
-	INX	D
-	JMP	CONVRT7
-CONVRT8:
-	INX	H	;blank fill the file name.
-	MVI	M,BLANK
-	DCR	B
-	JNZ	CONVRT8
+	CALL	CHECK		; Do we have a delimiter ?.
+	JZ		GETEXT		; Yes, process the extension
+	INX		D			; No, point a the next character
+	JMP		CONVRT7		; and see if its a demiliter
+PADNAME:
+	INX		H			; blank fill the remaining file name.
+	MVI		M,BLANK		; store the blank
+	DCR		B			; keep count
+	JNZ		PADNAME		; loop till done
 ;
 ;   Get the extension and convert it.
 ;
 GETEXT:
-	MVI	B,03H
-	CPI	PERIOD		; '.'
-	JNZ	GETEXT5
-	INX	D
+	MVI		B,03H		; file extension size
+	CPI		PERIOD		; do we have the Period '.'
+	JNZ		PADEXT		; No, Pad fill the extension
+	INX		D			; get past the period
 GETEXT1:
-	CALL	CHECK
-	JZ	GETEXT5
-	INX	H
-	CPI	ASTRK		; '*'
-	JNZ	GETEXT2
-	MVI	M,QMARK		;'?'
-	JMP	GETEXT3
-GETEXT2:
-	MOV	M,A
-	INX	D
+	CALL	CHECK		; Legal input character ?		
+	JZ		PADEXT		; its a delimiter, so pad the rest of the Extension
+	INX		H			; point at next spot in the CCP FCB
+	CPI		ASTRK		; ; '*'	;note that an '*' will fill the remaining
+	JNZ		GETEXT2		; otherwise move to the next character and process.
+	
+	MVI		M,QMARK		;'?'
+	JMP		GETEXT3
+GETEXT2:				; move on to the next character
+	MOV		M,A			; put character in FCB
+	INX		D			; move to next character in input line buffer
 GETEXT3:
-	DCR	B
-	JNZ	GETEXT1
+	DCR		B			; decrement counter
+	JNZ		GETEXT1		; loop if not done with file extension
 GETEXT4:
-	CALL	CHECK
-	JZ	GETEXT6
-	INX	D
-	JMP	GETEXT4
-GETEXT5:
-	INX	H
-	MVI	M,BLANK
-	DCR	B
-	JNZ	GETEXT5
-GETEXT6:
-	MVI	B,3
-GETEXT7:
-	INX	H
-	MVI	M,0
-	DCR	B
-	JNZ	GETEXT7
+	CALL	CHECK		; Do we have a delimiter ?.
+	JZ		CLEAREXTENT	; Yes, Clear the EX, S1 & S2
+	INX		D			; No, point a the next character
+	JMP		GETEXT4		; and see if its a demiliter
+	
+PADEXT:
+	INX		H			; blank fill the remaining extension.
+	MVI		M,BLANK		; store the blank
+	DCR		B			; keep count
+	JNZ		PADEXT		; loop till done
+	
+CLEAREXTENT:
+	MVI		B,03H		; set count for clearing EX, S1 & S2
+CLEAREXTENT1:
+	INX		H			; point at location in the CCP FCB
+	MVI		M,0			; initialize it
+	DCR		B			; keep count
+	JNZ		CLEAREXTENT	; loop til done
 	XCHG
-	SHLD	INPOINT	;save input line pointer.
-	POP	H
+	SHLD	INPOINT		; save current input line pointer.
+	POP		H			; point at correct CCP FCB
 ;
 ;   Check to see if this is an ambigeous file name specification.
 ; Set the (A) register to non zero if it is.
 ;
-	LXI	B,11	;set name length.
-GETEXT8:
-	INX	H
-	MOV	A,M
-	CPI	QMARK		; '?'	;any question marks?
-	JNZ	GETEXT9
-	INR	B	;count them.
-GETEXT9:
-	DCR	C
-	JNZ	GETEXT8
-	MOV	A,B
-	ORA	A
+;AFN - Ambiguous File Name
+	LXI		B,11		; set name & Extension length .
+AFN:
+	INX		H
+	MOV		A,M
+	CPI		QMARK		; '?'	;any question marks?
+	JNZ		AFN1
+	INR		B			; increment count
+AFN1:
+	DCR		C
+	JNZ		AFN			; loop if not done
+	MOV		A,B			; B has the question mark count 
+	ORA		A			; set the Z flag for calling routine
 	RET
 ;
 ;   CP/M command table. Note commands can be either 3 or 4 characters long.
@@ -807,48 +816,47 @@ NOFILE:
 ; causes 'filename?' to be printed and the command is aborted.
 ;
 DECODE:
-	CALL	CONVFST	;convert filename.
-	LDA	CHGDRV	;do not allow a drive to be specified.
-	ORA	A
-	JNZ	SYNERR
-	LXI	H,FCB+1	;convert number now.
-	LXI	B,11	;(B)=sum register, (C)=max digit count.
+	CALL	CONVFST		;convert first filename.
+	LDA		CHGDRV		;do not allow a drive to be specified.
+	ORA		A
+	JNZ		SYNERR		; exit with a syntax error
+	LXI		H,FCB+1		;convert number now.
+	LXI		B,11		;(B)=sum register, (C)=max digit count.
 DECODE1:
-	MOV	A,M
-	CPI	BLANK	;a space terminates the numeral.
-	JZ	DECODE3
-	INX	H
-	SUI	030H		 ;'0'	make binary from ascii. ZERO ????
-	CPI	10	;legal digit?
-	JNC	SYNERR
-	MOV	D,A	;yes, save it in (D).
-	MOV	A,B	;compute (B)=(B)*10 and check for overflow.
-	ANI	0E0H
-	JNZ	SYNERR
-	MOV	A,B
+	MOV		A,M			; get the caracter from the CCP FCB
+	CPI		BLANK		; a space terminates the numeral.
+	JZ		PADNUMBER	; skip, the rest must be blanks
+	INX		H			; bump pointer
+	SUI		030H  		; '0'	make binary from ascii. ZERO ????
+	CPI		10			; legal digit?
+	JNC		SYNERR		; exit with syntax error
+	MOV		D,A			; yes, save the number in (D).
+	;
+	MOV		A,B			; compute (B)=(B)*10 and check for overflow.
+	ANI		0E0H
+	JNZ		SYNERR		; Exit with math overflow error??
+	MOV		A,B
 	RLC
 	RLC
-	RLC	;(A)=(B)*8
-	ADD	B	;.......*9
-	JC	SYNERR
-	ADD	B	;.......*10
-	JC	SYNERR
-	ADD	D	;add in new digit now.
-DECODE2:
-	JC	SYNERR
-	MOV	B,A	;and save result.
-	DCR	C	;only look at 11 digits.
-	JNZ	DECODE1
-	RET
-DECODE3:
-	MOV	A,M	;spaces must follow (why?).
-	CPI	BLANK
-	JNZ	SYNERR
-	INX	H
-DECODE4:
-	DCR	C
-	JNZ	DECODE3
-	MOV	A,B	;set (A)=the numeric value entered.
+	RLC					;(A)=(B)*8
+	ADD		B			;.......*9
+	JC		SYNERR		; Exit with math overflow error??	
+	ADD		B			;.......*10
+	JC		SYNERR		; Exit with math overflow error??
+	ADD		D			;	add in new digit now.
+	JC		SYNERR		; Exit with math overflow error??
+	MOV		B,A			;	and save result in B (subtotal)
+	DCR		C			;	only look at 11 digits.
+	JNZ		DECODE1
+	RET					; return with value in (A)
+PADNUMBER:
+	MOV		A,M			; spaces must follow (why?).
+	CPI		BLANK		; is it a blank
+	JNZ		SYNERR		; exit with syntax error
+	INX		H			; point at next
+	DCR		C
+	JNZ		PADNUMBER	; loop till done
+	MOV		A,B			;set (A)=the numeric value entered.
 	RET
 ;
 ;   Move 3 bytes from (HL) to (DE). Note that there is only
@@ -882,16 +890,16 @@ EXTRACT:
 ; fcb will be set to null (means use current drive).
 ;
 DSELECT:
-	XRA	A	;null out first byte of fcb.
-	STA	FCB
-	LDA	CHGDRV	;a drive change indicated?
-	ORA	A
-	RZ
-	DCR	A	;yes, is it the same as the current drive?
-	LXI	H,CDRIVE
-	CMP	M
-	RZ
-	JMP	DSKSEL	;no. Select it then.
+	XRA		A
+	STA		FCB				; null out first byte of fcb.
+	LDA		CHGDRV			; is a drive change indicated?
+	ORA		A
+	RZ						; No, drive OK
+	DCR		A				; yes, is it the same as the current drive?
+	LXI		H,CDRIVE
+	CMP		M				; FCB drive number same as this?
+	RZ						; Yes, return 					
+	JMP		DSKSEL			;	no. Select it then.
 ;
 ;   Check the drive selection and reset it to the previous
 ; drive if it was changed for the preceeding command.
@@ -1092,13 +1100,13 @@ TYPE5:
 ;**************************************************************
 ;
 SAVE:
-	CALL	DECODE		;get numeric number that follows SAVE.
-	PUSH	PSW			;save number of pages to write.
-	CALL	CONVFST		;convert file name.
-	JNZ		SYNERR		;wild cards not allowed.
-	CALL	DSELECT		;select specified drive.
-	LXI		D,FCB		;now delete this file.
-	PUSH	D
+	CALL	DECODE		; get numeric number that follows SAVE.
+	PUSH	PSW			; save number of pages to write.
+	CALL	CONVFST		; convert file name linepointer past the number.
+	JNZ		SYNERR		; exit with syntax error -wild cards not allowed.
+	CALL	DSELECT		; select specified drive.
+	LXI		D,FCB		; now delete this file.
+	PUSH	D			; save the fcb
 	CALL	DELETE
 	POP		D
 	CALL	CREATE		;and create it again.
@@ -2124,98 +2132,102 @@ IORET:
 ; block number falls in.
 ;
 TRKSEC:
-	LHLD	FILEPOS	;get position of last accessed file
-	MVI	C,2	;in directory and compute sector #.
-	CALL	SHIFTR	;sector #=file-position/4.
-	SHLD	BLKNMBR	;save this as the block number of interest.
-	SHLD	CKSUMTBL;what's it doing here too?
+	LHLD	FILEPOS			; get position of last accessed file
+	MVI		C,2				; in directory and compute sector #.
+	CALL	SHIFTR			; sector #=file-position/4.
+	SHLD	BLKNMBR			; save this as the block number of interest.
+	SHLD	CKSUMTBL		; what's it doing here too?
 ;
 ;   if the sector number has already been set (BLKNMBR), enter
 ; at this point.
 ;
 TRKSEC1:
-	LXI	H,BLKNMBR
-	MOV	C,M	;move sector number into (BC).
-	INX	H
-	MOV	B,M
-	LHLD	LastSectorNumber;get current sector number and
-	MOV	E,M	;move this into (DE).
-	INX	H
-	MOV	D,M
-	LHLD	LastTrackNumber;get current track number.
-	MOV	A,M	;and this into (HL).
-	INX	H
-	MOV	H,M
-	MOV	L,A
+		;move Desired sector number into (BC).
+	LXI		H,BLKNMBR
+	MOV		C,M				
+	INX		H
+	MOV		B,M
+		;move Last sector number into (DE).
+	LHLD	LastSectorNumber
+	MOV		E,M	
+	INX		H
+	MOV		D,M
+		;move current track number into (HL).
+	LHLD	LastTrackNumber
+	MOV		A,M
+	INX		H
+	MOV		H,M
+	MOV		L,A
+	
 TRKSEC2:
-	MOV	A,C	;is desired sector before current one?
-	SUB	E
-	MOV	A,B
-	SBB	D
-	JNC	TRKSEC3
-	PUSH	H	;yes, decrement sectors by one track.
-	LHLD	SECTORS	;get sectors per track.
-	MOV	A,E
-	SUB	L
-	MOV	E,A
-	MOV	A,D
-	SBB	H
-	MOV	D,A	;now we have backed up one full track.
-	POP	H
-	DCX	H	;adjust track counter.
-	JMP	TRKSEC2
+	MOV		A,C			;is desired sector before current one?
+	SUB		E
+	MOV		A,B
+	SBB		D
+	JNC		TRKSEC3
+	PUSH	H			;yes, decrement sectors by one track.
+	LHLD	SECTORS		;get sectors per track.
+	MOV		A,E
+	SUB		L
+	MOV		E,A
+	MOV		A,D
+	SBB		H
+	MOV		D,A			;now we have backed up one full track.
+	POP		H
+	DCX		H			;adjust track counter.
+	JMP		TRKSEC2
 TRKSEC3:
-	PUSH	H	;desired sector is after current one.
-	LHLD	SECTORS	;get sectors per track.
-	DAD	D	;bump sector pointer to next track.
-	JC	TRKSEC4
-	MOV	A,C	;is desired sector now before current one?
-	SUB	L
-	MOV	A,B
-	SBB	H
-	JC	TRKSEC4
-	XCHG		;not yes, increment track counter
-	POP	H	;and continue until it is.
-	INX	H
-	JMP	TRKSEC3
+	PUSH	H			;desired sector is after current one.
+	LHLD	SECTORS		;get sectors per track.
+	DAD	D				;bump sector pointer to next track.
+	JC		TRKSEC4
+	MOV		A,C			;is desired sector now before current one?
+	SUB		L
+	MOV		A,B
+	SBB		H
+	JC		TRKSEC4
+	XCHG				;not yes, increment track counter
+	POP		H			;and continue until it is.
+	INX		H
+	JMP		TRKSEC3
 ;
 ;   here we have determined the track number that contains the
 ; desired sector.
 ;
 TRKSEC4:
-	POP	H	;get track number (HL).
+	POP		H			;get track number (HL).
 	PUSH	B
 	PUSH	D
 	PUSH	H
 	XCHG
-	LHLD	OFFSET	;adjust for first track offset.
-	DAD	D
-	MOV	B,H
-	MOV	C,L
-	CALL	SETTRK	;select this track.
-	POP	D	;reset current track pointer.
+	LHLD	OFFSET		;adjust for first track offset.
+	DAD		D
+	MOV		B,H
+	MOV		C,L
+	CALL	SETTRK		;select this track.
+	POP		D			;reset current track pointer.
 	LHLD	LastTrackNumber
-	MOV	M,E
-	INX	H
-	MOV	M,D
-	POP	D
-	LHLD	LastSectorNumber;reset the first sector on this track.
-	MOV	M,E
-	INX	H
-	MOV	M,D
-	POP	B
-	MOV	A,C	;now subtract the desired one.
-	SUB	E	;to make it relative (1-# sectors/track).
-	MOV	C,A
-	MOV	A,B
-	SBB	D
-	MOV	B,A
-	LHLD	XLATE	;translate this sector according to this table.
+	MOV		M,E
+	INX		H
+	MOV		M,D
+	POP		D
+	LHLD	LastSectorNumber	;reset the first sector on this track.
+	MOV		M,E
+	INX		H
+	MOV		M,D
+	POP		B
+	MOV		A,C			;now subtract the desired one.
+	SUB		E			;to make it relative (1-# sectors/track).
+	MOV		C,A
+	MOV		A,B
+	SBB		D
+	MOV		B,A
+	LHLD	XLATE		;translate this sector according to this table.
 	XCHG
-	CALL	SECTRN	;let the bios translate it.
-	MOV	C,L
-	MOV	B,H
-	JMP	SETSEC	;and select it.
+	CALL	SECTRN		;let the bios translate it.
+	MOV		C,L
+	MOV		B,H
+	JMP		SETSEC		;and select it.
 ;
 ;   Compute block number from record number (SAVNREC) and
 ; extent number (SAVEXT).
@@ -2409,13 +2421,13 @@ SHIFTL1:
 ; The result is returned in (A), bit 0.
 ;
 GETWPRT:
-	LHLD	ROBitMap	;get Read Only Bit Map
-	LDA	CurrentDrive	;which drive is current?
-	MOV	C,A
-	CALL	SHIFTR	;shift status such that bit 0 is the
-	MOV	A,L	;one of interest for this drive.
-	ANI	01H	;and isolate it.
-	RET
+	LHLD	ROBitMap		;get Read Only Bit Map
+	LDA		CurrentDrive	;which drive is current?
+	MOV		C,A
+	CALL	SHIFTR			;shift status such that bit 0 is the
+	MOV		A,L				;one of interest for this drive.
+	ANI		01H				;and isolate it.
+	RET						; Zero if not write protected
 ;
 ;   Function to write protect the current disk.
 ;
@@ -2451,10 +2463,10 @@ CKROF1:
 ;   Check the write protect status of the active disk.
 ;
 CHKWPRT:
-	CALL	GETWPRT
-	RZ		;return if ok.
-	LXI	H,RODISK;else print message and terminate.
-	JMP	JUMPHL
+	CALL	GETWPRT			; is it write protected ?
+	RZ						; NO, return.
+	LXI		H,RODISK
+	JMP	JUMPHL		; else print message and terminate.
 ;
 ;   Routine to set (HL) pointing to the proper entry in the
 ; directory buffer.
@@ -2648,17 +2660,18 @@ NXENTRY:
 	INX		H			; Point at the next one
 	SHLD	FILEPOS		; Save it
 	CALL	SUBHL		;(HL)=(DIRSIZE)-(FILEPOS)
-	JNC		NXENT1		; Are there any more entries?
+	JNC		NXENTRY1	; Are there any more entries?
 	JMP		STFILPOS	; No. - Set this flag and return.
 	
-NXENT1:
+NXENTRY1:
 	LDA		FILEPOS		; Get current index for dirctory directory.
 	ANI		03H			;only look within this sector (only 4 entries fit).
 	MVI		B,5			;convert to relative position (32 bytes each).
-NXENT2:
+NXENTRY2:
 	ADD		A			;note that this is not efficient code.
 	DCR		B			;5 'ADD A's would be better.
-	JNZ		NXENT2
+	JNZ		NXENTRY2
+	
 	STA		FCBPOS		;save it as position of fcb.
 	ORA		A
 	RNZ					;return if we are within buffer.
@@ -2818,13 +2831,13 @@ SAMEXT:
 ;
 FINDFST:
 	MVI		A,0FFH
-	STA		FNDSTAT		; set flag to not match found
-	LXI		H,COUNTER	;get character count.
-	MOV		M,C			; put in number of bytes to match
-	LHLD	ParamsDE	;get filename to match.
-	SHLD	SAVEFCB		;and save.
-	CALL	STFILPOS	;clear initial file position (set to 0ffffh).
-	CALL	HOMEDRV		;home the drive.
+	STA		FNDSTAT			; set flag to not match found
+	LXI		H,COUNTER		; point at character counter.
+	MOV		M,C				; put in number of bytes to match
+	LHLD	ParamsDE		; get filename to match.
+	SHLD	SAVEFCB			; and save.
+	CALL	STFILPOS		; clear initial file position (set to 0ffffh).
+	CALL	HOMEDRV			;home the drive.
 ;
 ;   Entry to locate the next occurence of a filename within the
 ; directory. The disk is not expected to have been changed. If
@@ -3880,27 +3893,27 @@ SETDSK:
 ; zero then the drive will be selected and loged in.
 ;
 AUTOSEL:
-	MVI	A,0FFH	;say 'auto-select activated'.
-	STA	AutoSelectActive
-	LHLD	ParamsDE	;get drive specified.
-	MOV	A,M
-	ANI	1FH	;look at lower 5 bits.
-	DCR	A	;adjust for (1=A, 2=B) etc.
-	STA	ParamE	;and save for the select routine.
-	CPI	1EH	;check for 'no change' condition.
-	JNC	AUTOSL1	;yes, don't change.
-	LDA	CurrentDrive	;we must change, save currently active
-	STA	OLDDRV	;drive.
-	MOV	A,M	;and save first byte of fcb also.
-	STA	AutoSelectFlag;this must be non-zero.
-	ANI	0E0H	;whats this for (bits 6,7 are used for
-	MOV	M,A	;something)?
-	CALL	SETDSK	;select and log in this drive.
+	MVI		A,0FFH			;say 'auto-select activated'.
+	STA		AutoSelectActive
+	LHLD	ParamsDE		;get drive specified.
+	MOV		A,M
+	ANI		1FH				;look at lower 5 bits.
+	DCR		A				;adjust for (1=A, 2=B) etc.
+	STA		ParamE			;and save for the select routine.
+	CPI		1EH				;check for 'no change' condition.
+	JNC		AUTOSL1			;yes, don't change.
+	LDA		CurrentDrive	;we must change, save currently active
+	STA		OLDDRV			;drive.
+	MOV		A,M				;and save first byte of fcb also.
+	STA		AutoSelectFlag	;this must be non-zero.
+	ANI		0E0H			;whats this for (bits 6,7 are used for
+	MOV		M,A				;something)?
+	CALL	SETDSK			;select and log in this drive.
 AUTOSL1:
-	LDA	CurrentUser;move user number into fcb.
-	LHLD	ParamsDE	;(* upper half of first byte *)
-	ORA	M
-	MOV	M,A
+	LDA		CurrentUser		;move user number into fcb.
+	LHLD	ParamsDE		;(* upper half of first byte *)
+	ORA		M
+	MOV		M,A
 	RET		;and return (all done).
 ;
 ;   Function to return the current cp/m version number.
@@ -3967,9 +3980,9 @@ GETNXT:
 ;   Function to delete a file by name.
 ;
 DELFILE:
-	CALL	AUTOSEL	;select proper drive.
-	CALL	ERAFILE	;erase the file.
-	JMP		STSTATUS;set status and return.
+	CALL	AUTOSEL		;select proper drive.
+	CALL	ERAFILE		;erase the file.
+	JMP		STSTATUS	;set status and return.
 ;
 ;   Function to execute a sequential read of the specified
 ; record number.
