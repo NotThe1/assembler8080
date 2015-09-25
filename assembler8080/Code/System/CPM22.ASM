@@ -2720,7 +2720,9 @@ NXENTRY2:
 ; set (BC) to the block number on the disk to check.
 ; On return, (D) will contain the original bit position for
 ; this block number and (HL) will point to the address for it.
-;
+; Bit is determined by Block Number Mod 8
+; Byte is determined by Block Number / 8
+
 CKBITMAP:
 	MOV		A,C			; Determine Bit  interest.
 	ANI		07H			; mod 8
@@ -2757,7 +2759,7 @@ CKBITMAP:
 ;
 	LHLD	ALOCVECT
 	DAD	B
-	MOV	A,M	;now get correct byte.
+	MOV	A,M				; we now have correct byte.
 CKBMAP1:
 	RLC		;get correct bit into position 0.
 	DCR	E
