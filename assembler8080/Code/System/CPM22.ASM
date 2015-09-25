@@ -553,64 +553,70 @@ CONVRT2:
 CONVRT3:
 	MVI		B,08H		; File name size
 CONVRT4:
-	CALL	CHECK		; Legal input character ?
-	JZ		PADNAME		; its a delimiter, skip the rest of the filename
-	INX		H
-	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
-	JNZ		CONVRT5		; otherwise move to the next character and process.
-	
-	MVI		M,QMARK		; '?'
-	JMP		CONVRT6
-CONVRT5:				; move on to the next character
-	MOV		M,A			; put character in FCB
-	INX		D			; move to next character in input line buffer
-CONVRT6:
-	DCR		B			; decrement counter
-	JNZ		CONVRT4		; loop if not done with fileName
+	CALL	DECODENAME	; Expand all 8 characters in name
+;	CALL	CHECK		; Legal input character ?
+;	JZ		PADNAME		; its a delimiter, skip the rest of the filename
+;	INX		H
+;	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
+;	JNZ		CONVRT5		; otherwise move to the next character and process.
+;	
+;	MVI		M,QMARK		; '?'
+;	JMP		CONVRT6
+;CONVRT5:				; move on to the next character
+;	MOV		M,A			; put character in FCB
+;	INX		D			; move to next character in input line buffer
+;CONVRT6:
+;	DCR		B			; decrement counter
+;	JNZ		CONVRT4		; loop if not done with fileName
 CONVRT7:
 	CALL	CHECK		; Do we have a delimiter ?.
 	JZ		GETEXT		; Yes, process the extension
 	INX		D			; No, point a the next character
 	JMP		CONVRT7		; and see if its a demiliter
-PADNAME:
-	INX		H			; blank fill the remaining file name.
-	MVI		M,BLANK		; store the blank
-	DCR		B			; keep count
-	JNZ		PADNAME		; loop till done
+;PADNAME:
+;	INX		H			; blank fill the remaining file name.
+;	MVI		M,BLANK		; store the blank
+;	DCR		B			; keep count
+;	JNZ		PADNAME		; loop till done
 ;
 ;   Get the extension and convert it.
 ;
 GETEXT:
 	MVI		B,03H		; file extension size
 	CPI		PERIOD		; do we have the Period '.'
-	JNZ		PADEXT		; No, Pad fill the extension
-	INX		D			; get past the period
+;	JNZ		PADEXT		; No, Pad fill the extension
+	JZ		GETEXT1		; yes, process the extension
+	CALL	PADFIELD	; No, Pad fill the extension
+	JMP		CLEAREXTENT	; process the stuff after the extension
 GETEXT1:
-	CALL	CHECK		; Legal input character ?		
-	JZ		PADEXT		; its a delimiter, so pad the rest of the Extension
-	INX		H			; point at next spot in the CCP FCB
-	CPI		ASTRK		; ; '*'	;note that an '*' will fill the remaining
-	JNZ		GETEXT2		; otherwise move to the next character and process.
-	
-	MVI		M,QMARK		;'?'
-	JMP		GETEXT3
-GETEXT2:				; move on to the next character
-	MOV		M,A			; put character in FCB
-	INX		D			; move to next character in input line buffer
-GETEXT3:
-	DCR		B			; decrement counter
-	JNZ		GETEXT1		; loop if not done with file extension
+	INX		D			; get past the period
+:
+	CALL	DECODENAME	; Expand all 3 characters in extension
+;	CALL	CHECK		; Legal input character ?		
+;	JZ		PADEXT		; its a delimiter, so pad the rest of the extension
+;	INX		H			; point at next spot in the CCP FCB
+;	CPI		ASTRK		; ; '*'	;note that an '*' will fill the remaining
+;	JNZ		GETEXT2		; otherwise move to the next character and process.
+;	
+;	MVI		M,QMARK		;'?'
+;	JMP		GETEXT3
+;GETEXT2:				; move on to the next character
+;	MOV		M,A			; put character in FCB
+;	INX		D			; move to next character in input line buffer
+;GETEXT3:
+;	DCR		B			; decrement counter
+;	JNZ		GETEXT1		; loop if not done with file extension
 GETEXT4:
 	CALL	CHECK		; Do we have a delimiter ?.
 	JZ		CLEAREXTENT	; Yes, Clear the EX, S1 & S2
 	INX		D			; No, point a the next character
 	JMP		GETEXT4		; and see if its a demiliter
 	
-PADEXT:
-	INX		H			; blank fill the remaining extension.
-	MVI		M,BLANK		; store the blank
-	DCR		B			; keep count
-	JNZ		PADEXT		; loop till done
+;PADEXT:
+;	INX		H			; blank fill the remaining extension.
+;	MVI		M,BLANK		; store the blank
+;	DCR		B			; keep count
+;	JNZ		PADEXT		; loop till done
 	
 CLEAREXTENT:
 	MVI		B,03H		; set count for clearing EX, S1 & S2
@@ -618,7 +624,7 @@ CLEAREXTENT1:
 	INX		H			; point at location in the CCP FCB
 	MVI		M,0			; initialize it
 	DCR		B			; keep count
-	JNZ		CLEAREXTENT	; loop til done
+	JNZ		CLEAREXTENT1	; loop til done
 	XCHG
 	SHLD	INPOINT		; save current input line pointer.
 	POP		H			; point at correct CCP FCB
@@ -640,6 +646,34 @@ AFN1:
 	MOV		A,B			; B has the question mark count 
 	ORA		A			; set the Z flag for calling routine
 	RET
+	
+;
+; DECODENAME -	expands the name/ext to all 8/3 characters by either padding with SPACES
+;				or, replaceing *'s with ?s for the remainder of the name/ext
+;
+DECODENAME:
+	CALL	CHECK		; Legal input character ?
+	JZ		PADFIELD	; its a delimiter, skip the rest of the name/ext 
+	INX		HL
+	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
+	JNZ		DECODENAME1	; otherwise move to the next character and process.
+	MVI		M,QMARK		; '?'
+	JMP		DECODENAME2
+DECODENAME1:
+	MOV		M,A			; put character in FCB
+	INX		D			; move to next character in input line buffer
+DECODENAME2:
+	DCR		B			; decrement counter
+	JNZ		DECODENAME	; loop if not done with fileName
+	RET					; exit when done!
+	
+PADFIELD:            
+	INX		H			; blank fill the remaining file name.
+	MVI		M,BLANK		; store the blank
+	DCR		B			; keep count
+	JNZ		PADFIELD		; loop till done
+	RET					; exit when done!
+		
 ;
 ;   CP/M command table. Note commands can be either 3 or 4 characters long.
 ;
@@ -2688,35 +2722,36 @@ NXENTRY2:
 ; this block number and (HL) will point to the address for it.
 ;
 CKBITMAP:
-	MOV	A,C	;determine bit number of interest.
-	ANI	07H	;compute (D)=(E)=(C and 7)+1.
-	INR	A
-	MOV	E,A	;save particular bit number.
-	MOV	D,A
-;
+	MOV		A,C			; Determine Bit  interest.
+	ANI		07H			; mod 8
+	INR		A			; add 1? and save
+	MOV		E,A			; Save particular bit number.
+	MOV		D,A			; save it again
+;                     
 ;   compute (BC)=(BC)/8.
+;   to determin in which Allocation block the number resides
 ;
-	MOV	A,C
-	RRC		;now shift right 3 bits.
-	RRC
-	RRC
-	ANI	1FH	;and clear bits 7,6,5.
-	MOV	C,A
-	MOV	A,B
-	ADD	A	;now shift (B) into bits 7,6,5.
-	ADD	A
-	ADD	A
-	ADD	A
-	ADD	A
-	ORA	C	;and add in (C).
-	MOV	C,A	;ok, (C) ha been completed.
-	MOV	A,B	;is there a better way of doing this?
-	RRC
-	RRC
-	RRC
-	ANI	1FH
-	MOV	B,A	;and now (B) is completed.
-;
+	MOV		A,C			; get the block
+	RRC					; now shift right 3 bits.
+	RRC      	  		; to divide by 8
+	RRC                
+	ANI		1FH			; and clear bits 7,6,5.
+	MOV		C,A			; put result in c           
+	MOV		A,B			           
+	ADD		A			; now shift
+	ADD		A           ; hi byte's bits 0,1 & 2   
+	ADD		A           ; int bit positions 6,7, & 8  
+	ADD		A           ; so we can put continue the   
+	ADD		A           ; divide by 8 of the whole word  
+	ORA		C			; combile with (C)(bits 0,1,2,3 & 4).
+	MOV		C,A			; ok, (C), the low byte has been completed.
+	MOV		A,B			; Now to finish with
+	RRC 	       		; the high order byte                
+	RRC        
+	RRC 	       		; divide by 8
+	ANI		1FH			; zero out bits 5,6 & 7           
+	MOV		B,A			;and now (B) is completed.
+;                     
 ;   use this as an offset into the disk space allocation
 ; table.
 ;
@@ -2734,11 +2769,14 @@ CKBMAP1:
 ; 1 then it will be set (don't use anyother values).
 ;
 STBITMAP:
-	PUSH	D
-	CALL	CKBITMAP;get the byte of interest.
-	ANI	0FEH	;clear the affected bit.
-	POP	B
-	ORA	C	;and now set it acording to (C).
+;	PUSH	D				; Save Set/Clear indicator
+	CALL	CKBITMAP		; Get the byte of interest.
+	ANI		0FEH			; clear the affected bit.
+	MOV		C,A				; Save it in C
+	LDA		BitSetFlag		; get the flag
+	ORA		C				; and now set(01)/reset(01) acording to flag
+;	POP	B
+;	ORA	C	;and now set it acording to (C).
 ;
 ;  entry to restore the original bit position and then store
 ; in table. (A) contains the value, (D) contains the bit
@@ -2756,45 +2794,48 @@ STBMAP1:
 ; On entry, (C)=1 to set the map and (C)=0 to clear it.
 ;
 SETFILE:
-	CALL	FCB2HL	;get address of fcb
-	LXI	D,16
-	DAD	D	;get to block number bytes.
-	PUSH	B
-	MVI	C,17	;check all 17 bytes (max) of table.
+	CALL	FCB2HL			; Get address of fcb
+	LXI		D,16			; Offset to Block Pointers in Directory entry
+	DAD		D				; Compute start to block number bytes. (A1..A10)
+;	PUSH	B				; Save Set/Clear indicator 
+	MVI		C,17			; Check all 16 bytes (max) of table.
 SETFL1:
-	POP	D
-	DCR	C	;done all bytes yet?
-	RZ
-	PUSH	D
-	LDA	BIGDISK	;check disk size for 16 bit block numbers.
-	ORA	A
-	JZ	SETFL2
-	PUSH	B	;only 8 bit numbers. set (BC) to this one.
-	PUSH	H
-	MOV	C,M	;get low byte from table, always
-	MVI	B,0	;set high byte to zero.
-	JMP	SETFL3
+;	POP		D				; Retreive Set/Clear indicator
+	DCR		C				; Counter
+	RZ						; Done?, then return
+	
+;	PUSH	D				; Save Set/Clear indicator
+	LDA		BIGDISK			; check disk size .
+	ORA		A
+	JZ		SETFL2			; If it is a big disk, use 16 bits
+	
+	PUSH	B				; Only 8 bit numbers. Save counter.
+	PUSH	H				; Save pointer to current Allocation byte
+	MOV		C,M				; Get low byte from table, always
+	MVI		B,0				; Set high byte to zero.
+	JMP		SETFL3			; skip 16 bit number processing
+	
 SETFL2:
-	DCR	C	;for 16 bit block numbers, adjust counter.
-	PUSH	B
-	MOV	C,M	;now get both the low and high bytes.
-	INX	H
-	MOV	B,M
-	PUSH	H
+	DCR		C				; Adjust counter for 16 bit block numbers,.
+	PUSH	B				; Save Counter
+	MOV		C,M				; Now get both the low and high bytes.
+	INX		H
+	MOV		B,M
+	PUSH	H				; Save pointer to current Allocation byte
 SETFL3:
-	MOV	A,C	;block used?
-	ORA	B
-	JZ	SETFL4
-	LHLD	DSKSIZE	;is this block number within the
-	MOV	A,L	;space on the disk?
-	SUB	C
-	MOV	A,H
-	SBB	B
-	CNC	STBITMAP;yes, set the proper bit.
+	MOV		A,C				; Block used? if both (b) and (c) are 00
+	ORA		B				; the block is NOT used
+	JZ		SETFL4			; NOT used move on			
+	LHLD	DSKSIZE			; Is this block number within the
+	MOV		A,L	
+	SUB		C
+	MOV		A,H
+	SBB		B
+	CNC		STBITMAP		; Yes, set the proper bit.
 SETFL4:
-	POP	H	;point to next block number in fcb.
+	POP	H					; Point to next block number in fcb.
 	INX	H
-	POP	B
+	POP	B					; Retreive the counter
 	JMP	SETFL1
 
 ;
@@ -2927,7 +2968,9 @@ ERAFIL1:
 	CALL	CHKROFL	;is file read only?
 	CALL	FCB2HL	;nope, get address of fcb and
 	MVI	M,0E5H	;set first byte to 'empty'.
-	MVI	C,0	;clear the space from the bit map.
+;	MVI	C,0	;clear the space from the bit map.
+	MVI		A,00H		; want to clear the bit
+	STA		BitSetFlag	; Flag = 00, clear bit
 	CALL	SETFILE
 	CALL	DIRWRITE;now write the directory sector back out.
 	CALL	FINDNXT	;find the next file name.
@@ -3820,6 +3863,7 @@ BITMAP1:
 	MOV			A,B
 	ORA			C			; equals zero if both (B) and (B) are Zero
 	JNZ			BITMAP1		; loop for more
+	; allocation vector is cleared
 	LHLD		ALLOC0		;get initial space used by directory.
 	XCHG
 	LHLD	ALOCVECT;and put this into map.
@@ -3836,25 +3880,29 @@ BITMAP1:
 	MVI	M,0
 	CALL	STFILPOS;clear initial file position also.
 BITMAP2:
-	MVI	C,0FFH	;read next file name in directory
-	CALL	NXENTRY	;and set checksum byte.
-	CALL	CKFILPOS;is there another file?
-	RZ
-	CALL	FCB2HL	;yes, get its address.
-	MVI	A,0E5H
-	CMP	M	;empty file entry?
-	JZ	BITMAP2
-	LDA	CurrentUser;no, correct user number?
-	CMP	M
-	JNZ	BITMAP3
-	INX	H
-	MOV	A,M	;yes, does name start with a '$'?
-	SUI	DOLLAR		; '$'
-	JNZ	BITMAP3
-	DCR	A	;yes, set atatus to minus one.
-	STA	StatusBDOSReturn
+	MVI		C,0FFH			; Read next file name in directory
+	CALL	NXENTRY			; And set checksum byte.
+	CALL	CKFILPOS		; Is there another file?
+	RZ						; NO - return
+	
+	CALL	FCB2HL			; YES, get its address.
+	MVI		A,0E5H
+	CMP		M				; Is it an empty file entry?
+	JZ		BITMAP2			; YES - Go back for next entry
+	
+	LDA		CurrentUser		; NO, Do we have the correct user number?
+	CMP		M
+	JNZ		BITMAP3			; NO -			
+	INX		H				; YES -skip to first character in file name
+	MOV		A,M				; Does name start with a '$'?
+	SUI		DOLLAR			; Clear acc(if =) and test for equality at the same time
+	JNZ		BITMAP3
+	DCR		A				; Yes, set atatus to minus one.
+	STA		StatusBDOSReturn	; set return status
 BITMAP3:
-	MVI	C,1	;now set this file's space as used in bit map.
+;	MVI		C,1				;now set this file's space as used in bit map.
+	MVI		A,01H		; want to set the bit
+	STA		BitSetFlag	; Flag = 01, set the bit
 	CALL	SETFILE
 	CALL	CHKNMBR	;keep (FilePosInDir) in bounds.
 	JMP	BITMAP2
@@ -4151,6 +4199,7 @@ WTSPECL:
 
 CurrentUser:			DB	0	;current user number.
 CurrentDrive:			DB	0	;currently active drive.
+BitSetFlag:				DB	0	; Flag to set(01) or reset(00) bit in disk allocation table
 
 ;
 EMPTYFCB:				DB	0E5H	;empty directory segment indicator.
