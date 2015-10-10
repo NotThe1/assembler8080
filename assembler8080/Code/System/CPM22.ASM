@@ -67,17 +67,21 @@ CBASE:
 ;   Standard cp/m ccp input buffer. Format is (max length),
 ; (actual length), (char #1), (char #2), (char #3), etc.
 ;
-INBUFF:
-		DB		127			;length of input buffer.
-		DB		0			;current length of contents.
-		DB		'Copyright'
-		DB		' 1979 (c) by Digital Research      '
-		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-		DB		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+InBuffStart:
+InBuffSize:					;length of input buffer.
+		DB		InBuffEnd - InBuffStart		
+InBuffCount:			;current Count of contents.
+		DB		0
+InBuff:
+		DB		'Copyright '
+		DB		'1979 (c) by '
+		DB		'Digital Research'
+		DB		00
+		DS		86			
+InBuffEnd:
+		
 INPOINT:
-		DW		INBUFF+2	;input line pointer
+		DW		InBuff		;input line pointer
 NAMEPNT:
 		DW		0			;input line pointer used for error message. Points to
 ;			;start of name in error.
@@ -309,7 +313,7 @@ GETINP:
 ;
 ;   Move this record into input buffer.
 ;
-	LXI		D,INBUFF+1
+	LXI		D,InBuffCount
 	LXI		H,Pg0Buffer	;data was read into buffer here.
 	MVI		B,128		;all 128 characters may be used.
 	CALL	HL2DE		;(HL) to (DE), (B) bytes.
@@ -326,7 +330,7 @@ GETINP:
 ;
 ;   Print line just read on console.
 ;
-	LXI		H,INBUFF+2
+	LXI		H,InBuff
 	CALL	PLINE2
 	CALL	CHKCON		;check console, quit on a key.
 	JZ		GETINP2		;jump if no key is pressed.
@@ -345,14 +349,14 @@ GETINP1:
 	CALL	DELBATCH	;delete file ($$$.sub).
 	CALL	SETCDRV		;reset active disk.
 	MVI		C,10		;get line from console device.
-	LXI		D,INBUFF
+	LXI		D,InBuffStart	; point at the Inbuff construct (Size, Pos, Buffer)
 	CALL	ENTRY
 	CALL	MOVECD		;reset current drive (again).
 ;
 ;   Convert input line to upper case.
 ;
 GETINP2:
-	LXI		H,INBUFF+1
+	LXI		H,InBuffCount
 	MOV		B,M			;(B)=character counter.
 GETINP3:
 	INX		H
@@ -366,7 +370,7 @@ GETINP3:
 	JMP		GETINP3
 GETINP4:
 	MOV		M,A			;add trailing null.
-	LXI		H,INBUFF+2
+	LXI		H,InBuff
 	SHLD	INPOINT		;reset input line pointer.
 	RET
 ;
@@ -734,7 +738,7 @@ SEARCH4:
 ;
 CLEARBUF:
 XRA	A
-	STA	INBUFF+1;second byte is actual length.
+	STA	InBuffCount			;second byte is actual length.
 ;
 ;**************************************************************
 ;*
@@ -763,7 +767,7 @@ COMMAND:
 	ANI	0FH	;isolate the drive number.
 	STA	CDRIVE	;and save.
 	CALL	DSKSEL	;...and select.
-	LDA	INBUFF+1
+	LDA	InBuffCount
 	ORA	A	;anything in input buffer already?
 	JNZ	CMMND2	;yes, we just process it.
 ;
@@ -1059,7 +1063,7 @@ ERASE:
 	LXI	B,YESNO	;yes, ask for confirmation.
 	CALL	PLINE
 	CALL	GETINP
-	LXI	H,INBUFF+1
+	LXI	H,InBuffCount
 	DCR	M	;must be exactly 'y'.
 	JNZ	CMMND1
 	INX	H
@@ -1351,7 +1355,7 @@ UNKWN4:
 	LXI	H,FCB
 	MVI	B,33
 	CALL	HL2DE
-	LXI	H,INBUFF+2;now move the remainder of the input
+	LXI	H,InBuff			;now move the remainder of the input
 UNKWN5:
 	MOV	A,M	;line down to (0080h). Look for a non blank.
 	ORA	A	;or a null.
