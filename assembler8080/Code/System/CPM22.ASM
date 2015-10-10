@@ -2076,17 +2076,19 @@ JUMPHL:
 ;   Block move. (DE) to (HL), (C) bytes total.
 ;
 DE2HL:
-	INR	C	;is count down to zero?
+	INR		C			; manage counter
 DE2HL1:
-	DCR	C
-	RZ		;yes, we are done.
-	LDAX	D	;no, move one more byte.
-	MOV	M,A
-	INX	D
-	INX	H
-	JMP	DE2HL1	;and repeat.
+	DCR		C			; decrement counter
+	RZ					; Return if done
+	
+	LDAX	D			; move a byte.
+	MOV		M,A
+	INX		D
+	INX		H
+	JMP		DE2HL1		;	and repeat.
 ;
 ;   Select the desired drive.
+; it will set up all the disk parameters blocks 
 ;
 SelectDisk:
 	LDA		CurrentDrive		; get active disk.
@@ -2101,38 +2103,39 @@ SelectDisk:
 ;
 	MOV		E,M					; first word of DPB points to the drive's skew table
 	INX		H
-	MOV		D,M						; Get it and put it into (DE)
-	INX		H					
-	SHLD	FilePosInDir		;save pointers to scratch areas.
+	MOV		D,M					; Get it and put it into (DE)
+	INX		H
+						;save pointers to BDOS scratch areas
+	SHLD	FilePosInDir		; save Relative position for file		.
 	INX		H
 	INX		H
-	SHLD	LastTrackNumber		;ditto.
+	SHLD	LastTrackNumber		; save last track referenced			
 	INX		H
 	INX		H
-	SHLD	LastSectorNumber	;ditto.
+	SHLD	LastSectorNumber	; save last sector referenced	
 	INX		H
-	INX		H
+	INX		H					; get directory buffer
 	XCHG						; been holding the translation table address in DE, now in HL
 								; Moved Directory buffer pointer into DE (from HL
-	SHLD	XLATE				
+	SHLD	XLATE				; save skew table address				
 	LXI		H,DIRBUF			; get address of the directory buffer vector
-	MVI		C,8					;they consist of the directory buffer
-	CALL	DE2HL				;pointer, parameter block pointer,
-	LHLD	DISKPB	;check and allocation vectors. (* DISK PARAMTER BLOCK POINTER)
-	XCHG					; put into DE
-	LXI	H,SECTORS	;get Sectors per Block
-	MVI	C,15	;it is 15 bytes long. 
-	CALL	DE2HL	;( move disk parameter block from BIOS to BDOS for current disk)
-	LHLD	DSKSIZE	;check disk size.
-	MOV	A,H	;more than 256 blocks on this?
-	LXI	H,BIGDISK		;(should be called SmallDisk [ if BIGDISK =0 then > 256 block long])
-	MVI	M,0FFH	;set to samll.
-	ORA	A
-	JZ	SelectDisk1
-	MVI	M,0	;wrong, set to large.
+	MVI		C,8					; they consist of the directory buffer
+	CALL	DE2HL				; pointer, parameter block pointer,check and allocation vectors.
+	LHLD	DISKPB				;  * DISK PARAMTER BLOCK POINTER
+	XCHG						; put into DE
+	LXI		H,SECTORS			; point at  Sectors per Block
+	MVI		C,15				; it is 15 bytes long. 
+	CALL	DE2HL				; move disk parameter block from BIOS to BDOS for current disk
+	LHLD	DSKSIZE				; check disk size.
+	MOV		A,H					; more than 256 blocks on this?
+	LXI		H,BIGDISK			; should be called SmallDisk [ if BIGDISK =0 then > 256 block long])
+	MVI		M,0FFH				; set to small.
+	ORA		A
+	JZ		SelectDisk1
+	MVI		M,0					; wrong, set to large.
 SelectDisk1:
-	MVI	A,0FFH	;clear the zero flag.
-	ORA	A
+	MVI		A,0FFH				; clear the zero flag.
+	ORA		A
 	RET
 ;
 ;   Routine to home the disk track head and clear pointers.
@@ -2172,7 +2175,7 @@ IORET:
 TRKSEC:
 	LHLD	FILEPOS			; get position of last accessed file
 	MVI		C,2				; in directory and compute sector #.
-	CALL	SHIFTR			; sector #=file-position/4.
+	CALL	HLrightC			; sector #=file-position/4.
 	SHLD	BLKNMBR			; save this as the block number of interest.
 	SHLD	CKSUMTBL		; what's it doing here too?
 ;
@@ -2416,9 +2419,9 @@ STNREC1:
 ;
 ;   Shift HL right (C) bits.
 ;
-SHIFTR:
+HLrightC:
 	INR		C			; minor adjustment
-SHIFTR1:
+HLrightC1:
 	DCR		C			; count down
 	RZ					; exit if done
 	MOV		A,H			; get the hi byte
@@ -2428,7 +2431,7 @@ SHIFTR1:
 	MOV		A,L			; get lo byte
 	RAR					; rotate right thru carry
 	MOV		L,A			; return new lo byte
-	JMP		SHIFTR1		; keep doing it
+	JMP		HLrightC1		; keep doing it
 ;
 ;   Compute the check-sum for the directory buffer. Return
 ; integer sum in (A).
@@ -2443,16 +2446,6 @@ CHKSUM1:
 	DCR	C
 	JNZ	CHKSUM1
 	RET
-;
-;   Shift (HL) left (C) bits.
-;
-SHIFTL:
-	INR	C
-SHIFTL1:
-	DCR	C
-	RZ
-	DAD	H	;shift left 1 bit.
-	JMP	SHIFTL1
 
 ;
 ;   Extract the write protect status bit for the current drive.
@@ -2462,7 +2455,7 @@ GETWPRT:
 	LHLD	ROBitMap		;get Read Only Bit Map
 	LDA		CurrentDrive	;which drive is current?
 	MOV		C,A
-	CALL	SHIFTR			;shift status such that bit 0 is the
+	CALL	HLrightC			;shift status such that bit 0 is the
 	MOV		A,L				;one of interest for this drive.
 	ANI		01H				;and isolate it.
 	RET						; Zero if not write protected
@@ -2474,7 +2467,7 @@ WRTPRTD:
 	MOV	C,M	;set (BC) equal to the status.
 	INX	H
 	MOV	B,M
-	CALL	SETBIT	;and set this bit according to current drive.
+	CALL	SetBit	;and set this bit according to current drive.
 	SHLD	ROBitMap	;then save.
 	LHLD	DIRSIZE	;now save directory size limit.
 	INX	H	;remember the last one.
@@ -3819,23 +3812,23 @@ SETRAN:
 ; not already active.
 ;
 LoginDrive:
-	LHLD	LoggedBitMap		; point at the "logged In" Bitmap.
 	LDA		CurrentDrive		; get the Subject Drive.
 	MOV		C,A					; Save current drive
-	CALL	SHIFTR				; Return with CurrentDrive's bit in L's lsb (byte 0)
+	LHLD	LoggedBitMap		; point at the "logged In" Bitmap.
+	CALL	HLrightC			; Return with CurrentDrive's bit in L's lsb (byte 0)
 	PUSH	H					; Save it, so we will know if it is already active
 	XCHG
 	CALL	SelectDisk			; select this drive (in BIOS).
 	JZ		SLCTERR				; If not valid then error exit outta here
 	POP	H						; retreive original state of the drive
 	MOV	A,L						; and put it into (A) 
-	RAR							; move the lsb (bit 0) into the carry flag		
-	RC							; if its set then this drive has already been activated
-							;No, then update the logged Bitmap to reflect this drive.
+	RAR							; move bit 0 into the carry flag if it is set		
+	RC							; then return, because this drive has already been activated
+				;Else  update the logged Bitmap to reflect this drive.
 	LHLD	LoggedBitMap		
 	MOV		C,L
 	MOV		B,H					; put the map into (BC)
-	CALL	SETBIT				; Set it in the LoggedBitMap
+	CALL	SetBit				; Set it in the LoggedBitMap
 	SHLD	LoggedBitMap		; and save the Bit map.
 ;	JMP	BITMAP	;now update the bitmap.
 ;-----------------------------------------------------------
@@ -3849,7 +3842,7 @@ BITMAP:
 								;compute size of allocation table.
 	LHLD		DSKSIZE		; get maximum  Allocation Block number
 	MVI			C,3			; 2 raised to 3rd power = 8
-	CALL		SHIFTR		;(HL)=(HL)/8.
+	CALL		HLrightC		;(HL)=(HL)/8.
 	INX			H			;at lease 1 byte.
 	MOV			B,H
 	MOV			C,L			;set (BC) to the allocation table length.
@@ -3917,13 +3910,16 @@ BITMAP3:
 ;  Routine to set a bit in a 16 bit value contained in (BC).
 ; The bit set depends on the current drive selection.
 ;
-SETBIT:
-	PUSH	B					;save original bit (BC)
-	LDA		CurrentDrive		;get active drive.
-	MOV		C,A
-	LXI		H,1
-	CALL	SHIFTL				;shift bit into place for Drive bit .
-	POP		B					;now 'or' this with the original word.
+SetBit:
+	LDA		CurrentDrive		; get active drive.
+	LXI		H,1					; Need a bit to move
+	INR		A
+SetBit1:
+	DCR		A
+	JZ		SetBit2
+	DAD		H
+	JMP		SetBit1
+SetBit2:	
 	MOV		A,C
 	ORA		L
 	MOV		L,A					;low byte done, do high byte.
@@ -3931,15 +3927,16 @@ SETBIT:
 	ORA		H
 	MOV		H,A
 	RET							; HL has the result
+
 ;
 ;   Function to set the active disk number.
 ;
 SETDSK:
-	LDA	ParamE	;get parameter passed and see if this
-	LXI	H,CurrentDrive;represents a change in drives.
+	LDA	ParamE				;get parameter passed and see if this
+	LXI	H,CurrentDrive		;represents a change in drives.
 	CMP	M
-	RZ
-	MOV	M,A	;yes it does, log it in.
+	RZ						; return the drive is already selected
+	MOV	M,A					; It is a change in drives, so log it in.
 	JMP	LoginDrive
 ;
 ;   This is the 'auto disk select' routine. The firsst byte
@@ -3980,13 +3977,13 @@ GETVER:
 ;
 RSTDSK:
 	LXI		H,0				; clear write protect status and log
-	SHLD	ROBitMap		; clear All Read Only Bits
+	SHLD	ROBitMap		; clear all Read Only Bits
 	SHLD	LoggedBitMap	; clear all logged in drives
 	XRA		A
 	STA		CurrentDrive	;select drive 'A'.
 	LXI		H,Pg0Buffer		;setup default dma address.
 	SHLD	UsersDMA
-	CALL	Set2UsersDMA	; Call BIOS to set DMAA 
+	CALL	Set2UsersDMA	; Call BIOS to set DMA
 	JMP		LoginDrive		;now log in drive 'A'.
 ;
 ;   Function to open a specified file.
