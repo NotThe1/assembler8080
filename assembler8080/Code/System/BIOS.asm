@@ -3,8 +3,14 @@
 
 INopCode	EQU		0DBH
 OUTopCode	EQU		0D3H
-SPACE		EQU		020H
-SLASH		EQU		02FH
+
+SPACE		EQU		020H	; blank
+SLASH		EQU		02FH	; /
+
+CR			EQU		0DH		; Carriage Return
+LF			EQU		0AH		; Line Feed
+EndOfMessage	EQU	00H
+
 ; programmers CPM Handbook by Andy Johnson
 
 
@@ -112,10 +118,7 @@ InitializeStream:		; used by the initialization subroutine. Layout:
 		
 		DB	0		; port number of 0 terminates
 		
-;  Equates for the sign in message
 
-CR		EQU	0DH		; Carriage Return
-LF		EQU	0AH		; Line Feed
 
 SignOnMessage:		; Main sign on message
 		DB	'CP/M 2.2.'
@@ -138,7 +141,7 @@ SignOnMessage:		; Main sign on message
 		DB	'     D: 0.24 MByte 8" Floppy',CR,LF
 
 		
-		DB	00
+		DB	EndOfMessage
 		
 	
 ;219--------------------BOOT-----------------------------	
@@ -1336,25 +1339,25 @@ DiskError:
 ;		Disk Control table image for warm boot
 ;**********************************************************************************
 BootControlPart1:
-	DB	01H				; Read function
-	DB	00H				; unit number
-	DB	00H				; head number
-	DB	00H				; track number
-	DB	02H				; Starting sector number
-	DW	8 * 512			; Number of bytes to read
-	DW	CCPEntry		; read into this address
-	DW	DiskStatusBlock	; pointer to next block
-	DW	DiskControl5	; pointer to next table
+	DB		01H				; Read function
+	DB		00H				; unit number
+	DB		00H				; head number
+	DB		00H				; track number
+	DB		02H				; Starting sector number (skip cold boot sector)
+	DW		8 * 512			; Number of bytes to read ( rest of the head)
+	DW		CCPEntry		; read into this address
+	DW		DiskStatusBlock	; pointer to next block - no linking
+	DW		DiskControl5	; pointer to next table- no linking
 BootControlPart2:
-	DB	01H				; Read function
-	DB	00H				; unit number
-	DB	01H				; head number
-	DB	00H				; track number
-	DB	01H				; Starting sector number
-	DW	3 * 512			; Number of bytes to read
-	DW	CCPEntry + ( 8 * 512)		; read into this address
-	DW	DiskStatusBlock	; pointer to next block
-	DW	DiskControl5	; pointer to next table
+	DB		01H				; Read function
+	DB		00H				; unit number
+	DB		01H				; head number - next head
+	DB		00H				; track number
+	DB		01H				; Starting sector number
+	DW		3 * 512			; Number of bytes to read (Rest of BDOS)
+	DW		CCPEntry + ( 8 * 512)		; Pick up where 1st read left off
+	DW	DiskStatusBlock		; pointer to next block - no linking
+	DW	DiskControl5		; pointer to next table - no linking
 
 ;**********************************************************************************	
 ;						Warm Boot
@@ -1403,12 +1406,11 @@ WarmBootError:
 	JMP		WBOOT					; try again.
 	
 WarmBootErroMessage:
-	DB		0DH,0AH
-	DB		057H,061H,072H,06DH,020H				; Warm
-	DB		042H,06FH,06FH,074H,020H				; Boot
-	DB		072H,065H,074H,072,079H,069H,06EH,067H	;retrying
-	DB		02EH,02EH,02EH,0DH,0AH
-	DB		00H
+	DB		CR,LF
+	DB		'Warm Boot -'
+	DB		' Retrying.'
+	DB		CR,LF
+	DB		EndOfMessage
 CodeEnd:
 End:
 

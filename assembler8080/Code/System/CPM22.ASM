@@ -53,6 +53,8 @@ ATSIGN		EQU		040H		; @
 POUNDSN		EQU		023H		; #
 DOLLAR		EQU		024H		; $
 
+EndOfMessage	EQU	00H
+EmptyFileFlag	EQU	0E5H		; empty file slot in dorectory
 ;
 ;   Set origin for CP/M
 ;
@@ -846,7 +848,7 @@ NONE:
 	LXI	B,NOFILE
 	JMP	PLINE
 NOFILE:
-	DB	'No file',0
+	DB	'No file',EndOfMessage
 ;
 ;   Decode a command of the form 'A>filename number{ filename}.
 ; Note that a drive specifier is not allowed on the first file
@@ -1404,7 +1406,7 @@ UNKWN0:
 	CALL	PLINE
 	JMP	GETBACK
 BADLOAD:
-	DB	'Bad load',0
+	DB	'Bad load',EndOfMessage
 COMFILE:
 	DB	'COM'	;command file extension.
 ;
@@ -2121,14 +2123,14 @@ SelectDisk:
 	LXI		H,DIRBUF			; get address of the directory buffer vector
 	MVI		C,8					; they consist of the directory buffer
 	CALL	DE2HL				; pointer, parameter block pointer,check and allocation vectors.
-	LHLD	DISKPB				;  * DISK PARAMTER BLOCK POINTER
+	LHLD	DiskParamBlock				;  * DISK PARAMTER BLOCK POINTER
 	XCHG						; put into DE
 	LXI		H,SECTORS			; point at  Sectors per Block
 	MVI		C,15				; it is 15 bytes long. 
 	CALL	DE2HL				; move disk parameter block from BIOS to BDOS for current disk
-	LHLD	DSKSIZE				; check disk size.
+	LHLD	DiskSize			; check disk size.
 	MOV		A,H					; more than 256 blocks on this?
-	LXI		H,BIGDISK			; should be called SmallDisk [ if BIGDISK =0 then > 256 block long])
+	LXI		H,SmallDisk			; should be called SmallDisk [ if SmallDisk =0 then > 256 block long])
 	MVI		M,0FFH				; set to small.
 	ORA		A
 	JZ		SelectDisk1
@@ -2140,17 +2142,17 @@ SelectDisk1:
 ;
 ;   Routine to home the disk track head and clear pointers.
 ;
-HOMEDRV:
-	CALL	HOME	;home the head.
-	XRA	A
-	LHLD	LastTrackNumber;set our track pointer also.
-	MOV	M,A
-	INX	H
-	MOV	M,A
-	LHLD	LastSectorNumber;and our sector pointer.
-	MOV	M,A
-	INX	H
-	MOV	M,A
+HomeDrive:
+	CALL	HOME			; home the head.
+	XRA		A				; set accumulator to 00	
+	LHLD	LastTrackNumber	; set track pointer to 00.
+	MOV		M,A
+	INX		H
+	MOV		M,A
+	LHLD	LastSectorNumber; set sector pointer to 00.
+	MOV		M,A
+	INX		H
+	MOV		M,A
 	RET
 ;
 ;   Do the actual disk read and check the error return status.
@@ -2173,7 +2175,7 @@ IORET:
 ; block number falls in.
 ;
 TRKSEC:
-	LHLD	FILEPOS			; get position of last accessed file
+	LHLD	FilePosition			; get position of last accessed file
 	MVI		C,2				; in directory and compute sector #.
 	CALL	HLrightC			; sector #=file-position/4.
 	SHLD	BLKNMBR			; save this as the block number of interest.
@@ -2307,7 +2309,7 @@ EXTBLK:
 	LXI	D,16	;block numbers start 16 bytes into fcb.
 	DAD	D
 	DAD	B
-	LDA	BIGDISK	;are we using a big-disk?
+	LDA	SmallDisk	;are we using a big-disk?
 	ORA	A
 	JZ	EXTBLK1
 	MOV	L,M	;no, extract an 8 bit number from the fcb.
@@ -2469,7 +2471,7 @@ WRTPRTD:
 	MOV	B,M
 	CALL	SetBit	;and set this bit according to current drive.
 	SHLD	ROBitMap	;then save.
-	LHLD	DIRSIZE	;now save directory size limit.
+	LHLD	DrectorySize	;now save directory size limit.
 	INX	H	;remember the last one.
 	XCHG
 	LHLD	FilePosInDir;and store it here.
@@ -2504,7 +2506,7 @@ CHKWPRT:
 ;
 FCB2HL:
 	LHLD	DIRBUF		;get address of buffer.
-	LDA		FCBPOS		;relative position of file.
+	LDA		FCBPosition		;relative position of file.
 ;
 ;   Routine to add (A) to (HL).
 ;
@@ -2540,13 +2542,13 @@ SETS2B7:
 	MOV		M,A			;then store.
 	RET
 ;
-;   Compare (FILEPOS) with (FilePosInDir) and set flags based on
+;   Compare (FilePosition) with (FilePosInDir) and set flags based on
 ; the difference. This checks to see if there are more file
-; names in the directory. We are at (FILEPOS) and there are
+; names in the directory. We are at (FilePosition) and there are
 ; (FilePosInDir) of them to check.
 ;
 MOREFLS:
-	LHLD	FILEPOS			;we are here.
+	LHLD	FilePosition			;we are here.
 	XCHG
 	LHLD	FilePosInDir	;and don't go past here.
 	MOV		A,E				;compute difference but don't keep.
@@ -2557,12 +2559,12 @@ MOREFLS:
 	RET
 ;
 ;   Call this routine to prevent (FilePosInDir) from being greater
-; than (FILEPOS).
+; than (FilePosition).
 ;
 CHKNMBR:
 	CALL	MOREFLS		;FilePosInDir too big?
 	RC
-	INX		D		;yes, reset it to (FILEPOS).
+	INX		D		;yes, reset it to (FilePosition).
 	MOV		M,D
 	DCX		H
 	MOV		M,E
@@ -2570,7 +2572,7 @@ CHKNMBR:
 ;
 ;   Compute (HL)=(DE)-(HL)
 ;
-SUBHL:
+DEminusHL2HL:
 	MOV		A,E		;compute difference.
 	SUB		L
 	MOV		L,A		;store low byte.
@@ -2593,7 +2595,7 @@ CHECKDIR:
 	LHLD	CKSUMTBL
 	XCHG
 	LHLD	ALLOC1
-	CALL	SUBHL
+	CALL	DEminusHL2HL
 	RNC		;ok if (CKSUMTBL) > (ALLOC1), so return.
 	PUSH	B
 	CALL	CHECKSUM;else compute checksum.
@@ -2658,10 +2660,11 @@ MOVEDIR:
 	MVI	C,128	;this is its length.
 	JMP	DE2HL	;move it now and return.
 ;
-;   Check (FILEPOS) and set the zero flag if it equals 0ffffh.
+;   Check (FilePosition) and set the zero flag if it equals 0ffffh.
+; if it is -1 then no active file found
 ;
-CKFILPOS:
-	LXI	H,FILEPOS
+CheckFilePosition:
+	LXI	H,FilePosition
 	MOV	A,M
 	INX	H
 	CMP	M	;are both bytes the same?
@@ -2669,11 +2672,11 @@ CKFILPOS:
 	INR	A	;yes, but are they each 0ffh?
 	RET
 ;
-;   Set location (FILEPOS) to 0ffffh.
+;   Set location (FilePosition) to 0ffffh.
 ;
-STFILPOS:
+ClearFilePos:
 	LXI	H,-1
-	SHLD	FILEPOS
+	SHLD	FilePosition
 	RET
 ;
 ;   Move on to the next file position within the current
@@ -2684,28 +2687,35 @@ STFILPOS:
 ; not the same (applies only if another directory sector must
 ; be read).
 ;
-NXENTRY:
-	LHLD	DIRSIZE		; Get directory entry size limit.
+GetNextEntry:
+	LHLD	DrectorySize		; get directory entry size limit.
 	XCHG
-	LHLD	FILEPOS		; Get index into directory.
-	INX		H			; Point at the next one
-	SHLD	FILEPOS		; Save it
-	CALL	SUBHL		;(HL)=(DIRSIZE)-(FILEPOS)
-	JNC		NXENTRY1	; Are there any more entries?
-	JMP		STFILPOS	; No. - Set this flag and return.
+	LHLD	FilePosition		; get index into directory.
+	INX		H					
+	SHLD	FilePosition		; save it in the next location
+	CALL	DEminusHL2HL		;(HL)=(DrectorySize)-(FilePosition)
+	JC		ClearFilePos		; If no more entries, set this flag and return.
+;	JNC		GetNextEntry1		; are there any more entries?
+;	JMP		ClearFilePos		; No. - Set this flag and return.	
+;GetNextEntry1:
+
+	LDA		FilePosition		; Get current index for dirctory directory.
+	ANI		03H					; only look within this sector (only 4 entries fit).
+	ADD		A					; a * 2
+	ADD		A					; a * 4
+	ADD		A					; a * 8
+	ADD		A					; a * 16
+	ADD		A					; a * 32
 	
-NXENTRY1:
-	LDA		FILEPOS		; Get current index for dirctory directory.
-	ANI		03H			;only look within this sector (only 4 entries fit).
-	MVI		B,5			;convert to relative position (32 bytes each).
-NXENTRY2:
-	ADD		A			;note that this is not efficient code.
-	DCR		B			;5 'ADD A's would be better.
-	JNZ		NXENTRY2
+;	MVI		B,5					; convert to relative position (32 bytes each).
+;GetNextEntry2:
+;	ADD		A			;note that this is not efficient code.
+;	DCR		B			;5 'ADD A's would be better.
+;	JNZ		GetNextEntry2
 	
-	STA		FCBPOS		;save it as position of fcb.
+	STA		FCBPosition		;save it as position of fcb.
 	ORA		A
-	RNZ					;return if we are within buffer.
+	RNZ						; return if we are within buffer. ?????????
 	PUSH	B
 	CALL	TRKSEC		;we need the next directory sector.
 	CALL	DIRREAD
@@ -2754,7 +2764,7 @@ CKBITMAP:
 ;   use this as an offset into the disk space allocation
 ; table.
 ;
-	LHLD	ALOCVECT
+	LHLD	FileAllocTable
 	DAD	B
 	MOV	A,M				; we now have correct byte.
 CKBMAP1:
@@ -2804,7 +2814,7 @@ SETFL1:
 	RZ						; Done?, then return
 	
 ;	PUSH	D				; Save Set/Clear indicator
-	LDA		BIGDISK			; check disk size .
+	LDA		SmallDisk			; check disk size .
 	ORA		A
 	JZ		SETFL2			; If it is a big disk, use 16 bits
 	
@@ -2825,7 +2835,7 @@ SETFL3:
 	MOV		A,C				; Block used? if both (b) and (c) are 00
 	ORA		B				; the block is NOT used
 	JZ		SETFL4			; NOT used move on			
-	LHLD	DSKSIZE			; Is this block number within the
+	LHLD	DiskSize			; Is this block number within the
 	MOV		A,L	
 	SUB		C
 	MOV		A,H
@@ -2869,30 +2879,31 @@ SAMEXT:
 ; register (C) should contain the number of bytes of the fcb
 ; that must match.
 ;
-FINDFST:
+FindFirst:
 	MVI		A,0FFH
 	STA		FNDSTAT			; set flag to not match found
 	LXI		H,COUNTER		; point at character counter.
 	MOV		M,C				; put in number of bytes to match
 	LHLD	ParamsDE		; get filename to match.
-	SHLD	SAVEFCB			; and save.
-	CALL	STFILPOS		; clear initial file position (set to 0ffffh).
-	CALL	HOMEDRV			;home the drive.
+	SHLD	SaveFCB			; and save.
+	CALL	ClearFilePos	; clear initial file position (set to 0ffffh).
+	CALL	HomeDrive		;home the drive.
 ;
 ;   Entry to locate the next occurence of a filename within the
 ; directory. The disk is not expected to have been changed. If
 ; it was, then it will be write protected.
 ;
 FINDNXT:
-	MVI		C,0			;write protect the disk if changed.
-	CALL	NXENTRY		;get next filename entry in directory.
-	CALL	CKFILPOS;is file position = 0ffffh?
-	JZ	FNDNXT6	;yes, exit now then.
-	LHLD	SAVEFCB	;set (DE) pointing to filename to match.
+	MVI		C,0				; write protect the disk if changed.
+	CALL	GetNextEntry	; get next filename entry in directory.
+	CALL	CheckFilePosition	; is file position = 0ffffh?
+	JZ		FNDNXT6			; yes, exit now then.
+	LHLD	SaveFCB			; get (DE) pointing to filename to match.
 	XCHG
 	LDAX	D
-	CPI	0E5H	;empty directory entry?
-	JZ	FNDNXT1	;(* are we trying to reserect erased entries? *)
+	CPI		EmptyFileFlag	; is it an empty directory entry?
+	JZ		FNDNXT1			; yes - Skip it
+						; No process it
 	PUSH	D
 	CALL	MOREFLS	;more files in directory?
 	POP	D
@@ -2936,7 +2947,7 @@ FNDNXT4:
 	DCR	C	;adjust character counter.
 	JMP	FNDNXT2
 FNDNXT5:
-	LDA	FILEPOS	;return the position of this entry.
+	LDA	FilePosition	;return the position of this entry.
 	ANI	03H
 	STA	StatusBDOSReturn
 	LXI	H,FNDSTAT
@@ -2950,7 +2961,7 @@ FNDNXT5:
 ;   Filename was not found. Set appropriate status.
 ;
 FNDNXT6:
-	CALL	STFILPOS;set (FILEPOS) to 0ffffh.
+	CALL	ClearFilePos;set (FilePosition) to 0ffffh.
 	MVI	A,0FFH	;say not located.
 	JMP	SETSTAT
 ;
@@ -2960,13 +2971,13 @@ FNDNXT6:
 ERAFILE:
 	CALL	CHKWPRT		;is disk write protected?
 	MVI		C,12		;only compare file names.
-	CALL	FINDFST		;get first file name.
+	CALL	FindFirst		;get first file name.
 ERAFIL1:
-	CALL	CKFILPOS	;any found?
+	CALL	CheckFilePosition	;any found?
 	RZ					;nope, we must be done.
 	CALL	CHKROFL	;is file read only?
 	CALL	FCB2HL	;nope, get address of fcb and
-	MVI	M,0E5H	;set first byte to 'empty'.
+	MVI	M,EmptyFileFlag	;set first byte to 'empty'.
 ;	MVI	C,0	;clear the space from the bit map.
 	MVI		A,00H		; want to clear the bit
 	STA		BitSetFlag	; Flag = 00, clear bit
@@ -3020,7 +3031,7 @@ FNDSPA1:
 ;   Now look after target block.
 ;
 FNDSPA2:
-	LHLD	DSKSIZE	;is block (DE) within disk limits?
+	LHLD	DiskSize	;is block (DE) within disk limits?
 	MOV	A,E
 	SUB	L
 	MOV	A,D
@@ -3089,14 +3100,14 @@ UPDATE1:
 CHGNAMES:
 	CALL	CHKWPRT	;check for a write protected disk.
 	MVI	C,12	;match first 12 bytes of fcb only.
-	CALL	FINDFST	;get first name.
+	CALL	FindFirst	;get first name.
 	LHLD	ParamsDE	;get address of fcb.
 	MOV	A,M	;get user number.
 	LXI	D,16	;move over to desired name.
 	DAD	D
 	MOV	M,A	;keep same user number.
 CHGNAM1:
-	CALL	CKFILPOS;any matching file found?
+	CALL	CheckFilePosition;any matching file found?
 	RZ		;no, we must be done.
 	CALL	CHKROFL	;check for read only file.
 	MVI	C,16	;start 16 bytes into fcb.
@@ -3112,9 +3123,9 @@ CHGNAM1:
 ;
 SAVEATTR:
 	MVI	C,12	;match first 12 bytes.
-	CALL	FINDFST	;look for first filename.
+	CALL	FindFirst	;look for first filename.
 SAVATR1:
-	CALL	CKFILPOS;was one found?
+	CALL	CheckFilePosition;was one found?
 	RZ		;nope, we must be done.
 	MVI	C,0	;yes, update the first 12 bytes now.
 	MVI	E,12
@@ -3126,8 +3137,8 @@ SAVATR1:
 ;
 OPENIT:
 	MVI	C,15	;compare the first 15 bytes.
-	CALL	FINDFST	;get the first one in directory.
-	CALL	CKFILPOS;any at all?
+	CALL	FindFirst	;get the first one in directory.
+	CALL	CheckFilePosition;any at all?
 	RZ
 OPENIT1:
 	CALL	SETEXT	;point to extent byte within users fcb.
@@ -3191,16 +3202,16 @@ MOVEWORD:
 CLOSEIT:
 	XRA	A	;clear status and file position bytes.
 	STA	StatusBDOSReturn
-	STA	FILEPOS
-	STA	FILEPOS+1
+	STA	FilePosition
+	STA	FilePosition+1
 	CALL	GETWPRT	;get write protect bit for this drive.
 	RNZ		;just return if it is set.
 	CALL	GETS2	;else get the 's2' byte.
 	ANI	80H	;and look at bit 7 (file unmodified?).
 	RNZ		;just return if set.
 	MVI	C,15	;else look up this file in directory.
-	CALL	FINDFST
-	CALL	CKFILPOS;was it found?
+	CALL	FindFirst
+	CALL	CheckFilePosition;was it found?
 	RZ		;just return if not.
 	LXI	B,16	;set (HL) pointing to records used section.
 	CALL	FCB2HL
@@ -3210,7 +3221,7 @@ CLOSEIT:
 	DAD	B
 	MVI	C,16	;this many bytes are present in this extent.
 CLOSEIT1:
-	LDA	BIGDISK	;8 or 16 bit record numbers?
+	LDA	SmallDisk	;8 or 16 bit record numbers?
 	ORA	A
 	JZ	CLOSEIT4
 	MOV	A,M	;just 8 bit. Get one from users fcb.
@@ -3276,11 +3287,11 @@ GETEMPTY:
 	CALL	CHKWPRT		;make sure disk is not write protected.
 	LHLD	ParamsDE	;save current parameters (fcb).
 	PUSH	H
-	LXI		H,EMPTYFCB	;use special one for empty space.
+	LXI		H,EmptyDir	;use special one for empty space.
 	SHLD	ParamsDE
 	MVI	C,1	;search for first empty spot in directory.
-	CALL	FINDFST	;(* only check first byte *)
-	CALL	CKFILPOS;none?
+	CALL	FindFirst	;(* only check first byte *)
+	CALL	CheckFilePosition;none?
 	POP	H
 	SHLD	ParamsDE	;restore original fcb address.
 	RZ		;return if no more space.
@@ -3308,7 +3319,7 @@ GETNEXT:
 	XRA	A
 	STA	CLOSEFLG;clear close flag.
 	CALL	CLOSEIT	;close this extent.
-	CALL	CKFILPOS
+	CALL	CheckFilePosition
 	RZ		;not there???
 	LHLD	ParamsDE	;get extent byte.
 	LXI	B,12
@@ -3337,14 +3348,14 @@ GTNEXT1:
 ;
 GTNEXT2:
 	MVI	C,15	;set to check first 15 bytes of fcb.
-	CALL	FINDFST	;find the first one.
-	CALL	CKFILPOS;none available?
+	CALL	FindFirst	;find the first one.
+	CALL	CheckFilePosition;none available?
 	JNZ	GTNEXT3
 	LDA	RDWRTFLG;no extent present. Can we open an empty one?
 	INR	A	;0ffh means reading (so not possible).
 	JZ	GTNEXT5	;or an error.
 	CALL	GETEMPTY;we are writing, get an empty entry.
-	CALL	CKFILPOS;none?
+	CALL	CheckFilePosition;none?
 	JZ	GTNEXT5	;error if true.
 	JMP	GTNEXT4	;else we are almost done.
 GTNEXT3:
@@ -3438,7 +3449,7 @@ WTSEQ3:
 	LHLD	ParamsDE	;now we must update the fcb for this
 	LXI	B,16	;newly allocated block.
 	DAD	B
-	LDA	BIGDISK	;8 or 16 bit block numbers?
+	LDA	SmallDisk	;8 or 16 bit block numbers?
 	ORA	A
 	LDA	RELBLOCK	;(* update this entry *)
 	JZ	WTSEQ4	;zero means 16 bit ones.
@@ -3751,7 +3762,7 @@ COMPRAND:
 ;
 RANSIZE:
 	MVI	C,12	;look thru directory for first entry with
-	CALL	FINDFST	;this name.
+	CALL	FindFirst	;this name.
 	LHLD	ParamsDE	;zero out the 'r0, r1, r2' bytes.
 	LXI	D,33
 	DAD	D
@@ -3762,7 +3773,7 @@ RANSIZE:
 	INX	H
 	MOV	M,D
 RANSIZ1:
-	CALL	CKFILPOS;is there an extent to process?
+	CALL	CheckFilePosition;is there an extent to process?
 	JZ	RANSIZ3	;no, we are done.
 	CALL	FCB2HL	;set (HL) pointing to proper fcb in dir.
 	LXI	D,15	;point to last record in extent.
@@ -3840,7 +3851,7 @@ LoginDrive:
 ;
 BITMAP:
 								;compute size of allocation table.
-	LHLD		DSKSIZE		; get maximum  Allocation Block number
+	LHLD		DiskSize		; get maximum  Allocation Block number
 	MVI			C,3			; 2 raised to 3rd power = 8
 	CALL		HLrightC		;(HL)=(HL)/8.
 	INX			H			;at lease 1 byte.
@@ -3854,7 +3865,7 @@ BITMAP:
 ; determine locations of 'bad blocks' and set them as already
 ; 'used' in the map.
 ;
-	LHLD		ALOCVECT	;now zero out the table now.
+	LHLD		FileAllocTable	;now zero out the table now.
 BITMAP1:
 	MVI			M,0			; put zero in vector
 	INX			H			; point at next locatio
@@ -3865,27 +3876,27 @@ BITMAP1:
 	; allocation vector is cleared
 	LHLD		ALLOC0		;get initial space used by directory.
 	XCHG
-	LHLD	ALOCVECT;and put this into map.
+	LHLD	FileAllocTable;and put this into map.
 	MOV	M,E
 	INX	H
 	MOV	M,D
 ;
 ;   End of initialization portion.
 ;
-	CALL	HOMEDRV	;now home the drive.
+	CALL	HomeDrive	;now home the drive.
 	LHLD	FilePosInDir
 	MVI	M,3	;force next directory request to read
 	INX	H	;in a sector.
 	MVI	M,0
-	CALL	STFILPOS;clear initial file position also.
+	CALL	ClearFilePos;clear initial file position also.
 BITMAP2:
 	MVI		C,0FFH			; Read next file name in directory
-	CALL	NXENTRY			; And set checksum byte.
-	CALL	CKFILPOS		; Is there another file?
+	CALL	GetNextEntry			; And set checksum byte.
+	CALL	CheckFilePosition		; Is there another file?
 	RZ						; NO - return
 	
 	CALL	FCB2HL			; YES, get its address.
-	MVI		A,0E5H
+	MVI		A,EmptyFileFlag
 	CMP		M				; Is it an empty file entry?
 	JZ		BITMAP2			; YES - Go back for next entry
 	
@@ -3911,16 +3922,16 @@ BITMAP3:
 ; The bit set depends on the current drive selection.
 ;
 SetBit:
-	LDA		CurrentDrive		; get active drive.
+	LDA		CurrentDrive		; get active drive, a = 00, b = 02, c= 02, d = 03
 	LXI		H,1					; Need a bit to move
-	INR		A
+	INR		A					; Ensure at lest 1 test
 SetBit1:
 	DCR		A
-	JZ		SetBit2
+	JZ		SetBit2				; a = 01, b = 02, c= 04, d = 08
 	DAD		H
 	JMP		SetBit1
 SetBit2:	
-	MOV		A,C
+	MOV		A,C					; or result with BC
 	ORA		L
 	MOV		L,A					;low byte done, do high byte.
 	MOV		A,B
@@ -4016,13 +4027,13 @@ GETFST:
 	CALL	AUTOSEL	;select proper drive.
 	MVI	C,15	;compare bytes 0-14 in fcb (12&13 excluded).
 GETFST1:
-	CALL	FINDFST	;find an entry and then move it into
+	CALL	FindFirst	;find an entry and then move it into
 	JMP	MOVEDIR	;the users dma space.
 ;
 ;   Function to return the next occurence of a file name.
 ;
 GETNXT:
-	LHLD	SAVEFCB	;restore pointers. note that no
+	LHLD	SaveFCB	;restore pointers. note that no
 	SHLD	ParamsDE	;other dbos calls are allowed.
 	CALL	AUTOSEL	;no error will be returned, but the
 	CALL	FINDNXT	;results will be wrong.
@@ -4084,7 +4095,7 @@ PUTDMA:
 ;   Function to return the allocation vector.
 ;
 GETALOC:
-	LHLD	ALOCVECT
+	LHLD	FileAllocTable
 	JMP	GETPRM1
 ;
 ;   Function to return the read-only status vector.
@@ -4104,7 +4115,7 @@ SETATTR:
 ; for the current drive.
 ;
 GETPARM:
-	LHLD	DISKPB
+	LHLD	DiskParamBlock
 GETPRM1:
 	SHLD	StatusBDOSReturn
 	RET
@@ -4200,37 +4211,37 @@ WTSPECL:
 ;*
 ;**************************************************************
 
-CurrentUser:			DB	0	;current user number.
-CurrentDrive:			DB	0	;currently active drive.
-BitSetFlag:				DB	0	; Flag to set(01) or reset(00) bit in disk allocation table
+CurrentUser:			DB	0		; current user number.
+CurrentDrive:			DB	0		; currently active drive.
+BitSetFlag:				DB	0		; flag to set(01) or reset(00) bit in disk allocation table
 
 ;
-EMPTYFCB:				DB	0E5H	;empty directory segment indicator.
-ROBitMap:				DW	0	;write protect status for all 16 drives.
-LoggedBitMap:			DW	0	;drive active word (1 bit per drive).
+EmptyDir:				DB	EmptyFileFlag	; empty directory segment indicator.
+ROBitMap:				DW	0		; write protect status for all 16 drives.
+LoggedBitMap:			DW	0		; drive active word (1 bit per drive).
 UsersDMA:				DW	080H	;user's dma address (defaults to 80h).
 ;
 ;   Scratch areas from parameter block.
 ;
-FilePosInDir:			DW	0	;relative position within dir segment for file (0-3).
-LastTrackNumber:		DW	0	;last selected track number.
-LastSectorNumber:		DW	0	;last selected sector number.
+FilePosInDir:			DW	0	; relative position within dir segment for file (0-3).
+LastTrackNumber:		DW	0	; last selected track number.
+LastSectorNumber:		DW	0	; last selected sector number.
 ;
 ;   Disk storage areas from parameter block.
 ;
 DIRBUF:					DW	0	;address of directory buffer to use.
-DISKPB:					DW	0	;contains address of disk parameter block.
+DiskParamBlock:			DW	0	;contains address of disk parameter block.
 CHKVECT:				DW	0	;address of check vector.
-ALOCVECT:				DW	0	;address of allocation vector (bit map).
+FileAllocTable:			DW	0	;address of allocation vector (bit map).
 ;
-;   Parameter block returned from the bios.
+;   Disk Parameter block returned from the bios.
 ;
 SECTORS:				DW	0	;sectors per track from bios.
 BLKSHFT:				DB	0	;block shift.
 BLKMASK:				DB	0	;block mask.
 EXTMASK:				DB	0	;extent mask.
-DSKSIZE:				DW	0	;disk size from bios (number of blocks-1).
-DIRSIZE:				DW	0	;directory size.
+DiskSize:				DW	0	;disk size from bios (number of blocks-1).
+DrectorySize:				DW	0	;directory size.
 ALLOC0:					DW	0	;storage for first bytes of bit map (dir space used).
 ALLOC1:					DW	0
 OFFSET:					DW	0	;first usable track number.
@@ -4239,12 +4250,12 @@ XLATE:					DW	0	;sector translation table address.
 ;
 CLOSEFLG:				DB	0	;close flag (=0ffh is extent written ok).
 RDWRTFLG:				DB	0	;read/write flag (0ffh=read, 0=write).
-FNDSTAT:				DB	0	;filename found status (0=found first entry).
+FNDSTAT:				DB	0	;filename found status (0=found first entry, -1 not found).
 MODE:					DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
 RELBLOCK:				DB	0	;relative position within fcb of block number written.
 COUNTER:				DB	0	;byte counter for directory name searches.
-SAVEFCB:				DW	0,0	;save space for address of fcb (for directory searches).
-BIGDISK:				DB	0	;if =0 then disk is > 256 blocks long.
+SaveFCB:				DW	0,0	;save space for address of fcb (for directory searches).
+SmallDisk:				DB	0	;if =0 then disk is > 256 blocks long.
 AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
 OLDDRV:					DB	0	;on auto select, storage for previous drive.
 AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
@@ -4253,8 +4264,8 @@ SAVEXT:					DB	0	;storage for extent number of file.
 SAVNREC:				DW	0	;storage for number of records in file.
 BLKNMBR:				DW	0	;block number (physical sector) used within a file or logical sector.
 LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
-FCBPOS:					DB	0	;relative position within buffer for fcb of file of interest.
-FILEPOS:				DW	0	;files position within directory (0 to max entries -1).
+FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
+FilePosition:			DW	0	;files position within directory (0 to max entries -1).
 ;
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
