@@ -597,7 +597,9 @@ DiskParameterHeaders:		; described in chapter 3
 	DW	DiskDWorkArea
 	DW	DiskDAllocationVector
 	
-DirectoryBuffer:	DS	128
+DirBuffSize	EQU		128
+	
+DirectoryBuffer:	DS	DirBuffSize
 
 	; Disk Types
 Floppy5		EQU		1 		; 5 1/4" mini floppy

@@ -82,11 +82,11 @@ InBuff:
 		DS		86			
 InBuffEnd:
 		
-INPOINT:
+InBuffAddress:
 		DW		InBuff		;input line pointer
-NAMEPNT:
-		DW		0			;input line pointer used for error message. Points to
-;			;start of name in error.
+ErrorMsgPointer:
+		DW		0			; input line pointer used for error message. Points to
+							; start of name in error.
 ;
 ;   Routine to print (A) on the console. All registers used.
 ;
@@ -317,7 +317,7 @@ GETINP:
 ;
 	LXI		D,InBuffCount
 	LXI		H,Pg0Buffer	;data was read into buffer here.
-	MVI		B,128		;all 128 characters may be used.
+	MVI		B,InBuffSize		;all 128 characters may be used.
 	CALL	HL2DE		;(HL) to (DE), (B) bytes.
 	LXI		H,BATCHFCB+14
 	MVI		M,0			;zero out the 's2' byte.
@@ -373,7 +373,7 @@ GETINP3:
 GETINP4:
 	MOV		M,A			;add trailing null.
 	LXI		H,InBuff
-	SHLD	INPOINT		;reset input line pointer.
+	SHLD	InBuffAddress		;reset input line pointer.
 	RET
 ;
 ;   Routine to check the console for a key pressed. The zero
@@ -442,7 +442,7 @@ DELBATCH:
 ;
 SYNERR:
 	CALL	CRLF	;end current line.
-	LHLD	NAMEPNT	;this points to name in error.
+	LHLD	ErrorMsgPointer	;this points to name in error.
 SYNERR1:
 	MOV	A,M	;print it until a space or null is found.
 	CPI	BLANK		; Space
@@ -526,11 +526,11 @@ CONVERT:
 	PUSH	H
 	XRA		A
 	STA		CHGDRV		; initialize drive change flag - no change.
-	LHLD	INPOINT		; set (HL) as pointer into input line.
+	LHLD	InBuffAddress		; set (HL) as pointer into input line.
 	XCHG				; put line pointer in DE for call
 	CALL	NONBLANK	; return the next non-blank character in A
 	XCHG				; put line buffer pointer in HL for now
-	SHLD	NAMEPNT		; save pointer here for any error message.
+	SHLD	ErrorMsgPointer		; save pointer here for any error message.
 	XCHG				; put line buffer pointer back in DE
 	POP		H			; retreive the CCP created FCB
 	LDAX	D			; get first character.
@@ -632,7 +632,7 @@ CLEAREXTENT1:
 	DCR		B			; keep count
 	JNZ		CLEAREXTENT1	; loop til done
 	XCHG
-	SHLD	INPOINT		; save current input line pointer.
+	SHLD	InBuffAddress		; save current input line pointer.
 	POP		H			; point at correct CCP FCB
 ;
 ;   Check to see if this is an ambigeous file name specification.
@@ -1073,7 +1073,7 @@ ERASE:
 	CPI	059H	; 'Y'
 	JNZ	CMMND1
 	INX	H
-	SHLD	INPOINT	;save input line pointer.
+	SHLD	InBuffAddress	;save input line pointer.
 ERASE1:
 	CALL	DSELECT	;select desired disk.
 	LXI	D,FCB
@@ -1103,7 +1103,7 @@ TYPE1:
 	LXI	H,NBYTES
 TYPE2:
 	MOV	A,M	;have we written the entire sector?
-	CPI	128
+	CPI	LogicalSecSize
 	JC	TYPE3
 	PUSH	H	;yes, read in the next one.
 	CALL	READFCB
@@ -1164,7 +1164,7 @@ SAVE1:
 	JZ		SAVE2
 	DCX		H			;nope, count this and compute the start
 	PUSH	H			;of the next 128 byte sector.
-	LXI		H,128
+	LXI		H,LogicalSecSize
 	DAD		D
 	PUSH	H			;save it and set the transfer address.
 	CALL	DMASET
@@ -1212,7 +1212,7 @@ RENAME:
 	LXI	D,FCB+16
 	MVI	B,16
 	CALL	HL2DE
-	LHLD	INPOINT	;get input pointer.
+	LHLD	InBuffAddress	;get input pointer.
 	XCHG
 	CALL	NONBLANK;get next non blank character.
 	CPI	EQUALS		; '='	;only allow an '=' or '_' seperator.
@@ -1222,7 +1222,7 @@ RENAME:
 RENAME1:
 	XCHG
 	INX	H	;ok, skip seperator.
-	SHLD	INPOINT	;save input line pointer.
+	SHLD	InBuffAddress	;save input line pointer.
 	CALL	CONVFST	;convert this second file name now.
 	JNZ	RENAME5	;again, no wild cards.
 	POP	PSW	;if a drive was specified, then it
@@ -1324,7 +1324,7 @@ UNKWN3:
 	CALL	RDREC
 	JNZ	UNKWN4	;end of file or read error?
 	POP	H	;nope, bump pointer for next sector.
-	LXI	D,128
+	LXI	D,LogicalSecSize
 	DAD	D
 	LXI	D,CBASE	;enough room for the whole file?
 	MOV	A,L
@@ -1587,8 +1587,8 @@ FunctionVector:
 	DW	FILESIZE	;35		Return logical file size (even for random files)
 	DW	SETRAN		;36		Set record number for the next random read/write
 	DW	LOGOFF		;37
-	DW	Return			;38		Simple Return
-	DW	Return			;39		Simple Return
+	DW	Return		;38		Simple Return
+	DW	Return		;39		Simple Return
 	DW	WTSPECL		;40		Write a "record" randomly with zero fill
 	
 FunctionCount	EQU	 ($ -FunctionVector)/2
@@ -1979,13 +1979,13 @@ RDBUF17:
 ;
 GETCON:
 	CALL	GETECHO	;get and echo.
-	JMP	SETSTAT	;save status and return.
+	JMP	SetStatusBDOS	;save status and return.
 ;
 ;   Function to get a character from the tape reader device.
 ;
 GETRDR:
 	CALL	READER	;get a character from reader, set status and return.
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;  Function to perform direct console i/o. If (C) contains (FF)
 ; then this is an input request. If (C) contains (FE) then
@@ -2003,13 +2003,13 @@ DIRC1:
 	ORA	A
 	JZ	BDOSExit1	;not ready? Just return (directly).
 	CALL	CONIN	;yes, get character.
-	JMP	SETSTAT	;set status and return.
+	JMP	SetStatusBDOS	;set status and return.
 ;
 ;   Function to return the i/o byte.
 ;
 GETIOB:
 	LDA	IOBYTE
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Function to set the i/o byte.
 ;
@@ -2035,8 +2035,8 @@ GETCSTS:
 ;   Get here to set the status and return to the cleanup
 ; section. Then back to the user.
 ;
-SETSTAT:
-	STA	StatusBDOSReturn
+SetStatusBDOS:
+	STA		StatusBDOSReturn
 Return:
 	RET
 ;
@@ -2044,7 +2044,7 @@ Return:
 ;
 IOERR1:
 	MVI	A,1
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 OUTFLAG:	DB	0	;output flag (non zero means no output).
 STARTING:	DB	2	;starting position for cursor.
@@ -2064,22 +2064,22 @@ CHARBUF:	DB	0	;single input character buffer.
 ;   Select error occured, jump to error routine.
 ;
 SLCTERR:
-	LXI	H,BADSLCT
+	LXI		H,BADSLCT
 ;
 ;   Jump to (HL) indirectly.
 ;
-JUMPHL:
-	MOV	E,M
-	INX	H
-	MOV	D,M	;now (DE) contain the desired address.
+JumpToHL:
+	MOV		E,M
+	INX		H
+	MOV		D,M			;now (DE) contain the desired address.
 	XCHG
 	PCHL
 ;
 ;   Block move. (DE) to (HL), (C) bytes total.
 ;
-DE2HL:
+DEtoHL:
 	INR		C			; manage counter
-DE2HL1:
+DEtoHL1:
 	DCR		C			; decrement counter
 	RZ					; Return if done
 	
@@ -2087,7 +2087,7 @@ DE2HL1:
 	MOV		M,A
 	INX		D
 	INX		H
-	JMP		DE2HL1		;	and repeat.
+	JMP		DEtoHL1		;	and repeat.
 ;
 ;   Select the desired drive.
 ; it will set up all the disk parameters blocks 
@@ -2120,14 +2120,14 @@ SelectDisk:
 	XCHG						; been holding the translation table address in DE, now in HL
 								; Moved Directory buffer pointer into DE (from HL
 	SHLD	XLATE				; save skew table address				
-	LXI		H,DIRBUF			; get address of the directory buffer vector
+	LXI		H,DirBuffAddr			; get address of the directory buffer vector
 	MVI		C,8					; they consist of the directory buffer
-	CALL	DE2HL				; pointer, parameter block pointer,check and allocation vectors.
+	CALL	DEtoHL				; pointer, parameter block pointer,check and allocation vectors.
 	LHLD	DiskParamBlock				;  * DISK PARAMTER BLOCK POINTER
 	XCHG						; put into DE
 	LXI		H,SECTORS			; point at  Sectors per Block
 	MVI		C,15				; it is 15 bytes long. 
-	CALL	DE2HL				; move disk parameter block from BIOS to BDOS for current disk
+	CALL	DEtoHL				; move disk parameter block from BIOS to BDOS for current disk
 	LHLD	DiskSize			; check disk size.
 	MOV		A,H					; more than 256 blocks on this?
 	LXI		H,SmallDisk			; should be called SmallDisk [ if SmallDisk =0 then > 256 block long])
@@ -2169,15 +2169,15 @@ IORET:
 	ORA	A
 	RZ		;return unless an error occured.
 	LXI	H,BADSCTR;bad read/write on this sector.
-	JMP	JUMPHL
+	JMP	JumpToHL
 ;
 ;   Routine to select the track and sector that the desired
 ; block number falls in.
 ;
 TRKSEC:
-	LHLD	FilePosition			; get position of last accessed file
+	LHLD	FilePosition	; get position of last accessed file
 	MVI		C,2				; in directory and compute sector #.
-	CALL	HLrightC			; sector #=file-position/4.
+	CALL	HLrightC		; sector #=file-position/4.
 	SHLD	BLKNMBR			; save this as the block number of interest.
 	SHLD	CKSUMTBL		; what's it doing here too?
 ;
@@ -2435,18 +2435,19 @@ HLrightC1:
 	MOV		L,A			; return new lo byte
 	JMP		HLrightC1		; keep doing it
 ;
-;   Compute the check-sum for the directory buffer. Return
-; integer sum in (A).
+;	Compute the check-sum for the directory buffer.
+;	Return integer sum in (A).
+;   add all values in the buffer ignoring carrys
 ;
-CHECKSUM:
-	MVI	C,128	;length of buffer.
-	LHLD	DIRBUF	;get its location.
-	XRA	A	;clear summation byte.
-CHKSUM1:
-	ADD	M	;and compute sum ignoring carries.
+CheckSum:
+	MVI		C,DirBuffSize		; length of buffer.
+	LHLD	DirBuffAddr			; get its address.
+	XRA		A					; clear summation byte.
+CheckSum1:
+	ADD	M						; compute running sum ignoring carries.
 	INX	H
 	DCR	C
-	JNZ	CHKSUM1
+	JNZ	CheckSum1
 	RET
 
 ;
@@ -2491,7 +2492,7 @@ CKROF1:
 	RAL
 	RNC		;return if ok.
 	LXI	H,ROFILE;else, print error message and terminate.
-	JMP	JUMPHL
+	JMP	JumpToHL
 ;
 ;   Check the write protect status of the active disk.
 ;
@@ -2499,13 +2500,13 @@ CHKWPRT:
 	CALL	GETWPRT			; is it write protected ?
 	RZ						; NO, return.
 	LXI		H,RODISK
-	JMP	JUMPHL		; else print message and terminate.
+	JMP	JumpToHL		; else print message and terminate.
 ;
 ;   Routine to set (HL) pointing to the proper entry in the
 ; directory buffer.
 ;
 FCB2HL:
-	LHLD	DIRBUF		;get address of buffer.
+	LHLD	DirBuffAddr		;get address of buffer.
 	LDA		FCBPosition		;relative position of file.
 ;
 ;   Routine to add (A) to (HL).
@@ -2598,7 +2599,7 @@ CHECKDIR:
 	CALL	DEminusHL2HL
 	RNC		;ok if (CKSUMTBL) > (ALLOC1), so return.
 	PUSH	B
-	CALL	CHECKSUM;else compute checksum.
+	CALL	CheckSum;else compute checksum.
 	LHLD	CHKVECT	;get address of checksum table.
 	XCHG
 	LHLD	CKSUMTBL
@@ -2640,7 +2641,7 @@ Set2UsersDMA:
 ;   Routine to set the dma address for directory work.
 ;
 SetDirDMA:
-	LXI		H,DIRBUF
+	LXI		H,DirBuffAddr
 ;
 ;   Set the dma address. On entry, (HL) points to
 ; word containing the desired dma address.
@@ -2654,11 +2655,11 @@ SetDMA0:
 ;   Move the directory buffer into user's dma space.
 ;
 MOVEDIR:
-	LHLD	DIRBUF	;buffer is located here, and
+	LHLD	DirBuffAddr	;buffer is located here, and
 	XCHG
 	LHLD	UsersDMA; put it here.
-	MVI	C,128	;this is its length.
-	JMP	DE2HL	;move it now and return.
+	MVI	C,DirBuffSize	;this is its length.
+	JMP	DEtoHL	;move it now and return.
 ;
 ;   Check (FilePosition) and set the zero flag if it equals 0ffffh.
 ; if it is -1 then no active file found
@@ -2852,7 +2853,7 @@ SETFL4:
 ;
 STSTATUS:
 	LDA	FNDSTAT
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Check extents in (A) and (C). Set the zero flag if they
 ; are the same. The number of 16k chunks of disk space that
@@ -2963,7 +2964,7 @@ FNDNXT5:
 FNDNXT6:
 	CALL	ClearFilePos;set (FilePosition) to 0ffffh.
 	MVI	A,0FFH	;say not located.
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Erase files from the directory. Only the first byte of the
 ; fcb will be affected. It is set to (E5).
@@ -3088,7 +3089,7 @@ UPDATE:
 	XCHG
 	CALL	FCB2HL	;get address of fcb to update in directory.
 	POP	B	;set (C) to number of bytes to change.
-	CALL	DE2HL
+	CALL	DEtoHL
 UPDATE1:
 	CALL	TRKSEC	;determine the track and sector affected.
 	JMP	DIRWRITE	;then write this sector out.
@@ -3150,7 +3151,7 @@ OPENIT1:
 	LHLD	ParamsDE	;this is the users copy.
 	MVI	C,32	;move it into users space.
 	PUSH	D
-	CALL	DE2HL
+	CALL	DEtoHL
 	CALL	SETS2B7	;set bit 7 in 's2' byte (unmodified).
 	POP	D	;now get the extent byte from this fcb.
 	LXI	H,12
@@ -3168,7 +3169,7 @@ OPENIT1:
 	JZ	OPENIT2
 	MVI	A,0	;if the user specified an extent greater than
 	JC	OPENIT2	;the one in the directory, then set record count to 0.
-	MVI	A,128	;otherwise set to maximum.
+	MVI	A,DirBuffSize	;otherwise set to maximum.
 OPENIT2:
 	LHLD	ParamsDE	;set record count in users fcb to (A).
 	LXI	D,15
@@ -3363,7 +3364,7 @@ GTNEXT3:
 GTNEXT4:
 	CALL	STRDATA	;move in updated data (rec #, extent #, etc.)
 	XRA	A	;clear status and return.
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Error in extending the file. Too many extents were needed
 ; or not enough space on the disk.
@@ -3385,7 +3386,7 @@ RDSEQ1:
 	LXI	H,SAVNXT;get number of records in extent.
 	CMP	M	;within this extent?
 	JC	RDSEQ2
-	CPI	128	;no. Is this extent fully used?
+	CPI	LogicalSecSize	;no. Is this extent fully used?
 	JNZ	RDSEQ3	;no. End-of-file.
 	CALL	GETNEXT	;yes, open the next one.
 	XRA	A	;reset next record to read.
@@ -3420,7 +3421,7 @@ WTSEQ1:
 	CALL	CKROF1	;check for read only file, (HL) already set to fcb.
 	CALL	STRDATA	;put updated data into fcb.
 	LDA	SAVNREC	;get record number to write.
-	CPI	128	;within range?
+	CPI	LogicalSecSize	;within range?
 	JNC	IOERR1	;no, error(?).
 	CALL	COMBLK	;compute block number.
 	CALL	CHKBLK	;check number.
@@ -3442,7 +3443,7 @@ WTSEQ2:
 	ORA	H
 	JNZ	WTSEQ3
 	MVI	A,2	;no more space?
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 WTSEQ3:
 	SHLD	BLKNMBR	;save block number to access.
 	XCHG		;put block number into (DE).
@@ -3488,7 +3489,7 @@ WTSEQ6:
 	DCR	A
 	JNZ	WTSEQ9
 	PUSH	H
-	LHLD	DIRBUF	;zero out the directory buffer.
+	LHLD	DirBuffAddr	;zero out the directory buffer.
 	MOV	D,A	;note that (A) is zero here.
 WTSEQ7:
 	MOV	M,A
@@ -3672,7 +3673,7 @@ POSITN2:
 POSITN3:
 	POP	B	;restore stack.
 	XRA	A	;and clear error code byte.
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Error. Set the 's2' byte to indicate this (why?).
 ;
@@ -3982,7 +3983,7 @@ AUTOSL1:
 ;
 GETVER:
 	MVI	A,022h	;version 2.2
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Function (0D) to reset the disk system.
 ;
@@ -4083,7 +4084,7 @@ GETLOG:
 ;
 GETCRNT:
 	LDA	CurrentDrive
-	JMP	SETSTAT
+	JMP	SetStatusBDOS
 ;
 ;   Function to set the dma address.
 ;
@@ -4129,7 +4130,7 @@ GETUSER:
 	CPI			0FFH			; want to get user number?
 	JNZ			SETUSER			; No, then set it
 	LDA			CurrentUser		;yes, just return it in A
-	JMP			SETSTAT			; exit while setting return status
+	JMP			SetStatusBDOS			; exit while setting return status
 	
 SETUSER:
 	ANI			1FH				;no,just keep the low bits (000X XXXX)
@@ -4229,19 +4230,21 @@ LastSectorNumber:		DW	0	; last selected sector number.
 ;
 ;   Disk storage areas from parameter block.
 ;
-DIRBUF:					DW	0	;address of directory buffer to use.
+DirBuffSize				EQU	128	; buffer size
+DirBuffAddr:			DW	0	;address of directory buffer to use.
 DiskParamBlock:			DW	0	;contains address of disk parameter block.
 CHKVECT:				DW	0	;address of check vector.
 FileAllocTable:			DW	0	;address of allocation vector (bit map).
 ;
 ;   Disk Parameter block returned from the bios.
 ;
+LogicalSecSize			EQU	128	; Logical sector size
 SECTORS:				DW	0	;sectors per track from bios.
 BLKSHFT:				DB	0	;block shift.
 BLKMASK:				DB	0	;block mask.
 EXTMASK:				DB	0	;extent mask.
 DiskSize:				DW	0	;disk size from bios (number of blocks-1).
-DrectorySize:				DW	0	;directory size.
+DrectorySize:			DW	0	;directory size.
 ALLOC0:					DW	0	;storage for first bytes of bit map (dir space used).
 ALLOC1:					DW	0
 OFFSET:					DW	0	;first usable track number.
