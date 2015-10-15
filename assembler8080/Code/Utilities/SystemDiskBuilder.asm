@@ -194,7 +194,7 @@ WriteCommand3:
 	DB		01H					; head number
 	DB		00H					; track number
 	DB		01H					; Starting sector number (First one)
-	DW		3 * 512				; Number of bytes to write (Boot sector)
+	DW		8 * 512				; Number of bytes to write (Boot sector)
 	DW		CCPStart + (8*512)	; write from this address
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking
