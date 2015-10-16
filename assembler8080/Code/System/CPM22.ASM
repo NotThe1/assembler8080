@@ -137,7 +137,7 @@ PLINE2:
 ;
 ;   Routine to reset the disk system.
 ;
-RESDSK:
+ResetDiskSystem:
 	MVI		C,13
 	JMP		ENTRY
 ;
@@ -251,7 +251,7 @@ GETUSR:
 ;   Routine to get or set the current user code.
 ; If (E) is FF then this is a GET, else it is a SET.
 ;
-GETSETUC:
+GetSetCurrentUser:
 	MVI		C,32			; BDOS vector
 	JMP		ENTRY
 ;
@@ -760,9 +760,9 @@ COMMAND:
 	RAR
 	RAR
 	ANI			0FH						; isolate the user number.
-	MOV			E,A						; put into E for call
-	CALL	GETSETUC					; to the current user
-	CALL	RESDSK						;reset the disk system.
+	MOV			E,A						; and put into E for call
+	CALL		GetSetCurrentUser		; to set the current user
+	CALL		ResetDiskSystem			;reset the disk system.
 	STA	BATCH	;clear batch mode flag.
 	POP	B
 	MOV	A,C
@@ -1274,7 +1274,7 @@ USER:
 	LDA	FCB+1
 	CPI	BLANK
 	JZ	SYNERR	;yes, that is not allowed.
-	CALL	GETSETUC;ok, set user code.
+	CALL	GetSetCurrentUser;ok, set user code.
 	JMP	GETBACK1
 ;
 ;**************************************************************
@@ -1531,7 +1531,7 @@ BDOSExit:
 	MOV	M,A	;yes, reset first byte properly.
 	LDA	OLDDRV	;and get the old drive and select it.
 	STA	ParamE
-	CALL	SETDSK
+	CALL	fcSelectDisk
 BDOSExit1:
 	LHLD		UserStack			;Get  the users stack pointer.
 	SPHL		
@@ -1548,48 +1548,48 @@ BDOSExit1:
 ;NFUNCTS	EQU	41	;number of functions in followin table.
 ;
 FunctionVector:
-	DW	WBOOT	;0		Overall system and BDOS reset
-	DW	GETCON	;1		Read a byte from the console keyboard
-	DW	OUTCON	;2		Write a byte to the console screen
-	DW	GETRDR	;3		Read a byte from the logical reader device
-	DW	PUNCH	;4		Write a byte to the logical punch device
-	DW	LIST	;5		Write a byte to the logical list device
-	DW	DIRCIO	;6		Direct console I/O (no CCP-style editing)
-	DW	GETIOB	;7		Read the current setting of the IOBYTE
-	DW	SETIOB	;8		Set a new value of the IOBYTE
-	DW	PRTSTR	;9		Send a "$"-terminated string to the console
-	DW	RDBUFF	;10		Read a string from the console into a buffer
-	DW	GETCSTS	;11		Check if a console key is waiting to be read
-	DW	GETVER	;12		Return the CP/M version number
+	DW	fcSystemReset			;0		Overall system and BDOS reset
+	DW	fcConsoleIn				;1		Read a byte from the console keyboard
+	DW	fcConsoleOut			;2		Write a byte to the console screen
+	DW	fcReaderIn				;3		Read a byte from the logical reader device
+	DW	fcPunchOut				;4		Write a byte to the logical PUNCH device
+	DW	fcListOut				;5		Write a byte to the logical list device
+	DW	fcDirectConsoleOut		;6		Direct console I/O (no CCP-style editing)
+	DW	fcGetIOByte				;7		Read the current setting of the IOBYTE
+	DW	fcSetIOByte				;8		Set a new value of the IOBYTE
+	DW	fcConsoleStringOut		;9		Send a "$"-terminated string to the console
+	DW	fcConsoleStringIn		;10		Read a string from the console into a buffer
+	DW	fcConsoleStatusIn		;11		Check if a console key is waiting to be read
+	DW	fcGetVersion			;12		Return the CP/M version number
 	
-	DW	RSTDSK		;13		Reset disk system
-	DW	SETDSK		;14		Select specified logical disk drive
-	DW	OPENFIL		;15		Open specified file for reading/writing
-	DW	CLOSEFIL	;16		Close specified file after reading/writing
-	DW	GETFST		;17		Search file directory for first match with filename
-	DW	GETNXT		;18		Search file directory for next match with filename
-	DW	DELFILE		;19		Delete (erase) file
-	DW	READSEQ		;20		Read the next "record" sequentially
-	DW	WRTSEQ		;21		Write the next "record" sequentially
-	DW	FCREATE		;22		Create a new file with the specified name
-	DW	RENFILE		;23		Rename a file to a new name
-	DW	GETLOG		;24		Indicate which logical disks are active
-	DW	GETCRNT		;25		Return the current default disk drive number
-	DW	PUTDMA		;26		Set the DMA address (read/write address)
-	DW	GETALOC		;27		Return the address of an allocation vector
-	DW	WRTPRTD		;28		Return the address of an allocation vector
-	DW	GETROV		;29		Indicate which disks are currently Read-Only status
-	DW	SETATTR		;30		Set specified file to System or Read-Only status
-	DW	GETPARM		;31		Return address of disk parameter block (DPB)
-	DW	GETUSER		;32		Set/Get the current user number
-	DW	RDRANDOM	;33		Set/Get the current user number
-	DW	WTRANDOM	;34		Write a "record" randomly
-	DW	FILESIZE	;35		Return logical file size (even for random files)
-	DW	SETRAN		;36		Set record number for the next random read/write
-	DW	LOGOFF		;37
-	DW	Return		;38		Simple Return
-	DW	Return		;39		Simple Return
-	DW	WTSPECL		;40		Write a "record" randomly with zero fill
+	DW	fcResetDiskSystem		;13		Reset disk system
+	DW	fcSelectDisk			;14		Select specified logical disk drive
+	DW	fcOpenFile				;15		Open specified file for reading/writing
+	DW	fcCloseFile				;16		Close specified file after reading/writing
+	DW	fcSearchForFirst		;17		Search file directory for first match with filename
+	DW	fcSearchForNext			;18		Search file directory for next match with filename
+	DW	fcDeleteFile			;19		Delete (erase) file
+	DW	fcReadSequential		;20		Read the next "record" sequentially
+	DW	fcWriteSequential		;21		Write the next "record" sequentially
+	DW	fcCreateFile			;22		Create a new file with the specified name
+	DW	fcRenameFile			;23		Rename a file to a new name
+	DW	fcGetActiveDisks		;24		Indicate which logical disks are active
+	DW	fcGetCurrentDisk		;25		Return the current default disk drive number
+	DW	fcSetDMA				;26		Set the DMA address (read/write address)
+	DW	fcGetFATtable			;27		Return the address of an allocation vector
+	DW	fcSetDiskRO				;28		Set disk to Read-Only
+	DW	fcGetROdisks			;29		Indicate which disks are currently Read-Only status
+	DW	fcSetFileAttributes		;30		Set specified file to System or Read-Only status
+	DW	fcGetDPB				;31		Return address of disk parameter block (DPB)
+	DW	fcGetUser				;32		Set/Get the current user number
+	DW	fcReadRandom			;33		Set/Get the current user number
+	DW	fcWriteRandom			;34		Write a "record" randomly
+	DW	fcGetFileSize			;35		Return logical file size (even for random files)
+	DW	fcSetRecordNumber		;36		Set record number for the next random read/write
+	DW	fcResetDrive			;37
+	DW	fcReturn				;38		Simple Return
+	DW	fcReturn				;39		Simple Return
+	DW	fcWriteZeroFill			;40		Write a "record" randomly with zero fill
 	
 FunctionCount	EQU	 ($ -FunctionVector)/2
 
@@ -1655,7 +1655,7 @@ GETCHAR:
 	MVI	M,0	;...either case clear it.
 	ORA	A
 	RNZ		;yes, use it.
-	JMP	CONIN	;nope, go get a character responce.
+	JMP	biosConsoleIn	;nope, go get a character responce.
 ;
 ;   Input and echo a character.
 ;
@@ -1665,7 +1665,7 @@ GETECHO:
 	RC		;no, a regular control char so don't echo.
 	PUSH	PSW	;ok, save character now.
 	MOV	C,A
-	CALL	OUTCON	;and echo it.
+	CALL	fcConsoleOut	;and echo it.
 	POP	PSW	;get character and return.
 	RET
 ;
@@ -1694,13 +1694,13 @@ CKCONSOL:
 	LDA	CHARBUF	;check buffer.
 	ORA	A	;if anything, just return without checking.
 	JNZ	CKCON2
-	CALL	CONST	;nothing in buffer. Check console.
+	CALL	biosConsoleStatus	;nothing in buffer. Check console.
 	ANI	01H	;look at bit 0.
 	RZ		;return if nothing.
-	CALL	CONIN	;ok, get it.
+	CALL	biosConsoleIn	;ok, get it.
 	CPI	CNTRLS	;if not control-s, return with zero cleared.
 	JNZ	CKCON1
-	CALL	CONIN	;halt processing until another char
+	CALL	biosConsoleIn	;halt processing until another char
 	CPI	CNTRLC	;is typed. Control-c?
 	JZ	0	;yes, reboot now.
 	XRA	A	;no, just pretend nothing was ever ready.
@@ -1723,12 +1723,12 @@ OUTCHAR:
 	CALL	CKCONSOL;check console (we don't care whats there).
 	POP	B
 	PUSH	B
-	CALL	CONOUT	;output (C) to the screen.
+	CALL	biosConsoleOut	;output (C) to the screen.
 	POP	B
 	PUSH	B
 	LDA	PRTFLAG	;check printer flip-flop flag.
 	ORA	A
-	CNZ	LIST	;print it also if non-zero.
+	CNZ	fcListOut	;print it also if non-zero.
 	POP	B
 OUTCHR1:
 	MOV	A,C	;update cursors position.
@@ -1759,7 +1759,7 @@ OUTCHR2:
 SHOWIT:
 	MOV	A,C
 	CALL	CHKCHAR	;check character.
-	JNC	OUTCON	;not a control, use normal output.
+	JNC	fcConsoleOut	;not a control, use normal output.
 	PUSH	PSW
 	MVI	C, CARET	; '^'	;for a control character, preceed it with '^'.
 	CALL	OUTCHAR
@@ -1770,17 +1770,17 @@ SHOWIT:
 ;   Function to output (C) to the console device and expand tabs
 ; if necessary.
 ;
-OUTCON:
+fcConsoleOut:
 	MOV	A,C
 	CPI	TAB	;is it a tab?
 	JNZ	OUTCHAR	;use regular output.
-OUTCON1:
+fcConsoleOut1:
 	MVI	C,BLANK	;yes it is, use spaces instead.
 	CALL	OUTCHAR
 	LDA	CURPOS	;go until the cursor is at a multiple of 8
 
 	ANI	07H	;position.
-	JNZ	OUTCON1
+	JNZ	fcConsoleOut1
 	RET
 ;
 ;   Echo a backspace character. Erase the prevoius character
@@ -1789,10 +1789,10 @@ OUTCON1:
 BACKUP:
 	CALL	BACKUP1	;backup the screen 1 place.
 	MVI	C,BLANK	;then blank that character.
-	CALL	CONOUT
+	CALL	biosConsoleOut
 BACKUP1:
 	MVI	C,BS	;then back space once more.
-	JMP	CONOUT
+	JMP	biosConsoleOut
 ;
 ;   Signal a deleted line. Print a '#' at the end and start
 ; over.
@@ -1827,13 +1827,13 @@ PRTMESG:
 	INX	B
 	PUSH	B	;otherwise, bump pointer and print it.
 	MOV	C,A
-	CALL	OUTCON
+	CALL	fcConsoleOut
 	POP	B
 	JMP	PRTMESG
 ;
 ;   Function to execute a buffered read.
 ;
-RDBUFF:
+fcConsoleStringIn:
 	LDA	CURPOS	;use present location as starting one.
 	STA	STARTING
 	LHLD	ParamsDE	;get the maximum buffer space.
@@ -1899,7 +1899,7 @@ RDBUF7:
 	LDA	STARTING;yes, backup the cursor to here.
 	LXI	H,CURPOS
 	CMP	M
-	JNC	RDBUFF	;done yet?
+	JNC	fcConsoleStringIn	;done yet?
 	DCR	M	;no, decrement pointer and output back up one space.
 	CALL	BACKUP
 	JMP	RDBUF7
@@ -1908,7 +1908,7 @@ RDBUF8:
 	JNZ	RDBUF9
 	CALL	NEWLINE	;start a new line.
 	POP	H
-	JMP	RDBUFF
+	JMP	fcConsoleStringIn
 RDBUF9:
 	CPI	CNTRLR	;control-r?
 	JNZ	RDBUF14
@@ -1977,43 +1977,43 @@ RDBUF17:
 ;
 ;   Function to get a character from the console device.
 ;
-GETCON:
+fcConsoleIn:
 	CALL	GETECHO	;get and echo.
 	JMP	SetStatusBDOS	;save status and return.
 ;
 ;   Function to get a character from the tape reader device.
 ;
-GETRDR:
-	CALL	READER	;get a character from reader, set status and return.
+fcReaderIn:
+	CALL	biosReaderIn	;get a character from reader, set status and return.
 	JMP	SetStatusBDOS
 ;
 ;  Function to perform direct console i/o. If (C) contains (FF)
 ; then this is an input request. If (C) contains (FE) then
 ; this is a status request. Otherwise we are to output (C).
 ;
-DIRCIO:
+fcDirectConsoleOut:
 	MOV	A,C	;test for (FF).
 	INR	A
 	JZ	DIRC1
 	INR	A	;test for (FE).
-	JZ	CONST
-	JMP	CONOUT	;just output (C).
+	JZ	biosConsoleStatus
+	JMP	biosConsoleOut	;just output (C).
 DIRC1:
-	CALL	CONST	;this is an input request.
+	CALL	biosConsoleStatus	;this is an input request.
 	ORA	A
 	JZ	BDOSExit1	;not ready? Just return (directly).
-	CALL	CONIN	;yes, get character.
+	CALL	biosConsoleIn	;yes, get character.
 	JMP	SetStatusBDOS	;set status and return.
 ;
 ;   Function to return the i/o byte.
 ;
-GETIOB:
+fcGetIOByte:
 	LDA	IOBYTE
 	JMP	SetStatusBDOS
 ;
 ;   Function to set the i/o byte.
 ;
-SETIOB:
+fcSetIOByte:
 	LXI	H,IOBYTE
 	MOV	M,C
 	RET
@@ -2021,7 +2021,7 @@ SETIOB:
 ;   Function to print the character string pointed to by (DE)
 ; on the console device. The string ends with a '$'.
 ;
-PRTSTR:
+fcConsoleStringOut:
 	XCHG
 	MOV	C,L
 	MOV	B,H	;now (BC) points to it.
@@ -2029,7 +2029,7 @@ PRTSTR:
 ;
 ;   Function to interigate the console device.
 ;
-GETCSTS:
+fcConsoleStatusIn:
 	CALL	CKCONSOL
 ;
 ;   Get here to set the status and return to the cleanup
@@ -2037,7 +2037,7 @@ GETCSTS:
 ;
 SetStatusBDOS:
 	STA		StatusBDOSReturn
-Return:
+fcReturn:
 	RET
 ;
 ;   Set the status to 1 (read or write error code).
@@ -2095,7 +2095,7 @@ DEtoHL1:
 SelectDisk:
 	LDA		CurrentDrive		; get active disk.
 	MOV		C,A					; set up for Bios call, put disk in (C)
-	CALL	SELDSK				; BIOS CALL )select it.
+	CALL	biosSelectDisk		; call into BIOS to select it.
 	MOV		A,H					; HL = 0000 if invalid
 	ORA		L					; otherwise it points to the correct Disk Parameter Block
 	RZ							; so, return if HL = 0000
@@ -2108,7 +2108,7 @@ SelectDisk:
 	MOV		D,M					; Get it and put it into (DE)
 	INX		H
 						;save pointers to BDOS scratch areas
-	SHLD	FilePosInDir		; save Relative position for file		.
+	SHLD	FilePosInDirSegment		; save Relative position for file		.
 	INX		H
 	INX		H
 	SHLD	LastTrackNumber		; save last track referenced			
@@ -2143,7 +2143,7 @@ SelectDisk1:
 ;   Routine to home the disk track head and clear pointers.
 ;
 HomeDrive:
-	CALL	HOME			; home the head.
+	CALL	biosHomeDisk			; home the head.
 	XRA		A				; set accumulator to 00	
 	LHLD	LastTrackNumber	; set track pointer to 00.
 	MOV		M,A
@@ -2158,13 +2158,13 @@ HomeDrive:
 ;   Do the actual disk read and check the error return status.
 ;
 DOREAD:
-	CALL	READ
+	CALL	biosReadDisk
 	JMP	IORET
 ;
 ;   Do the actual disk write and handle any bios error.
 ;
 DOWRITE:
-	CALL	WRITE
+	CALL	biosWriteDisk
 IORET:
 	ORA	A
 	RZ		;return unless an error occured.
@@ -2175,7 +2175,7 @@ IORET:
 ; block number falls in.
 ;
 TRKSEC:
-	LHLD	FilePosition	; get position of last accessed file
+	LHLD	FilePosInDirectory	; get position of last accessed file
 	MVI		C,2				; in directory and compute sector #.
 	CALL	HLrightC		; sector #=file-position/4.
 	SHLD	BLKNMBR			; save this as the block number of interest.
@@ -2247,7 +2247,7 @@ TRKSEC4:
 	DAD		D
 	MOV		B,H
 	MOV		C,L
-	CALL	SETTRK		;select this track.
+	CALL	biosSetTrack		;select this track.
 	POP		D			;reset current track pointer.
 	LHLD	LastTrackNumber
 	MOV		M,E
@@ -2267,10 +2267,10 @@ TRKSEC4:
 	MOV		B,A
 	LHLD	XLATE		;translate this sector according to this table.
 	XCHG
-	CALL	SECTRN		;let the bios translate it.
+	CALL	biosSectorTranslate		;let the bios translate it.
 	MOV		C,L
 	MOV		B,H
-	JMP		SETSEC		;and select it.
+	JMP		biosSetSector		;and select it.
 ;
 ;   Compute block number from record number (SAVNREC) and
 ; extent number (SAVEXT).
@@ -2465,7 +2465,7 @@ GETWPRT:
 ;
 ;   Function to write protect the current disk.
 ;
-WRTPRTD:
+fcSetDiskRO:
 	LXI	H,ROBitMap	;point to Read Only Bit Map
 	MOV	C,M	;set (BC) equal to the status.
 	INX	H
@@ -2475,7 +2475,7 @@ WRTPRTD:
 	LHLD	DrectorySize	;now save directory size limit.
 	INX	H	;remember the last one.
 	XCHG
-	LHLD	FilePosInDir;and store it here.
+	LHLD	FilePosInDirSegment;and store it here.
 	MOV	M,E	;put low byte.
 	INX	H
 	MOV	M,D	;then high byte.
@@ -2543,15 +2543,15 @@ SETS2B7:
 	MOV		M,A			;then store.
 	RET
 ;
-;   Compare (FilePosition) with (FilePosInDir) and set flags based on
+;   Compare (FilePosInDirectory) with (FilePosInDirSegment) and set flags based on
 ; the difference. This checks to see if there are more file
-; names in the directory. We are at (FilePosition) and there are
-; (FilePosInDir) of them to check.
+; names in the directory. We are at (FilePosInDirectory) and there are
+; (FilePosInDirSegment) of them to check.
 ;
 MOREFLS:
-	LHLD	FilePosition			;we are here.
+	LHLD	FilePosInDirectory			;we are here.
 	XCHG
-	LHLD	FilePosInDir	;and don't go past here.
+	LHLD	FilePosInDirSegment	;and don't go past here.
 	MOV		A,E				;compute difference but don't keep.
 	SUB		M
 	INX		H
@@ -2559,13 +2559,13 @@ MOREFLS:
 	SBB		M				;set carry if no more names.
 	RET
 ;
-;   Call this routine to prevent (FilePosInDir) from being greater
-; than (FilePosition).
+;   Call this routine to prevent (FilePosInDirSegment) from being greater
+; than (FilePosInDirectory).
 ;
 CHKNMBR:
-	CALL	MOREFLS		;FilePosInDir too big?
+	CALL	MOREFLS		;FilePosInDirSegment too big?
 	RC
-	INX		D		;yes, reset it to (FilePosition).
+	INX		D		;yes, reset it to (FilePosInDirectory).
 	MOV		M,D
 	DCX		H
 	MOV		M,E
@@ -2595,9 +2595,9 @@ SETDIR:
 CHECKDIR:
 	LHLD	CKSUMTBL
 	XCHG
-	LHLD	ALLOC1
+	LHLD	DirectoryFAT1
 	CALL	DEminusHL2HL
-	RNC		;ok if (CKSUMTBL) > (ALLOC1), so return.
+	RNC		;ok if (CKSUMTBL) > (DirectoryFAT1), so return.
 	PUSH	B
 	CALL	CheckSum;else compute checksum.
 	LHLD	CHKVECT	;get address of checksum table.
@@ -2611,7 +2611,7 @@ CHECKDIR:
 	RZ		;return if they are the same.
 	CALL	MOREFLS	;not the same, do we care?
 	RNC
-	CALL	WRTPRTD	;yes, mark this as write protected.
+	CALL	fcSetDiskRO	;yes, mark this as write protected.
 	RET
 CHKDIR1:
 	MOV	M,A	;just set the byte.
@@ -2650,7 +2650,7 @@ SetDMA0:
 	MOV		C,M
 	INX		H
 	MOV		B,M			;setup (BC) and go to the bios to set it.
-	JMP		SETDMA
+	JMP		biosSetDMA
 ;
 ;   Move the directory buffer into user's dma space.
 ;
@@ -2661,11 +2661,11 @@ MOVEDIR:
 	MVI	C,DirBuffSize	;this is its length.
 	JMP	DEtoHL	;move it now and return.
 ;
-;   Check (FilePosition) and set the zero flag if it equals 0ffffh.
+;   Check (FilePosInDirectory) and set the zero flag if it equals 0ffffh.
 ; if it is -1 then no active file found
 ;
 CheckFilePosition:
-	LXI	H,FilePosition
+	LXI	H,FilePosInDirectory
 	MOV	A,M
 	INX	H
 	CMP	M	;are both bytes the same?
@@ -2673,11 +2673,11 @@ CheckFilePosition:
 	INR	A	;yes, but are they each 0ffh?
 	RET
 ;
-;   Set location (FilePosition) to 0ffffh.
+;   Set location (FilePosInDirectory) to 0ffffh.
 ;
-ClearFilePos:
-	LXI	H,-1
-	SHLD	FilePosition
+InitializeFilePosition:
+	LXI		H,-1
+	SHLD	FilePosInDirectory
 	RET
 ;
 ;   Move on to the next file position within the current
@@ -2689,24 +2689,26 @@ ClearFilePos:
 ; be read).
 ;
 GetNextEntry:
-	LHLD	DrectorySize		; get directory entry size limit.
+	LHLD	DrectorySize				; get directory entry size limit.
 	XCHG
-	LHLD	FilePosition		; get index into directory.
+	LHLD	FilePosInDirectory			; get index into directory.
 	INX		H					
-	SHLD	FilePosition		; save it in the next location
-	CALL	DEminusHL2HL		;(HL)=(DrectorySize)-(FilePosition)
-	JC		ClearFilePos		; If no more entries, set this flag and return.
+	SHLD	FilePosInDirectory			; save  the next location
+	CALL	DEminusHL2HL				; (HL)=(DrectorySize)-(FilePosInDirectory)
+	JC		InitializeFilePosition		; If no more entries, set this flag and return.
 ;	JNC		GetNextEntry1		; are there any more entries?
-;	JMP		ClearFilePos		; No. - Set this flag and return.	
+;	JMP		InitializeFilePosition		; No. - Set this flag and return.	
 ;GetNextEntry1:
 
-	LDA		FilePosition		; Get current index for dirctory directory.
-	ANI		03H					; only look within this sector (only 4 entries fit).
-	ADD		A					; a * 2
-	ADD		A					; a * 4
-	ADD		A					; a * 8
-	ADD		A					; a * 16
-	ADD		A					; a * 32
+	LDA		FilePosInDirectory		; Get current index for file in the  directory.
+	ANI		03H						; only look within this sector (only 4 entries fit).
+									; - so taking the mod of position in directory
+									;  - gives us the relative position in the sector
+	ADD		A						; a * 2  - each directory entry is 32 bytes long.
+	ADD		A						; a * 4 - so relative position * 32 gives us the 
+	ADD		A						; a * 8  - start of the directory entry for this
+	ADD		A						; a * 16 - file
+	ADD		A						; a * 32
 	
 ;	MVI		B,5					; convert to relative position (32 bytes each).
 ;GetNextEntry2:
@@ -2714,7 +2716,7 @@ GetNextEntry:
 ;	DCR		B			;5 'ADD A's would be better.
 ;	JNZ		GetNextEntry2
 	
-	STA		FCBPosition		;save it as position of fcb.
+	STA		FCBPosition			; save it as position of fcb.
 	ORA		A
 	RNZ						; return if we are within buffer. ?????????
 	PUSH	B
@@ -2765,7 +2767,7 @@ CKBITMAP:
 ;   use this as an offset into the disk space allocation
 ; table.
 ;
-	LHLD	FileAllocTable
+	LHLD	FATpointer
 	DAD	B
 	MOV	A,M				; we now have correct byte.
 CKBMAP1:
@@ -2803,7 +2805,7 @@ STBMAP1:
 ;   Set/clear space used bits in allocation map for this file.
 ; On entry, (C)=1 to set the map and (C)=0 to clear it.
 ;
-SETFILE:
+SetClearFATbits:
 	CALL	FCB2HL			; Get address of fcb
 	LXI		D,16			; Offset to Block Pointers in Directory entry
 	DAD		D				; Compute start to block number bytes. (A1..A10)
@@ -2836,7 +2838,7 @@ SETFL3:
 	MOV		A,C				; Block used? if both (b) and (c) are 00
 	ORA		B				; the block is NOT used
 	JZ		SETFL4			; NOT used move on			
-	LHLD	DiskSize			; Is this block number within the
+	LHLD	DiskSize		; Is this block number within the
 	MOV		A,L	
 	SUB		C
 	MOV		A,H
@@ -2887,7 +2889,7 @@ FindFirst:
 	MOV		M,C				; put in number of bytes to match
 	LHLD	ParamsDE		; get filename to match.
 	SHLD	SaveFCB			; and save.
-	CALL	ClearFilePos	; clear initial file position (set to 0ffffh).
+	CALL	InitializeFilePosition	; clear initial file position (set to 0ffffh).
 	CALL	HomeDrive		;home the drive.
 ;
 ;   Entry to locate the next occurence of a filename within the
@@ -2948,7 +2950,7 @@ FNDNXT4:
 	DCR	C	;adjust character counter.
 	JMP	FNDNXT2
 FNDNXT5:
-	LDA	FilePosition	;return the position of this entry.
+	LDA	FilePosInDirectory	;return the position of this entry.
 	ANI	03H
 	STA	StatusBDOSReturn
 	LXI	H,FNDSTAT
@@ -2962,7 +2964,7 @@ FNDNXT5:
 ;   Filename was not found. Set appropriate status.
 ;
 FNDNXT6:
-	CALL	ClearFilePos;set (FilePosition) to 0ffffh.
+	CALL	InitializeFilePosition;set (FilePosInDirectory) to 0ffffh.
 	MVI	A,0FFH	;say not located.
 	JMP	SetStatusBDOS
 ;
@@ -2982,7 +2984,7 @@ ERAFIL1:
 ;	MVI	C,0	;clear the space from the bit map.
 	MVI		A,00H		; want to clear the bit
 	STA		BitSetFlag	; Flag = 00, clear bit
-	CALL	SETFILE
+	CALL	SetClearFATbits
 	CALL	DIRWRITE;now write the directory sector back out.
 	CALL	FINDNXT	;find the next file name.
 	JMP	ERAFIL1	;and repeat process.
@@ -3203,8 +3205,8 @@ MOVEWORD:
 CLOSEIT:
 	XRA	A	;clear status and file position bytes.
 	STA	StatusBDOSReturn
-	STA	FilePosition
-	STA	FilePosition+1
+	STA	FilePosInDirectory
+	STA	FilePosInDirectory+1
 	CALL	GETWPRT	;get write protect bit for this drive.
 	RNZ		;just return if it is set.
 	CALL	GETS2	;else get the 's2' byte.
@@ -3309,7 +3311,7 @@ GETMT1:
 	LXI	H,13	;clear the 's1' byte also.
 	DAD	D
 	MOV	M,A
-	CALL	CHKNMBR	;keep (FilePosInDir) within bounds.
+	CALL	CHKNMBR	;keep (FilePosInDirSegment) within bounds.
 	CALL	FCBSET	;write out this fcb entry to directory.
 	JMP	SETS2B7	;set 's2' byte bit 7 (unmodified at present).
 ;
@@ -3806,7 +3808,7 @@ RANSIZ3:
 ;   Function to return the random record position of a given
 ; file which has been read in sequential mode up to now.
 ;
-SETRAN:
+fcSetRecordNumber:
 	LHLD	ParamsDE	;point to fcb.
 	LXI	D,32	;and to last used record.
 	CALL	COMPRAND;compute random position.
@@ -3824,13 +3826,13 @@ SETRAN:
 ; not already active.
 ;
 LoginDrive:
-	LDA		CurrentDrive		; get the Subject Drive.
-	MOV		C,A					; Save current drive
+	LDA		CurrentDrive		; get the Current Drive.
+	MOV		C,A					; Save current drive for later
 	LHLD	LoggedBitMap		; point at the "logged In" Bitmap.
 	CALL	HLrightC			; Return with CurrentDrive's bit in L's lsb (byte 0)
 	PUSH	H					; Save it, so we will know if it is already active
 	XCHG
-	CALL	SelectDisk			; select this drive (in BIOS).
+	CALL	SelectDisk			; select this drive to set up Disk Parameter Block.
 	JZ		SLCTERR				; If not valid then error exit outta here
 	POP	H						; retreive original state of the drive
 	MOV	A,L						; and put it into (A) 
@@ -3845,19 +3847,21 @@ LoginDrive:
 ;	JMP	BITMAP	;now update the bitmap.
 ;-----------------------------------------------------------
 ;
-;   Construct the space used allocation bit map for the active
+;   Construct the FAT for the active
 ; drive. If a file name starts with '$' and it is under the
 ; current user number, then (StatusBDOSReturn) is set to minus 1. Otherwise
 ; it is not set at all.
 ;
 BITMAP:
-								;compute size of allocation table.
+								; compute size of allocation table. 1 bit for block,
+								; 1 byte for 8 blocks, so size of FAT is:
+								; DiskSize/8.
 	LHLD		DiskSize		; get maximum  Allocation Block number
-	MVI			C,3			; 2 raised to 3rd power = 8
+	MVI			C,3				; 2 raised to 3rd power = 8
 	CALL		HLrightC		;(HL)=(HL)/8.
-	INX			H			;at lease 1 byte.
+	INX			H				;at lease 1 byte.
 	MOV			B,H
-	MOV			C,L			;set (BC) to the allocation table length.
+	MOV			C,L				;set (BC) to the allocation table length.
 ;
 ;   Initialize the bitmap for this drive. Right now, the first
 ; two bytes are specified by the disk parameter block. However
@@ -3866,56 +3870,58 @@ BITMAP:
 ; determine locations of 'bad blocks' and set them as already
 ; 'used' in the map.
 ;
-	LHLD		FileAllocTable	;now zero out the table now.
+	LHLD		FATpointer			;now zero out the File Allocation Table
 BITMAP1:
-	MVI			M,0			; put zero in vector
-	INX			H			; point at next locatio
-	DCX			B			; count down
+	MVI			M,0					; put zero in vector
+	INX			H					; point at next location
+	DCX			B					; count down
 	MOV			A,B
-	ORA			C			; equals zero if both (B) and (B) are Zero
-	JNZ			BITMAP1		; loop for more
-	; allocation vector is cleared
-	LHLD		ALLOC0		;get initial space used by directory.
-	XCHG
-	LHLD	FileAllocTable;and put this into map.
-	MOV	M,E
-	INX	H
-	MOV	M,D
+	ORA			C					; equals zero if both (B) and (B) are Zero
+	JNZ			BITMAP1				; loop for more
+					; allocation vector is now cleared
+	LHLD		DirectoryFAT0		; Point at initial space used by directory.
+	XCHG							; pre allocate the space, first 2 bits (0C000H)
+	LHLD		FATpointer			; and put this into map.
+	MOV			M,E
+	INX			H
+	MOV			M,D
 ;
 ;   End of initialization portion.
 ;
-	CALL	HomeDrive	;now home the drive.
-	LHLD	FilePosInDir
-	MVI	M,3	;force next directory request to read
-	INX	H	;in a sector.
-	MVI	M,0
-	CALL	ClearFilePos;clear initial file position also.
+	CALL		HomeDrive			; now home the drive, H=0,T=0,S=0
+	LHLD		FilePosInDirSegment
+	MVI			M,3					; force next directory request to read
+	INX			H					; in a sector.
+	MVI			M,0
+	
+	CALL		InitializeFilePosition	;clear initial file position also.
 BITMAP2:
-	MVI		C,0FFH			; Read next file name in directory
-	CALL	GetNextEntry			; And set checksum byte.
-	CALL	CheckFilePosition		; Is there another file?
+	MVI		C,0FFH				; Read next file name in directory
+	CALL	GetNextEntry		; And set checksum byte.
+	
+	CALL	CheckFilePosition	; Is there another file?
 	RZ						; NO - return
 	
-	CALL	FCB2HL			; YES, get its address.
+	CALL	FCB2HL				; YES, get its address.
 	MVI		A,EmptyFileFlag
-	CMP		M				; Is it an empty file entry?
-	JZ		BITMAP2			; YES - Go back for next entry
+	CMP		M					; Is it an empty file entry?
+	JZ		BITMAP2				; YES - Go back for next entry
 	
-	LDA		CurrentUser		; NO, Do we have the correct user number?
+	LDA		CurrentUser			; NO, Do we have the correct user number?
 	CMP		M
-	JNZ		BITMAP3			; NO -			
-	INX		H				; YES -skip to first character in file name
-	MOV		A,M				; Does name start with a '$'?
-	SUI		DOLLAR			; Clear acc(if =) and test for equality at the same time
+	JNZ		BITMAP3				; NO -			
+	INX		H					; YES -skip to first character in file name
+	MOV		A,M					; Does name start with a '$'?
+	SUI		DOLLAR				; Clear acc(if =) and test for equality at the same time
 	JNZ		BITMAP3
-	DCR		A				; Yes, set atatus to minus one.
+	DCR		A					; Yes, set atatus to minus one.
 	STA		StatusBDOSReturn	; set return status
 BITMAP3:
-;	MVI		C,1				;now set this file's space as used in bit map.
-	MVI		A,01H		; want to set the bit
-	STA		BitSetFlag	; Flag = 01, set the bit
-	CALL	SETFILE
-	CALL	CHKNMBR	;keep (FilePosInDir) in bounds.
+;	MVI		C,1					;now set this file's space as used in bit map.
+	MVI		A,01H				; want to set the bit
+	STA		BitSetFlag			; Flag = 01, set the bit
+	CALL	SetClearFATbits
+	CALL	CHKNMBR				;keep (FilePosInDirSegment) in bounds.
 	JMP	BITMAP2
 ;-----------------------------------------------------------
 ;
@@ -3943,7 +3949,7 @@ SetBit2:
 ;
 ;   Function to set the active disk number.
 ;
-SETDSK:
+fcSelectDisk:
 	LDA	ParamE				;get parameter passed and see if this
 	LXI	H,CurrentDrive		;represents a change in drives.
 	CMP	M
@@ -3971,7 +3977,7 @@ AUTOSEL:
 	STA		AutoSelectFlag	;this must be non-zero.
 	ANI		0E0H			;whats this for (bits 6,7 are used for
 	MOV		M,A				;something)?
-	CALL	SETDSK			;select and log in this drive.
+	CALL	fcSelectDisk			;select and log in this drive.
 AUTOSL1:
 	LDA		CurrentUser		;move user number into fcb.
 	LHLD	ParamsDE		;(* upper half of first byte *)
@@ -3981,13 +3987,13 @@ AUTOSL1:
 ;
 ;   Function to return the current cp/m version number.
 ;
-GETVER:
+fcGetVersion:
 	MVI	A,022h	;version 2.2
 	JMP	SetStatusBDOS
 ;
 ;   Function (0D) to reset the disk system.
 ;
-RSTDSK:
+fcResetDiskSystem:
 	LXI		H,0				; clear write protect status and log
 	SHLD	ROBitMap		; clear all Read Only Bits
 	SHLD	LoggedBitMap	; clear all logged in drives
@@ -4000,14 +4006,14 @@ RSTDSK:
 ;
 ;   Function to open a specified file.
 ;
-OPENFIL:
+fcOpenFile:
 	CALL	CLEARS2	;clear 's2' byte.
 	CALL	AUTOSEL	;select proper disk.
 	JMP	OPENIT	;and open the file.
 ;
 ;   Function to close a specified file.
 ;
-CLOSEFIL:
+fcCloseFile:
 	CALL	AUTOSEL	;select proper disk.
 	JMP	CLOSEIT	;and close the file.
 ;
@@ -4015,25 +4021,25 @@ CLOSEFIL:
 ; name. If the first byte of the fcb is '?' then the name will
 ; not be checked (get the first entry no matter what).
 ;
-GETFST:
+fcSearchForFirst:
 	MVI	C,0	;prepare for special search.
 	XCHG
 	MOV	A,M	;is first byte a '?'?
 	CPI	QMARK		;'?'
-	JZ	GETFST1	;yes, just get very first entry (zero length match).
+	JZ	fcSearchForFirst1	;yes, just get very first entry (zero length match).
 	CALL	SETEXT	;get the extension byte from fcb.
 	MOV	A,M	;is it '?'? if yes, then we want
 	CPI	QMARK		; '?'	;an entry with a specific 's2' byte.
 	CNZ	CLEARS2	;otherwise, look for a zero 's2' byte.
 	CALL	AUTOSEL	;select proper drive.
 	MVI	C,15	;compare bytes 0-14 in fcb (12&13 excluded).
-GETFST1:
+fcSearchForFirst1:
 	CALL	FindFirst	;find an entry and then move it into
 	JMP	MOVEDIR	;the users dma space.
 ;
 ;   Function to return the next occurence of a file name.
 ;
-GETNXT:
+fcSearchForNext:
 	LHLD	SaveFCB	;restore pointers. note that no
 	SHLD	ParamsDE	;other dbos calls are allowed.
 	CALL	AUTOSEL	;no error will be returned, but the
@@ -4042,7 +4048,7 @@ GETNXT:
 ;
 ;   Function to delete a file by name.
 ;
-DELFILE:
+fcDeleteFile:
 	CALL	AUTOSEL		;select proper drive.
 	CALL	ERAFILE		;erase the file.
 	JMP		STSTATUS	;set status and return.
@@ -4050,64 +4056,64 @@ DELFILE:
 ;   Function to execute a sequential read of the specified
 ; record number.
 ;
-READSEQ:
+fcReadSequential:
 	CALL	AUTOSEL	;select proper drive then read.
 	JMP	RDSEQ
 ;
 ;   Function to write the net sequential record.
 ;
-WRTSEQ:
+fcWriteSequential:
 	CALL	AUTOSEL	;select proper drive then write.
 	JMP	WTSEQ
 ;
 ;   Create a file function.
 ;
-FCREATE:
+fcCreateFile:
 	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
 	CALL	AUTOSEL	;select proper drive and get the next
 	JMP		GETEMPTY;empty directory space.
 ;
 ;   Function to rename a file.
 ;
-RENFILE:
+fcRenameFile:
 	CALL	AUTOSEL	;select proper drive and then switch
 	CALL	CHGNAMES;file names.
 	JMP	STSTATUS
 ;
 ;   Function to return the logged in Bit map.
 ;
-GETLOG:
+fcGetActiveDisks:
 	LHLD	LoggedBitMap
 	JMP	GETPRM1
 ;
 ;   Function to return the current disk assignment.
 ;
-GETCRNT:
+fcGetCurrentDisk:
 	LDA	CurrentDrive
 	JMP	SetStatusBDOS
 ;
 ;   Function to set the dma address.
 ;
-PUTDMA:
+fcSetDMA:
 	XCHG
 	SHLD	UsersDMA	;save in our space and then get to
 	JMP	Set2UsersDMA	;the bios with this also.
 ;
 ;   Function to return the allocation vector.
 ;
-GETALOC:
-	LHLD	FileAllocTable
+fcGetFATtable:
+	LHLD	FATpointer
 	JMP	GETPRM1
 ;
 ;   Function to return the read-only status vector.
 ;
-GETROV:
+fcGetROdisks:
 	LHLD	ROBitMap
 	JMP	GETPRM1
 ;
 ;   Function to set the file attributes (read-only, system).
 ;
-SETATTR:
+fcSetFileAttributes:
 	CALL	AUTOSEL	;select proper drive then save attributes.
 	CALL	SAVEATTR
 	JMP	STSTATUS
@@ -4115,7 +4121,7 @@ SETATTR:
 ;   Function to return the address of the disk parameter block
 ; for the current drive.
 ;
-GETPARM:
+fcGetDPB:
 	LHLD	DiskParamBlock
 GETPRM1:
 	SHLD	StatusBDOSReturn
@@ -4125,33 +4131,33 @@ GETPRM1:
 ; then this is a request to return the current user number.
 ; Else set the user number from (E).
 ;
-GETUSER:
-	LDA			ParamE			; get parameter.
+fcGetUser:
+	LDA			ParamE			; get controlling parameter.
 	CPI			0FFH			; want to get user number?
-	JNZ			SETUSER			; No, then set it
-	LDA			CurrentUser		;yes, just return it in A
-	JMP			SetStatusBDOS			; exit while setting return status
+	JNZ			SetUser			; No, then set it
+	LDA			CurrentUser		; yes, just return it in A
+	JMP			SetStatusBDOS	; exit while setting return status
 	
-SETUSER:
-	ANI			1FH				;no,just keep the low bits (000X XXXX)
-	STA			CurrentUser		;and save in Current user
+SetUser:
+	ANI			1FH				; no,just keep the low bits (000X XXXX)
+	STA			CurrentUser		; and save in Current user
 	RET
 ;
 ;   Function to read a random record from a file.
 ;
-RDRANDOM:
+fcReadRandom:
 	CALL	AUTOSEL	;select proper drive and read.
 	JMP	READRAN
 ;
 ;   Function to compute the file size for random files.
 ;
-WTRANDOM:
+fcWriteRandom:
 	CALL	AUTOSEL	;select proper drive and write.
 	JMP	WRITERAN
 ;
 ;   Function to compute the size of a random file.
 ;
-FILESIZE:
+fcGetFileSize:
 	CALL	AUTOSEL	;select proper drive and check file length
 	JMP	RANSIZE
 ;
@@ -4161,7 +4167,7 @@ FILESIZE:
 ; write protect vector will be updated. This must be a M/PM
 ; special function.
 ;
-LOGOFF:
+fcResetDrive:
 	LHLD	ParamsDE	;get drives to log off.
 	MOV	A,L	;for each bit that is set, we want
 	CMA		;to clear that bit in (LoggedBitMap)
@@ -4197,7 +4203,7 @@ LOGOFF:
 ; care about the previous contents of a sector about to be
 ; written over.
 ;
-WTSPECL:
+fcWriteZeroFill:
 	CALL	AUTOSEL	;select proper drive.
 	MVI	A,2	;use special write mode.
 	STA	MODE
@@ -4224,7 +4230,7 @@ UsersDMA:				DW	080H	;user's dma address (defaults to 80h).
 ;
 ;   Scratch areas from parameter block.
 ;
-FilePosInDir:			DW	0	; relative position within dir segment for file (0-3).
+FilePosInDirSegment:			DW	0	; relative position within dir segment for file (0-3).
 LastTrackNumber:		DW	0	; last selected track number.
 LastSectorNumber:		DW	0	; last selected sector number.
 ;
@@ -4234,7 +4240,7 @@ DirBuffSize				EQU	128	; buffer size
 DirBuffAddr:			DW	0	;address of directory buffer to use.
 DiskParamBlock:			DW	0	;contains address of disk parameter block.
 CHKVECT:				DW	0	;address of check vector.
-FileAllocTable:			DW	0	;address of allocation vector (bit map).
+FATpointer:			DW	0	;address of allocation vector (bit map).
 ;
 ;   Disk Parameter block returned from the bios.
 ;
@@ -4244,9 +4250,9 @@ BLKSHFT:				DB	0	;block shift.
 BLKMASK:				DB	0	;block mask.
 EXTMASK:				DB	0	;extent mask.
 DiskSize:				DW	0	;disk size from bios (number of blocks-1).
-DrectorySize:			DW	0	;directory size.
-ALLOC0:					DW	0	;storage for first bytes of bit map (dir space used).
-ALLOC1:					DW	0
+DrectorySize:			DW	0	;directory size, number of entries.
+DirectoryFAT0:					DW	0	;storage for first bytes of bit map (dir space used).
+DirectoryFAT1:					DW	0
 OFFSET:					DW	0	;first usable track number.
 XLATE:					DW	0	;sector translation table address.
 ;
@@ -4268,7 +4274,7 @@ SAVNREC:				DW	0	;storage for number of records in file.
 BLKNMBR:				DW	0	;block number (physical sector) used within a file or logical sector.
 LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
 FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
-FilePosition:			DW	0	;files position within directory (0 to max entries -1).
+FilePosInDirectory:			DW	0	;files position within directory (0 to max entries -1).
 ;
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
@@ -4288,23 +4294,23 @@ CKSUMTBL:
 ;
 BIOSEntry	Equ	0F600H		; start of bios
 
-BOOT	EQU		BIOSEntry + 000H	
-WBOOT	EQU		BIOSEntry + 003H
-CONST	EQU		BIOSEntry + 006H
-CONIN	EQU		BIOSEntry + 009H
-CONOUT	EQU		BIOSEntry + 00CH
-LIST	EQU		BIOSEntry + 00FH
-PUNCH	EQU		BIOSEntry + 012H
-READER	EQU		BIOSEntry + 015H
-HOME	EQU		BIOSEntry + 018H
-SELDSK	EQU		BIOSEntry + 01BH
-SETTRK	EQU		BIOSEntry + 01EH
-SETSEC	EQU		BIOSEntry + 021H
-SETDMA	EQU		BIOSEntry + 024H
-READ	EQU		BIOSEntry + 027H
-WRITE	EQU		BIOSEntry + 02AH
-PRSTAT	EQU		BIOSEntry + 02DH
-SECTRN	EQU		BIOSEntry + 030H
+biosBoot			EQU		BIOSEntry + 000H	
+fcSystemReset		EQU		BIOSEntry + 003H
+biosConsoleStatus	EQU		BIOSEntry + 006H
+biosConsoleIn		EQU		BIOSEntry + 009H
+biosConsoleOut		EQU		BIOSEntry + 00CH
+fcListOut			EQU		BIOSEntry + 00FH
+fcPunchOut			EQU		BIOSEntry + 012H
+biosReaderIn		EQU		BIOSEntry + 015H
+biosHomeDisk		EQU		BIOSEntry + 018H
+biosSelectDisk		EQU		BIOSEntry + 01BH
+biosSetTrack		EQU		BIOSEntry + 01EH
+biosSetSector		EQU		BIOSEntry + 021H
+biosSetDMA			EQU		BIOSEntry + 024H
+biosReadDisk		EQU		BIOSEntry + 027H
+biosWriteDisk		EQU		BIOSEntry + 02AH
+biosListStatus		EQU		BIOSEntry + 02DH
+biosSectorTranslate	EQU		BIOSEntry + 030H
 
 ;*
 ;******************   E N D   O F   C P / M   *****************
