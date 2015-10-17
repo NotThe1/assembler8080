@@ -15,7 +15,7 @@ MEM			EQU		64			;for a 64k system
 IOBYTE		EQU		3			;i/o definition byte.
 TDRIVE		EQU		4			;current drive name and user number.
 ENTRY		EQU		5			;entry point for the cp/m bdos.
-TFCB		EQU		5CH			;default file control block.
+DefaultFCB	EQU		5CH			;default file control block.
 Pg0Buffer	EQU		80H			;i/o buffer and command line storage.
 TBASE		EQU		100H		;transiant program storage area.
 ;
@@ -167,8 +167,8 @@ OPEN:
 ;
 OPENFCB:
 	XRA		A		;clear the record number byte at fcb+32
-	STA		FCB+32
-	LXI		D,FCB
+	STA		FCBfromCCP+32
+	LXI		D,FCBfromCCP
 	JMP		OPEN
 ;
 ;   Routine to close a file. (DE) points to FCB.
@@ -193,7 +193,7 @@ SRCHNXT:
 ;   Search for file at (FCB).
 ;
 SRCHFCB:
-	LXI		D,FCB
+	LXI		D,FCBfromCCP
 	JMP		SRCHFST
 ;
 ;   Routine to delete a file pointed to by (DE).
@@ -220,7 +220,7 @@ RDREC:
 ;   Routine to read file at (FCB).
 ;
 READFCB:
-	LXI		D,FCB
+	LXI		D,FCBfromCCP
 	JMP		RDREC
 ;
 ;   Routine to write the next record of a sequential file.
@@ -257,7 +257,7 @@ GetSetCurrentUser:
 ;
 ;   Routine to set the current drive byte at (TDRIVE).
 ;
-SETCDRV:
+SetCurrentDrive:
 	CALL	GETUSR			;get user number
 	ADD		A				;and shift into the upper 4 bits.
 	ADD		A
@@ -287,13 +287,13 @@ UPPER:
 	RET
 ;
 ;   Routine to get a line of input. We must check to see if the
-; user is in (BATCH) mode. If so, then read the input from file
+; user is in (BatchFlag) mode. If so, then read the input from file
 ; ($$$.SUB). At the end, reset to console input.
 ;
-GETINP:
-	LDA		BATCH			;if =0, then use console input.
+InputLine:
+	LDA		BatchFlag			;if =0, then use console input.
 	ORA		A
-	JZ		GETINP1
+	JZ		InputLineConsole
 ;
 ;   Use the submit file ($$$.sub) which is prepared by a
 ; SUBMIT run. It must be on drive (A) and it will be deleted
@@ -305,13 +305,13 @@ GETINP:
 	CNZ		DSKSEL		;select it if required.
 	LXI		D,BATCHFCB
 	CALL	OPEN		;look for it.
-	JZ		GETINP1		;if not there, use normal input.
+	JZ		InputLineConsole		;if not there, use normal input.
 	LDA		BATCHFCB+15	;get last record number+1.
 	DCR		A
 	STA		BATCHFCB+32
 	LXI		D,BATCHFCB
 	CALL	RDREC		;read last record.
-	JNZ		GETINP1		;quit on end of file.
+	JNZ		InputLineConsole		;quit on end of file.
 ;
 ;   Move this record into input buffer.
 ;
@@ -325,7 +325,7 @@ GETINP:
 	DCR		M
 	LXI		D,BATCHFCB	;close the batch file now.
 	CALL	CLOSE
-	JZ		GETINP1		;quit on an error.
+	JZ		InputLineConsole		;quit on an error.
 	LDA		CDRIVE		;re-select previous drive if need be.
 	ORA		A
 	CNZ		DSKSEL		;don't do needless selects.
@@ -335,42 +335,42 @@ GETINP:
 	LXI		H,InBuff
 	CALL	PLINE2
 	CALL	CHKCON		;check console, quit on a key.
-	JZ		GETINP2		;jump if no key is pressed.
+	JZ		InputLineConsole1		;jump if no key is pressed.
 ;
 ;   Terminate the submit job on any keyboard input. Delete this
 ; file such that it is not re-started and jump to normal keyboard
 ; input section.
 ;
-	CALL	DELBATCH	;delete the batch file.
+	CALL	DeleteBatchFile	;delete the batch file.
 	JMP		CMMND1		;and restart command input.
 ;
 ;   Get here for normal keyboard input. Delete the submit file
 ; incase there was one.
 ;
-GETINP1:
-	CALL	DELBATCH	;delete file ($$$.sub).
-	CALL	SETCDRV		;reset active disk.
-	MVI		C,10		;get line from console device.
-	LXI		D,InBuffStart	; point at the Inbuff construct (Size, Pos, Buffer)
-	CALL	ENTRY
+InputLineConsole:
+	CALL	DeleteBatchFile		; delete file ($$$.sub).
+	CALL	SetCurrentDrive		; reset active disk.
+	MVI		C,10				; get line from console device.
+	LXI		D,InBuffStart		; point at the Inbuff construct (Size, Pos, Buffer)
+	CALL	ENTRY				; call BDOS fcConsoleStringIn
 	CALL	MOVECD		;reset current drive (again).
 ;
 ;   Convert input line to upper case.
 ;
-GETINP2:
+InputLineConsole1:
 	LXI		H,InBuffCount
 	MOV		B,M			;(B)=character counter.
-GETINP3:
+InputLineConsole2:
 	INX		H
 	MOV		A,B			;end of the line?
 	ORA		A
-	JZ		GETINP4
+	JZ		InputLineConsole3
 	MOV		A,M			;convert to upper case.
 	CALL	UPPER
 	MOV		M,A
 	DCR		B			;adjust character count.
-	JMP		GETINP3
-GETINP4:
+	JMP		InputLineConsole2
+InputLineConsole3:
 	MOV		M,A			;add trailing null.
 	LXI		H,InBuff
 	SHLD	InBuffAddress		;reset input line pointer.
@@ -408,8 +408,8 @@ DMASET:
 ;
 ;  Delete the batch file created by SUBMIT.
 ;
-DELBATCH:
-	LXI		H,BATCH			;is batch active?
+DeleteBatchFile:
+	LXI		H,BatchFlag			;is batch active?
 	MOV		A,M
 	ORA		A
 	RZ
@@ -458,7 +458,7 @@ SYNERR2:
 	MVI	A,QMARK		;add trailing '?'.
 	CALL	PRINT
 	CALL	CRLF
-	CALL	DELBATCH;delete any batch file.
+	CALL	DeleteBatchFile;delete any batch file.
 	JMP	CMMND1	;and restart from console input.
 ;
 ;   Check character at (DE) for legal command input. Note that the
@@ -491,7 +491,7 @@ CHECK:
 ;
 ;   Get the next non-blank character from (DE).
 ;
-NONBLANK:
+NextNonBlankChar:
 	LDAX	D			; get the next character
 	ORA		A			;Since string ends with a null.
 	RZ					; we return here if its 00
@@ -499,11 +499,11 @@ NONBLANK:
 	RNZ					; No, then we have the next non-space char
 	
 	INX		D			; since it a space we need to look at the next character
-	JMP		NONBLANK
+	JMP		NextNonBlankChar
 ;
 ;   Add (HL)=(HL)+(A)
 ;
-ADDHL:
+AddAtoHL:
 	ADD		L
 	MOV		L,A
 	RNC					;take care of any carry.
@@ -520,22 +520,22 @@ CONVFST:
 ; the position within the fcb for the name (either 0 or 16).
 ;
 CONVERT:
-	LXI		H,FCB		; point at FCB setup by CCP
-	CALL	ADDHL		; now pointing at correct FCB
-	PUSH	H			; save
+	LXI		H,FCBfromCCP		; point at FCB setup by CCP
+	CALL	AddAtoHL			; now pointing at correct FCB
+	PUSH	H					; save
 	PUSH	H
 	XRA		A
-	STA		CHGDRV		; initialize drive change flag - no change.
+	STA		ChangeDriveFlag		; initialize drive change flag - no change.
 	LHLD	InBuffAddress		; set (HL) as pointer into input line.
-	XCHG				; put line pointer in DE for call
-	CALL	NONBLANK	; return the next non-blank character in A
-	XCHG				; put line buffer pointer in HL for now
+	XCHG						; put line pointer in DE for call
+	CALL	NextNonBlankChar	; return the next non-blank character in A
+	XCHG						; put line buffer pointer in HL for now
 	SHLD	ErrorMsgPointer		; save pointer here for any error message.
-	XCHG				; put line buffer pointer back in DE
-	POP		H			; retreive the CCP created FCB
-	LDAX	D			; get first character.
-	ORA		A			; is it a null 00 ?
-	JZ		CONVRT1		; Yes, this FCB is empty (no argument)
+	XCHG						; put line buffer pointer back in DE
+	POP		H					; retreive the CCP created FCB
+	LDAX	D					; get first character.
+	ORA		A					; is it a null 00 ?
+	JZ		CONVRT1				; Yes, this FCB is empty (no argument)
 	
 	SBI		040H		; 'A'-1	;might be a drive name, convert to binary.
 	MOV		B,A			; and save in case its a drive specifier.
@@ -550,7 +550,7 @@ CONVRT1:
 	JMP		CONVRT3
 CONVRT2:
 	MOV		A,B			; get the saved drive number
-	STA		CHGDRV		; set change in drives flag.
+	STA		ChangeDriveFlag		; set change in drives flag.
 	MOV		M,B			; put new drive number in FCB
 	INX		D			; point past drive number
 ;
@@ -559,34 +559,14 @@ CONVRT2:
 CONVRT3:
 	MVI		B,08H		; File name size
 CONVRT4:
-	CALL	DECODENAME	; Expand all 8 characters in name
-;	CALL	CHECK		; Legal input character ?
-;	JZ		PADNAME		; its a delimiter, skip the rest of the filename
-;	INX		H
-;	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
-;	JNZ		CONVRT5		; otherwise move to the next character and process.
-;	
-;	MVI		M,QMARK		; '?'
-;	JMP		CONVRT6
-;CONVRT5:				; move on to the next character
-;	MOV		M,A			; put character in FCB
-;	INX		D			; move to next character in input line buffer
-;CONVRT6:
-;	DCR		B			; decrement counter
-;	JNZ		CONVRT4		; loop if not done with fileName
+	CALL	ExpandName	; Expand all 8 characters in name
+
 CONVRT7:
 	CALL	CHECK		; Do we have a delimiter ?.
 	JZ		GETEXT		; Yes, process the extension
 	INX		D			; No, point a the next character
 	JMP		CONVRT7		; and see if its a demiliter
-;PADNAME:
-;	INX		H			; blank fill the remaining file name.
-;	MVI		M,BLANK		; store the blank
-;	DCR		B			; keep count
-;	JNZ		PADNAME		; loop till done
-;
-;   Get the extension and convert it.
-;
+
 GETEXT:
 	MVI		B,03H		; file extension size
 	CPI		PERIOD		; do we have the Period '.'
@@ -596,33 +576,13 @@ GETEXT:
 	JMP		CLEAREXTENT	; process the stuff after the extension
 GETEXT1:
 	INX		D			; get past the period
-:
-	CALL	DECODENAME	; Expand all 3 characters in extension
-;	CALL	CHECK		; Legal input character ?		
-;	JZ		PADEXT		; its a delimiter, so pad the rest of the extension
-;	INX		H			; point at next spot in the CCP FCB
-;	CPI		ASTRK		; ; '*'	;note that an '*' will fill the remaining
-;	JNZ		GETEXT2		; otherwise move to the next character and process.
-;	
-;	MVI		M,QMARK		;'?'
-;	JMP		GETEXT3
-;GETEXT2:				; move on to the next character
-;	MOV		M,A			; put character in FCB
-;	INX		D			; move to next character in input line buffer
-;GETEXT3:
-;	DCR		B			; decrement counter
-;	JNZ		GETEXT1		; loop if not done with file extension
+	CALL	ExpandName	; Expand all 3 characters in extension
+
 GETEXT4:
 	CALL	CHECK		; Do we have a delimiter ?.
 	JZ		CLEAREXTENT	; Yes, Clear the EX, S1 & S2
 	INX		D			; No, point a the next character
 	JMP		GETEXT4		; and see if its a demiliter
-	
-;PADEXT:
-;	INX		H			; blank fill the remaining extension.
-;	MVI		M,BLANK		; store the blank
-;	DCR		B			; keep count
-;	JNZ		PADEXT		; loop till done
 	
 CLEAREXTENT:
 	MVI		B,03H		; set count for clearing EX, S1 & S2
@@ -654,23 +614,23 @@ AFN1:
 	RET
 	
 ;
-; DECODENAME -	expands the name/ext to all 8/3 characters by either padding with SPACES
+; ExpandName -	expands the name/ext to all 8/3 characters by either padding with SPACES
 ;				or, replaceing *'s with ?s for the remainder of the name/ext
 ;
-DECODENAME:
+ExpandName:
 	CALL	CHECK		; Legal input character ?
 	JZ		PADFIELD	; its a delimiter, skip the rest of the name/ext 
 	INX		HL
 	CPI		ASTRK		; '*'	;note that an '*' will fill the remaining
-	JNZ		DECODENAME1	; otherwise move to the next character and process.
+	JNZ		ExpandName1	; otherwise move to the next character and process.
 	MVI		M,QMARK		; '?'
-	JMP		DECODENAME2
-DECODENAME1:
+	JMP		ExpandName2
+ExpandName1:
 	MOV		M,A			; put character in FCB
 	INX		D			; move to next character in input line buffer
-DECODENAME2:
+ExpandName2:
 	DCR		B			; decrement counter
-	JNZ		DECODENAME	; loop if not done with fileName
+	JNZ		ExpandName	; loop if not done with fileName
 	RET					; exit when done!
 	
 PADFIELD:            
@@ -712,7 +672,7 @@ SEARCH1:
 	MOV	A,C
 	CPI	NUMCMDS	;this commands exists.
 	RNC
-	LXI	D,FCB+1	;check this one.
+	LXI	D,FCBfromCCP+1	;check this one.
 	MVI	B,4	;max command length.
 SEARCH2:
 	LDAX	D
@@ -762,28 +722,28 @@ COMMAND:
 	ANI			0FH						; isolate the user number.
 	MOV			E,A						; and put into E for call
 	CALL		GetSetCurrentUser		; to set the current user
-	CALL		ResetDiskSystem			;reset the disk system.
-	STA	BATCH	;clear batch mode flag.
-	POP	B
-	MOV	A,C
-	ANI	0FH	;isolate the drive number.
-	STA	CDRIVE	;and save.
-	CALL	DSKSEL	;...and select.
-	LDA	InBuffCount
-	ORA	A	;anything in input buffer already?
-	JNZ	CMMND2	;yes, we just process it.
+	CALL		ResetDiskSystem			; reset the disk system.
+	STA			BatchFlag				; clear batch mode flag.
+	POP			B						; Current disk
+	MOV			A,C						; move current disk to acc
+	AN			0FH						; isolate the drive number.
+	STA			CDRIVE					;	and save.
+	CALL		DSKSEL					; ...and select.
+	LDA			InBuffCount
+	ORA			A						; anything in input buffer already?
+	JNZ			CMMND2					; yes, then just process it.
 ;
 ;   Entry point to get a command line from the console.
 ;
 CMMND1:
-	LXI	SP,CCPStack;set stack straight.
-	CALL	CRLF	;start a new line on the screen.
-	CALL	GETDSK	;get current drive.
-	ADI	061H		; 'a'
-	CALL	PRINT	;print current drive.
-	MVI	A,GRTTHAN	; '>'
-	CALL	PRINT	;and add prompt.
-	CALL	GETINP	;get line from user.
+	LXI			SP,CCPStack			; set stack straight.
+	CALL		CRLF				; start a new line on the screen.
+	CALL		GETDSK				; get current drive.
+	ADI			041H				; 'A' make it printable
+	CALL		PRINT				; print current drive.
+	MVI			A,GRTTHAN			; '>'
+	CALL		PRINT				; and add prompt.
+	CALL		InputLine				; get line from user.
 ;
 ;   Process command line here.
 ;
@@ -794,7 +754,7 @@ CMMND2:
 	STA	CDRIVE	;set current drive.
 	CALL	CONVFST	;convert name typed in.
 	CNZ	SYNERR	;wild cards are not allowed.
-	LDA	CHGDRV	;if a change in drives was indicated,
+	LDA	ChangeDriveFlag	;if a change in drives was indicated,
 	ORA	A	;then treat this as an unknown command
 	JNZ	UNKNOWN	;which gets executed.
 	CALL	SEARCH	;else search command table for a match.
@@ -857,10 +817,10 @@ NOFILE:
 ;
 DECODE:
 	CALL	CONVFST		;convert first filename.
-	LDA		CHGDRV		;do not allow a drive to be specified.
+	LDA		ChangeDriveFlag		;do not allow a drive to be specified.
 	ORA		A
 	JNZ		SYNERR		; exit with a syntax error
-	LXI		H,FCB+1		;convert number now.
+	LXI		H,FCBfromCCP+1		;convert number now.
 	LXI		B,11		;(B)=sum register, (C)=max digit count.
 DECODE1:
 	MOV		A,M			; get the caracter from the CCP FCB
@@ -921,7 +881,7 @@ HL2DE:
 EXTRACT:
 	LXI	H,Pg0Buffer
 	ADD	C
-	CALL	ADDHL
+	CALL	AddAtoHL
 	MOV	A,M
 	RET
 ;
@@ -931,8 +891,8 @@ EXTRACT:
 ;
 DSELECT:
 	XRA		A
-	STA		FCB				; null out first byte of fcb.
-	LDA		CHGDRV			; is a drive change indicated?
+	STA		FCBfromCCP			; null out first byte of fcb.
+	LDA		ChangeDriveFlag			; is a drive change indicated?
 	ORA		A
 	RZ						; No, drive OK
 	DCR		A				; yes, is it the same as the current drive?
@@ -945,7 +905,7 @@ DSELECT:
 ; drive if it was changed for the preceeding command.
 ;
 RESETDR:
-	LDA	CHGDRV	;drive change indicated?
+	LDA	ChangeDriveFlag	;drive change indicated?
 	ORA	A
 	RZ
 	DCR	A	;yes, was it a different drive?
@@ -964,7 +924,7 @@ RESETDR:
 DIRECT:
 	CALL	CONVFST	;convert file name.
 	CALL	DSELECT	;select indicated drive.
-	LXI	H,FCB+1	;was any file indicated?
+	LXI	H,FCBfromCCP+1	;was any file indicated?
 	MOV	A,M
 	CPI	BLANK
 	JNZ	DIRECT2
@@ -1064,7 +1024,7 @@ ERASE:
 	JNZ	ERASE1
 	LXI	B,YESNO	;yes, ask for confirmation.
 	CALL	PLINE
-	CALL	GETINP
+	CALL	InputLine
 	LXI	H,InBuffCount
 	DCR	M	;must be exactly 'y'.
 	JNZ	CMMND1
@@ -1076,7 +1036,7 @@ ERASE:
 	SHLD	InBuffAddress	;save input line pointer.
 ERASE1:
 	CALL	DSELECT	;select desired disk.
-	LXI	D,FCB
+	LXI	D,FCBfromCCP
 	CALL	DELETE	;delete the file.
 	INR	A
 	CZ	NONE	;not there?
@@ -1114,7 +1074,7 @@ TYPE2:
 TYPE3:
 	INR	M	;count this byte.
 	LXI	H,Pg0Buffer	;and get the (A)th one from the buffer (Pg0Buffer).
-	CALL	ADDHL
+	CALL	AddAtoHL
 	MOV	A,M
 	CPI	CNTRLZ	;end of file mark?
 	JZ	GETBACK
@@ -1145,14 +1105,14 @@ SAVE:
 	CALL	CONVFST		; convert file name linepointer past the number.
 	JNZ		SYNERR		; exit with syntax error -wild cards not allowed.
 	CALL	DSELECT		; select specified drive.
-	LXI		D,FCB		; now delete this file.
+	LXI		D,FCBfromCCP	; now delete this file.
 	PUSH	D			; save the fcb
 	CALL	DELETE
 	POP		D
 	CALL	CREATE		;and create it again.
 	JZ		SAVE3		;can't create?
 	XRA		A			;clear record number byte.
-	STA		FCB+32
+	STA		FCBfromCCP+32
 	POP		PSW			;convert pages to sectors.
 	MOV		L,A
 	MVI		H,0
@@ -1168,7 +1128,7 @@ SAVE1:
 	DAD		D
 	PUSH	H			;save it and set the transfer address.
 	CALL	DMASET
-	LXI		D,FCB		;write out this sector now.
+	LXI		D,FCBfromCCP	;write out this sector now.
 	CALL	WRTREC
 	POP		D			;reset (DE) to the start of the last sector.
 	POP		H			;restore sector count.
@@ -1178,7 +1138,7 @@ SAVE1:
 ;   Get here after writing all of the file.
 ;
 SAVE2:
-	LXI		D,FCB		;now close the file.
+	LXI		D,FCBfromCCP	;now close the file.
 	CALL	CLOSE
 	INR		A			;did it close ok?
 	JNZ		SAVE4
@@ -1203,18 +1163,18 @@ NOSPACE:
 RENAME:
 	CALL	CONVFST	;convert first file name.
 	JNZ	SYNERR	;wild cards not allowed.
-	LDA	CHGDRV	;remember any change in drives specified.
+	LDA	ChangeDriveFlag	;remember any change in drives specified.
 	PUSH	PSW
 	CALL	DSELECT	;and select this drive.
 	CALL	SRCHFCB	;is this file present?
 	JNZ	RENAME6	;yes, print error message.
-	LXI	H,FCB	;yes, move this name into second slot.
-	LXI	D,FCB+16
+	LXI	H,FCBfromCCP;yes, move this name into second slot.
+	LXI	D,FCBfromCCP+16
 	MVI	B,16
 	CALL	HL2DE
 	LHLD	InBuffAddress	;get input pointer.
 	XCHG
-	CALL	NONBLANK;get next non blank character.
+	CALL	NextNonBlankChar;get next non blank character.
 	CPI	EQUALS		; '='	;only allow an '=' or '_' seperator.
 	JZ	RENAME1
 	CPI	USCORE		; '_'
@@ -1227,7 +1187,7 @@ RENAME1:
 	JNZ	RENAME5	;again, no wild cards.
 	POP	PSW	;if a drive was specified, then it
 	MOV	B,A	;must be the same as before.
-	LXI	H,CHGDRV
+	LXI	H,ChangeDriveFlag
 	MOV	A,M
 	ORA	A
 	JZ	RENAME2
@@ -1237,11 +1197,11 @@ RENAME1:
 RENAME2:
 	MOV	M,B;	reset as per the first file specification.
 	XRA	A
-	STA	FCB	;clear the drive byte of the fcb.
+	STA	FCBfromCCP;clear the drive byte of the fcb.
 RENAME3:
 	CALL	SRCHFCB	;and go look for second file.
 	JZ	RENAME4	;doesn't exist?
-	LXI	D,FCB
+	LXI	D,FCBfromCCP
 	CALL	RENAM	;ok, rename the file.
 	JMP	GETBACK
 ;
@@ -1271,7 +1231,7 @@ USER:
 	CPI	16	;legal user number?
 	JNC	SYNERR
 	MOV	E,A	;yes but is there anything else?
-	LDA	FCB+1
+	LDA	FCBfromCCP+1
 	CPI	BLANK
 	JZ	SYNERR	;yes, that is not allowed.
 	CALL	GetSetCurrentUser;ok, set user code.
@@ -1285,10 +1245,10 @@ USER:
 ;
 UNKNOWN:
 ;e68b	CALL	VERIFY	;check for valid system (why?).
-	LDA		FCB+1		;anything to execute?
+	LDA		FCBfromCCP+1		;anything to execute?
 	CPI		BLANK		; is it a Space?
 	JNZ		UNKWN1
-	LDA		CHGDRV		; No, only a drive change?
+	LDA		ChangeDriveFlag		; No, only a drive change?
 	ORA		A			; Is itEmpty (00)
 	JZ		GETBACK1	; Yes, get otta here?
 	DCR		A
@@ -1300,7 +1260,7 @@ UNKNOWN:
 ;   Here a file name was typed. Prepare to execute it.
 ;
 UNKWN1:
-	LXI	D,FCB+9	;an extension specified?
+	LXI	D,FCBfromCCP+9	;an extension specified?
 	LDAX	D
 	CPI	BLANK
 	JNZ	SYNERR	;yes, not allowed.
@@ -1320,7 +1280,7 @@ UNKWN3:
 	PUSH	H
 	XCHG
 	CALL	DMASET	;set transfer address.
-	LXI	D,FCB	;and read the next record.
+	LXI	D,FCBfromCCP;and read the next record.
 	CALL	RDREC
 	JNZ	UNKWN4	;end of file or read error?
 	POP	H	;nope, bump pointer for next sector.
@@ -1342,19 +1302,19 @@ UNKWN4:
 	JNZ	UNKWN0
 	CALL	RESETDR	;yes, reset previous drive.
 	CALL	CONVFST	;convert the first file name that follows
-	LXI	H,CHGDRV;command name.
+	LXI	H,ChangeDriveFlag;command name.
 	PUSH	H
 	MOV	A,M	;set drive code in default fcb.
-	STA	FCB
+	STA	FCBfromCCP
 	MVI	A,16	;put second name 16 bytes later.
 	CALL	CONVERT	;convert second file name.
 	POP	H
 	MOV	A,M	;and set the drive for this second file.
-	STA	FCB+16
+	STA	FCBfromCCP+16
 	XRA	A	;clear record byte in fcb.
-	STA	FCB+32
-	LXI	D,TFCB	;move it into place at(005Ch).
-	LXI	H,FCB
+	STA	FCBfromCCP+32
+	LXI	D,DefaultFCB	;move it into place at(005Ch).
+	LXI	H,FCBfromCCP
 	MVI	B,33
 	CALL	HL2DE
 	LXI	H,InBuff			;now move the remainder of the input
@@ -1386,12 +1346,12 @@ UNKWN8:
 	STA	Pg0Buffer
 	CALL	CRLF	;clean up the screen.
 	CALL	STDDMA	;set standard transfer address.
-	CALL	SETCDRV	;reset current drive.
+	CALL	SetCurrentDrive	;reset current drive.
 	CALL	TBASE	;and execute the program.
 ;
 ;   Transiant programs return here (or reboot).
 ;
-	LXI	SP,BATCH	;set stack first off.
+	LXI	SP,BatchFlag	;set stack first off.
 	CALL	MOVECD	;move current drive into place (TDRIVE).
 	CALL	DSKSEL	;and reselect it.
 	JMP	CMMND1	;back to comand mode.
@@ -1418,9 +1378,9 @@ GETBACK:
 	CALL	RESETDR	;reset previous drive.
 GETBACK1:
 	CALL	CONVFST	;convert first name in (FCB).
-	LDA	FCB+1	;if this was just a drive change request,
+	LDA	FCBfromCCP+1	;if this was just a drive change request,
 	SUI	BLANK	;make sure it was valid.
-	LXI	H,CHGDRV
+	LXI	H,ChangeDriveFlag
 	ORA	M
 	JNZ	SYNERR
 	JMP	CMMND1	;ok, return to command level.
@@ -1432,20 +1392,20 @@ CCPStack	EQU	$	;end of ccp stack area.
 ;
 ;   Batch (or SUBMIT) processing information storage.
 ;
-BATCH:
+BatchFlag:
 	DB	0	;batch mode flag (0=not active).
 BATCHFCB:
 DB	0,'$$$     SUB',0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ;
 ;   File control block setup by the CCP.
 ;
-FCB:
+FCBfromCCP:
 	DB	0,'           ',0,0,0,0,0,'           ',0,0,0,0,0
 RTNCODE:
 	DB	0	;status returned from bdos call.
 CDRIVE:
 	DB	0	;currently active drive.
-CHGDRV:
+ChangeDriveFlag:
 	DB	0	;change in drives flag (0=no change).
 NBYTES:
 	DW	0	;byte counter used by TYPE.
@@ -1716,7 +1676,7 @@ CKCON2:
 ; will be checked in the process.
 ;
 OUTCHAR:
-	LDA	OUTFLAG	;check output flag.
+	LDA	OutPutFlag	;check output flag.
 	ORA	A	;anything and we won't generate output.
 	JNZ	OUTCHR1
 	PUSH	B
@@ -1726,13 +1686,13 @@ OUTCHAR:
 	CALL	biosConsoleOut	;output (C) to the screen.
 	POP	B
 	PUSH	B
-	LDA	PRTFLAG	;check printer flip-flop flag.
+	LDA	PrinterFlag	;check printer flip-flop flag.
 	ORA	A
 	CNZ	fcListOut	;print it also if non-zero.
 	POP	B
 OUTCHR1:
 	MOV	A,C	;update cursors position.
-	LXI	H,CURPOS
+	LXI	H,CursorPosition
 	CPI	DEL	;rubouts don't do anything here.
 	RZ
 	INR	M	;bump line pointer.
@@ -1756,7 +1716,7 @@ OUTCHR2:
 ;   Output (A) to the screen. If it is a control character
 ; (other than carriage control), use ^x format.
 ;
-SHOWIT:
+DisplayAcc:
 	MOV	A,C
 	CALL	CHKCHAR	;check character.
 	JNC	fcConsoleOut	;not a control, use normal output.
@@ -1777,7 +1737,7 @@ fcConsoleOut:
 fcConsoleOut1:
 	MVI	C,BLANK	;yes it is, use spaces instead.
 	CALL	OUTCHAR
-	LDA	CURPOS	;go until the cursor is at a multiple of 8
+	LDA	CursorPosition	;go until the cursor is at a multiple of 8
 
 	ANI	07H	;position.
 	JNZ	fcConsoleOut1
@@ -1786,11 +1746,11 @@ fcConsoleOut1:
 ;   Echo a backspace character. Erase the prevoius character
 ; on the screen.
 ;
-BACKUP:
-	CALL	BACKUP1	;backup the screen 1 place.
+BackUp:
+	CALL	BackUp1	;backup the screen 1 place.
 	MVI	C,BLANK	;then blank that character.
 	CALL	biosConsoleOut
-BACKUP1:
+BackUp1:
 	MVI	C,BS	;then back space once more.
 	JMP	biosConsoleOut
 ;
@@ -1802,8 +1762,8 @@ NEWLINE:
 	CALL	OUTCHAR	;print this.
 	CALL	OUTCRLF	;start new line.
 NEWLN1:
-	LDA	CURPOS	;move the cursor to the starting position.
-	LXI	H,STARTING
+	LDA	CursorPosition	;move the cursor to the starting position.
+	LXI	H,CursorPositionStart
 	CMP	M
 	RNC		;there yet?
 	MVI	C,BLANK
@@ -1834,91 +1794,101 @@ PRTMESG:
 ;   Function to execute a buffered read.
 ;
 fcConsoleStringIn:
-	LDA	CURPOS	;use present location as starting one.
-	STA	STARTING
-	LHLD	ParamsDE	;get the maximum buffer space.
-	MOV	C,M
-	INX	H	;point to first available space.
-	PUSH	H	;and save.
-	MVI	B,0	;keep a character count.
+	LDA		CursorPosition		;use present location as starting one.
+	STA		CursorPositionStart
+	LHLD	ParamsDE			; get the pointer to maximum buffer space.
+	MOV		C,M					; load size in C
+	INX		H					; point to first available space.
+	PUSH	H					; and save.
+	MVI		B,0					; keep a character count.
 RDBUF1:
-	PUSH	B
-	PUSH	H
+	PUSH	B					; save the buffer size (C) and character count (B)
+	PUSH	H					; save buffer position 
 RDBUF2:
-	CALL	GETCHAR	;get the next input character.
-	ANI	7FH	;strip bit 7.
-	POP	H	;reset registers.
-	POP	B
-	CPI	CR	;en of the line?
-	JZ	RDBUF17
-	CPI	LF
-	JZ	RDBUF17
-	CPI	BS	;how about a backspace?
-	JNZ	RDBUF3
-	MOV	A,B	;yes, but ignore at the beginning of the line.
-	ORA	A
-	JZ	RDBUF1
-	DCR	B	;ok, update counter.
-	LDA	CURPOS	;if we backspace to the start of the line,
-	STA	OUTFLAG	;treat as a cancel (control-x).
-	JMP	RDBUF10
+	CALL	GETCHAR				; get the next input character.
+	ANI		7FH					; strip bit 7. - only want 7-bit ascii
+	POP		H					; get the buffer position
+	POP		B					; save the buffer size (C) and character count (B)
+	CPI		CR					; end of the line?
+	JZ		RDBUF17				; Yes - then were are done
+	CPI		LF
+	JZ		RDBUF17				; same goes for Carriage Return
+	
+	CPI		BS					; how about a backspace?
+	JNZ		RDBUF3				; if not skip the following
+								; backSpace
+	MOV		A,B					; ignore at the beginning of the line.
+	ORA		A
+	JZ		RDBUF1				; go back if at start of the line
+	
+	DCR		B					; ok, update counter.
+	LDA		CursorPosition		; if we backspace to the start of the line,
+	STA		OutPutFlag			; treat as a cancel (control-x).
+	JMP		RDBUF10
+	
 RDBUF3:
-	CPI	DEL	;user typed a rubout?
-	JNZ	RDBUF4
-	MOV	A,B	;ignore at the start of the line.
-	ORA	A
-	JZ	RDBUF1
-	MOV	A,M	;ok, echo the prevoius character.
-	DCR	B	;and reset pointers (counters).
-	DCX	H
-	JMP	RDBUF15
+	CPI		DEL					; user typed a rubout?
+	JNZ		RDBUF4				; no? - skip the following
+	MOV		A,B					; at the start of the line?.
+	ORA		A
+	JZ		RDBUF1				; ignore at the start of the line.
+	
+	MOV		A,M					; ok, echo the prevoius character.
+	DCR		B					; and reset pointers (counters).
+	DCX		H
+	JMP		RDBUF15
+	
 RDBUF4:
-	CPI	CNTRLE	;physical end of line?
-	JNZ	RDBUF5
-	PUSH	B	;yes, do it.
-	PUSH	H
-	CALL	OUTCRLF
-	XRA	A	;and update starting position.
-	STA	STARTING
-	JMP	RDBUF2
+	CPI		CNTRLE				; physical end of line?
+	JNZ		RDBUF5				; yes, skip the following
+	PUSH	B					; save the buffer size (C) and character count (B)
+	PUSH	H					; save buffer position 
+	CALL	OUTCRLF				; send a crlf to the console
+	XRA		A					; and update starting position.
+	STA		CursorPositionStart
+	JMP		RDBUF2				; aqnd keep on trucking
+	
 RDBUF5:
-	CPI	CNTRLP	;control-p?
-	JNZ	RDBUF6
-	PUSH	H	;yes, flip the print flag filp-flop byte.
-	LXI	H,PRTFLAG
-	MVI	A,1	;PRTFLAG=1-PRTFLAG
-	SUB	M
-	MOV	M,A
-	POP	H
-	JMP	RDBUF1
+	CPI		CNTRLP				; control-p? Print flag toggle
+	JNZ		RDBUF6				; if not skip the following
+	PUSH	H					; yes, flip the print flag filp-flop byte.
+	LXI		H,PrinterFlag
+	MVI		A,1					; PrinterFlag=1-PrinterFlag
+	SUB		M
+	MOV		M,A
+	POP		H					; get the buffer position
+	JMP		RDBUF1				; nothing to put into buffer go back for more
+	
 RDBUF6:
-	CPI	CNTRLX	;control-x (cancel)?
-	JNZ	RDBUF8
-	POP	H
+	CPI		CNTRLX				; control-x (cancel)?
+	JNZ		RDBUF8				; no? skip the following
+	POP		H					; get the buffer position
 RDBUF7:
-	LDA	STARTING;yes, backup the cursor to here.
-	LXI	H,CURPOS
-	CMP	M
-	JNC	fcConsoleStringIn	;done yet?
-	DCR	M	;no, decrement pointer and output back up one space.
-	CALL	BACKUP
-	JMP	RDBUF7
+	LDA		CursorPositionStart ; yes, backup the cursor to here.
+	LXI		H,CursorPosition
+	CMP		M					; done yet?
+	JNC		fcConsoleStringIn	; yes - go back to the start of reading a line of input
+	DCR		M					; no, decrement pointer and output back up one space.
+	CALL	BackUp				; do the backup
+	JMP		RDBUF7				; keep doing until done
+	
 RDBUF8:
-	CPI	CNTRLU	;cntrol-u (cancel line)?
-	JNZ	RDBUF9
-	CALL	NEWLINE	;start a new line.
-	POP	H
-	JMP	fcConsoleStringIn
+	CPI		CNTRLU				; cntrol-u (cancel line)?
+	JNZ		RDBUF9
+	CALL	NEWLINE				; start a new line.
+	POP		H					; get the buffer position
+	JMP		fcConsoleStringIn	; go back to the start of reading a line of input
+	
 RDBUF9:
-	CPI	CNTRLR	;control-r?
-	JNZ	RDBUF14
-RDBUF10:
-	PUSH	B	;yes, start a new line and retype the old one.
+	CPI		CNTRLR				; control-r?
+	JNZ		RDBUF14
+RDBUF10:;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	PUSH	B					; save the buffer size (C) and character count (B)
 	CALL	NEWLINE
-	POP	B
-	POP	H
-	PUSH	H
-	PUSH	B
+	POP		H					; get the buffer position
+	POP		B					; save the buffer size (C) and character count (B)
+	PUSH	B					; save the buffer size (C) and character count (B)
+	PUSH	H					; save buffer position 
 RDBUF11:
 	MOV	A,B	;done whole line yet?
 	ORA	A
@@ -1926,23 +1896,23 @@ RDBUF11:
 	INX	H	;nope, get next character.
 	MOV	C,M
 	DCR	B	;count it.
-	PUSH	B
-	PUSH	H
-	CALL	SHOWIT	;and display it.
-	POP	H
-	POP	B
+	PUSH	B					; save the buffer size (C) and character count (B)
+	PUSH	H					; save buffer position 
+	CALL	DisplayAcc	;and display it.
+	POP		H					; get the buffer position
+	POP		B					; save the buffer size (C) and character count (B)
 	JMP	RDBUF11
 RDBUF12:
-	PUSH	H	;done with line. If we were displaying
-	LDA	OUTFLAG	;then update cursor position.
+	PUSH	H					; save buffer position 
+	LDA	OutPutFlag	;then update cursor position.
 	ORA	A
 	JZ	RDBUF2
-	LXI	H,CURPOS;because this line is shorter, we must
+	LXI	H,CursorPosition;because this line is shorter, we must
 	SUB	M	;back up the cursor (not the screen however)
-	STA	OUTFLAG	;some number of positions.
+	STA	OutPutFlag	;some number of positions.
 RDBUF13:
-	CALL	BACKUP	;note that as long as (OUTFLAG) is non
-	LXI	H,OUTFLAG;zero, the screen will not be changed.
+	CALL	BackUp	;note that as long as (OutPutFlag) is non
+	LXI	H,OutPutFlag;zero, the screen will not be changed.
 	DCR	M
 	JNZ	RDBUF13
 	JMP	RDBUF2	;now just get the next character.
@@ -1950,30 +1920,30 @@ RDBUF13:
 ;   Just a normal character, put this in our buffer and echo.
 ;
 RDBUF14:
-	INX	H
-	MOV	M,A	;store character.
-	INR	B	;and count it.
+	INX		H
+	MOV		M,A				; store character.
+	INR		B				; and count it.
 RDBUF15:
-	PUSH	B
-	PUSH	H
-	MOV	C,A	;echo it now.
-	CALL	SHOWIT
-	POP	H
-	POP	B
-	MOV	A,M	;was it an abort request?
-	CPI	CNTRLC	;control-c abort?
-	MOV	A,B
-	JNZ	RDBUF16
-	CPI	1	;only if at start of line.
-	JZ	0
+	PUSH	B				; save the buffer size (C) and character count (B)
+	PUSH	H				; save buffer position 
+	MOV		C,A				;echo it now.
+	CALL	DisplayAcc		; put it out to the console
+	POP		H				; get the buffer position
+	POP		B				; save the buffer size (C) and character count (B)
+	MOV		A,M				; was it an abort request?
+	CPI		CNTRLC			; control-c abort?
+	MOV		A,B				; get character count to Acc
+	JNZ		RDBUF16
+	CPI		1				; only if at start of line.
+	JZ		0				; do we do a reboot
 RDBUF16:
-	CMP	C	;nope, have we filled the buffer?
-	JC	RDBUF1
+	CMP		C				; have we filled the buffer?
+	JC		RDBUF1			; no- go back for more		
 RDBUF17:
-	POP	H	;yes end the line and return.
-	MOV	M,B
-	MVI	C,CR
-	JMP	OUTCHAR	;output (cr) and return.
+	POP		H				; yes end the line and return.
+	MOV		M,B
+	MVI		C,CR
+	JMP		OUTCHAR	;output (cr) and return.
 ;
 ;   Function to get a character from the console device.
 ;
@@ -2046,10 +2016,10 @@ IOERR1:
 	MVI	A,1
 	JMP	SetStatusBDOS
 ;
-OUTFLAG:	DB	0	;output flag (non zero means no output).
-STARTING:	DB	2	;starting position for cursor.
-CURPOS:		DB	0	;cursor position (0=start of line).
-PRTFLAG:	DB	0	;printer flag (control-p toggle). List if non zero.
+OutPutFlag:	DB	0	;output flag (non zero means no output).
+CursorPositionStart:	DB	2	;starting position for cursor.
+CursorPosition:		DB	0	;cursor position (0=start of line).
+PrinterFlag:	DB	0	;printer flag (control-p toggle). List if non zero.
 CHARBUF:	DB	0	;single input character buffer.
 ;
 ;   Stack area for BDOS calls.
@@ -2174,19 +2144,19 @@ IORET:
 ;   Routine to select the track and sector that the desired
 ; block number falls in.
 ;
-TRKSEC:
-	LHLD	FilePosInDirectory	; get position of last accessed file
-	MVI		C,2				; in directory and compute sector #.
-	CALL	HLrightC		; sector #=file-position/4.
-	SHLD	BLKNMBR			; save this as the block number of interest.
-	SHLD	CKSUMTBL		; what's it doing here too?
+TrackSectorForDir:
+	LHLD	FilePosInDirectory		; get position of last accessed file
+	MVI		C,2						; there are 4 directory entries/Sector.
+	CALL	HLrightC				; file-position/4 = sector #
+	SHLD	BlockNumber				; save this as the block number of interest.
+	SHLD	CheckSumTable			; what's it doing here too?
 ;
-;   if the sector number has already been set (BLKNMBR), enter
+;   if the sector number has already been set (BlockNumber), enter
 ; at this point.
-;
-TRKSEC1:
-		;move Desired sector number into (BC).
-	LXI		H,BLKNMBR
+;Save
+TrackSectorForBlock:
+		;move Desired Block number into (BC).
+	LXI		H,BlockNumber
 	MOV		C,M				
 	INX		H
 	MOV		B,M
@@ -2202,12 +2172,12 @@ TRKSEC1:
 	MOV		H,M
 	MOV		L,A
 	
-TRKSEC2:
+TrackSectorForBlock1:
 	MOV		A,C			;is desired sector before current one?
 	SUB		E
 	MOV		A,B
 	SBB		D
-	JNC		TRKSEC3
+	JNC		TrackSectorForBlock2
 	PUSH	H			;yes, decrement sectors by one track.
 	LHLD	SECTORS		;get sectors per track.
 	MOV		A,E
@@ -2218,26 +2188,26 @@ TRKSEC2:
 	MOV		D,A			;now we have backed up one full track.
 	POP		H
 	DCX		H			;adjust track counter.
-	JMP		TRKSEC2
-TRKSEC3:
+	JMP		TrackSectorForBlock1
+TrackSectorForBlock2:
 	PUSH	H			;desired sector is after current one.
 	LHLD	SECTORS		;get sectors per track.
 	DAD	D				;bump sector pointer to next track.
-	JC		TRKSEC4
+	JC		TrackSectorForBlock3
 	MOV		A,C			;is desired sector now before current one?
 	SUB		L
 	MOV		A,B
 	SBB		H
-	JC		TRKSEC4
+	JC		TrackSectorForBlock3
 	XCHG				;not yes, increment track counter
 	POP		H			;and continue until it is.
 	INX		H
-	JMP		TRKSEC3
+	JMP		TrackSectorForBlock2
 ;
 ;   here we have determined the track number that contains the
 ; desired sector.
 ;
-TRKSEC4:
+TrackSectorForBlock3:
 	POP		H			;get track number (HL).
 	PUSH	B
 	PUSH	D
@@ -2330,26 +2300,26 @@ COMBLK:
 	MOV	C,A
 	MVI	B,0
 	CALL	EXTBLK
-	SHLD	BLKNMBR
+	SHLD	BlockNumber
 	RET
 ;
 ;   Check for a zero block number (unused).
 ;
 CHKBLK:
-	LHLD	BLKNMBR
+	LHLD	BlockNumber
 	MOV	A,L	;is it zero?
 	ORA	H
 	RET
 ;
-;   Adjust physical block (BLKNMBR) and convert to logical
+;   Adjust physical block (BlockNumber) and convert to logical
 ; sector (LOGSECT). This is the starting sector of this block.
 ; The actual sector of interest is then added to this and the
-; resulting sector number is stored back in (BLKNMBR). This
+; resulting sector number is stored back in (BlockNumber). This
 ; will still have to be adjusted for the track number.
 ;
 LOGICAL:
 	LDA	BLKSHFT	;get log2(physical/logical sectors).
-	LHLD	BLKNMBR	;get physical sector desired.
+	LHLD	BlockNumber	;get physical sector desired.
 LOGICL1:
 	DAD	H	;compute logical sector number.
 	DCR	A	;note logical sectors are 128 bytes long.
@@ -2361,7 +2331,7 @@ LOGICL1:
 	ANA	C	;extract the relative position within physical block.
 	ORA	L	;and add it too logical sector.
 	MOV	L,A
-	SHLD	BLKNMBR	;and store.
+	SHLD	BlockNumber	;and store.
 	RET
 ;
 ;   Set (HL) to point to extent byte in fcb.
@@ -2593,16 +2563,16 @@ SETDIR:
 ; then this disk will be write protected.
 ;
 CHECKDIR:
-	LHLD	CKSUMTBL
+	LHLD	CheckSumTable
 	XCHG
 	LHLD	DirectoryFAT1
 	CALL	DEminusHL2HL
-	RNC		;ok if (CKSUMTBL) > (DirectoryFAT1), so return.
+	RNC		;ok if (CheckSumTable) > (DirectoryFAT1), so return.
 	PUSH	B
 	CALL	CheckSum;else compute checksum.
 	LHLD	CHKVECT	;get address of checksum table.
 	XCHG
-	LHLD	CKSUMTBL
+	LHLD	CheckSumTable
 	DAD	D	;set (HL) to point to byte for this drive.
 	POP	B
 	INR	C	;set or check ?
@@ -2695,7 +2665,7 @@ GetNextEntry:
 	INX		H					
 	SHLD	FilePosInDirectory			; save  the next location
 	CALL	DEminusHL2HL				; (HL)=(DrectorySize)-(FilePosInDirectory)
-	JC		InitializeFilePosition		; If no more entries, set this flag and return.
+	JC		InitializeFilePosition		; If no more entries, set this flag and exit.
 ;	JNC		GetNextEntry1		; are there any more entries?
 ;	JMP		InitializeFilePosition		; No. - Set this flag and return.	
 ;GetNextEntry1:
@@ -2709,6 +2679,7 @@ GetNextEntry:
 	ADD		A						; a * 8  - start of the directory entry for this
 	ADD		A						; a * 16 - file
 	ADD		A						; a * 32
+									; The value in A is: 0,32,64 or 96
 	
 ;	MVI		B,5					; convert to relative position (32 bytes each).
 ;GetNextEntry2:
@@ -2719,8 +2690,8 @@ GetNextEntry:
 	STA		FCBPosition			; save it as position of fcb.
 	ORA		A
 	RNZ						; return if we are within buffer. ?????????
-	PUSH	B
-	CALL	TRKSEC		;we need the next directory sector.
+	PUSH	B					; save C, checksum behavior flag
+	CALL	TrackSectorForDir		;we need the next directory sector.
 	CALL	DIRREAD
 	POP		B
 	JMP		CHECKDIR
@@ -3093,7 +3064,7 @@ UPDATE:
 	POP	B	;set (C) to number of bytes to change.
 	CALL	DEtoHL
 UPDATE1:
-	CALL	TRKSEC	;determine the track and sector affected.
+	CALL	TrackSectorForDir	;determine the track and sector affected.
 	JMP	DIRWRITE	;then write this sector out.
 ;
 ;   Routine to change the name of all files on the disk with a
@@ -3400,8 +3371,8 @@ RDSEQ2:
 	CALL	COMBLK	;ok. compute block number to read.
 	CALL	CHKBLK	;check it. Within bounds?
 	JZ	RDSEQ3	;no, error.
-	CALL	LOGICAL	;convert (BLKNMBR) to logical sector (128 byte).
-	CALL	TRKSEC1	;set the track and sector for this block #.
+	CALL	LOGICAL	;convert (BlockNumber) to logical sector (128 byte).
+	CALL	TrackSectorForBlock	;set the track and sector for this block #.
 	CALL	DOREAD	;and read it.
 	JMP	SETNREC	;and set the next record to be accessed.
 ;
@@ -3447,7 +3418,7 @@ WTSEQ2:
 	MVI	A,2	;no more space?
 	JMP	SetStatusBDOS
 WTSEQ3:
-	SHLD	BLKNMBR	;save block number to access.
+	SHLD	BlockNumber	;save block number to access.
 	XCHG		;put block number into (DE).
 	LHLD	ParamsDE	;now we must update the fcb for this
 	LXI	B,16	;newly allocated block.
@@ -3474,7 +3445,7 @@ WTSEQ6:
 	ORA	A
 	RNZ
 	PUSH	B	;yes, save write flag for bios (register C).
-	CALL	LOGICAL	;convert (BLKNMBR) over to loical sectors.
+	CALL	LOGICAL	;convert (BlockNumber) over to loical sectors.
 	LDA	MODE	;get access mode flag (1=sequential,
 	DCR	A	;0=random, 2=special?).
 	DCR	A
@@ -3502,12 +3473,12 @@ WTSEQ7:
 	LHLD	LOGSECT	;get sector that starts current block.
 	MVI	C,2	;set 'writing to unused space' flag.
 WTSEQ8:
-	SHLD	BLKNMBR	;save sector to write.
+	SHLD	BlockNumber	;save sector to write.
 	PUSH	B
-	CALL	TRKSEC1	;determine its track and sector numbers.
+	CALL	TrackSectorForBlock	;determine its track and sector numbers.
 	POP	B
 	CALL	DOWRITE	;now write out 128 bytes of zeros.
-	LHLD	BLKNMBR	;get sector number.
+	LHLD	BlockNumber	;get sector number.
 	MVI	C,0	;set normal write flag.
 	LDA	BLKMASK	;determine if we have written the entire
 	MOV	B,A	;physical block.
@@ -3516,14 +3487,14 @@ WTSEQ8:
 	INX	H	;prepare for the next one.
 	JNZ	WTSEQ8	;continue until (BLKMASK+1) sectors written.
 	POP	H	;reset next sector number.
-	SHLD	BLKNMBR
+	SHLD	BlockNumber
 	CALL	Set2UsersDMA	;and reset dma address.
 ;
 ;   Normal disk write. Set the desired track and sector then
 ; do the actual write.
 ;
 WTSEQ9:
-	CALL	TRKSEC1	;determine track and sector for this write.
+	CALL	TrackSectorForBlock	;determine track and sector for this write.
 	POP	B	;get write status flag.
 	PUSH	B
 	CALL	DOWRITE	;and write this out.
@@ -4271,7 +4242,7 @@ AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
 SAVNXT:					DB	0	;storage for next record number to access.
 SAVEXT:					DB	0	;storage for extent number of file.
 SAVNREC:				DW	0	;storage for number of records in file.
-BLKNMBR:				DW	0	;block number (physical sector) used within a file or logical sector.
+BlockNumber:				DW	0	;block number (physical sector) used within a file or logical sector.
 LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
 FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
 FilePosInDirectory:			DW	0	;files position within directory (0 to max entries -1).
@@ -4279,7 +4250,7 @@ FilePosInDirectory:			DW	0	;files position within directory (0 to max entries -1
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
 ;
-CKSUMTBL:
+CheckSumTable:
 	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ;
 ;   Extra space ?
