@@ -143,7 +143,7 @@
 0143: E0BA                ;                   
 0144: E0BA                ;   Routine to select disk (A).
 0145: E0BA                ;                   
-0146: E0BA                DSKSEL:             
+0146: E0BA                DiskSelect:         
 0147: E0BA     5F         	MOV		E,A           
 0148: E0BB     0E0E       	MVI		C,14          
 0149: E0BD     C30500     	JMP		ENTRY         
@@ -198,7 +198,7 @@
 0198: E0EC                ;                   
 0199: E0EC                ;   Routine to delete a file pointed to by (DE).
 0200: E0EC                ;                   
-0201: E0EC                DELETE:             
+0201: E0EC                DeleteFile:         
 0202: E0EC     0E13       	MVI		C,19          
 0203: E0EE     C30500     	JMP		ENTRY         
 0204: E0F1                ;                   
@@ -302,7 +302,7 @@
 0302: E13D     3ABDE7     	LDA		CDRIVE		;select drive 0 if need be.
 0303: E140     B7         	ORA		A             
 0304: E141     3E00       	MVI		A,0			;always use drive A for submit.
-0305: E143     C4BAE0     	CNZ		DSKSEL		;select it if required.
+0305: E143     C4BAE0     	CNZ		DiskSelect		;select it if required.
 0306: E146     117AE7     	LXI		D,BATCHFCB    
 0307: E149     CDC8E0     	CALL	OPEN		;look for it.
 0308: E14C     CA93E1     	JZ		InputLineConsole		;if not there, use normal input.
@@ -328,7 +328,7 @@
 0328: E177     CA93E1     	JZ		InputLineConsole		;quit on an error.
 0329: E17A     3ABDE7     	LDA		CDRIVE		;re-select previous drive if need be.
 0330: E17D     B7         	ORA		A             
-0331: E17E     C4BAE0     	CNZ		DSKSEL		;don't do needless selects.
+0331: E17E     C4BAE0     	CNZ		DiskSelect		;don't do needless selects.
 0332: E181                ;                   
 0333: E181                ;   Print line just read on console.
 0334: E181                ;                   
@@ -415,11 +415,11 @@
 0415: E1DF     C8         	RZ                 
 0416: E1E0     3600       	MVI		M,0				;yes, de-activate it.
 0417: E1E2     AF         	XRA		A             
-0418: E1E3     CDBAE0     	CALL	DSKSEL			;select drive 0 for sure.
+0418: E1E3     CDBAE0     	CALL	DiskSelect			;select drive 0 for sure.
 0419: E1E6     117AE7     	LXI		D,BATCHFCB		;and delete this file.
-0420: E1E9     CDECE0     	CALL	DELETE        
+0420: E1E9     CDECE0     	CALL	DeleteFile    
 0421: E1EC     3ABDE7     	LDA		CDRIVE			;reset current drive.
-0422: E1EF     C3BAE0     	JMP		DSKSEL        
+0422: E1EF     C3BAE0     	JMP		DiskSelect    
 0423: E1F2                ;                   
 0424: E1F2                ;   Check to two strings at (PATTRN1) and (PATTRN2). They must be
 0425: E1F2                ; the same or we halt....
@@ -569,49 +569,49 @@
 0569: E28B     C384E2     	JMP		CONVRT7				; and see if its a demiliter
 0570: E28E                                    
 0571: E28E                GetExtension:       
-0572: E28E     0603       	MVI		B,03H			; file extension size
-0573: E290     FE2E       	CPI		PERIOD			; do we have the Period '.'
-0574: E292                ;	JNZ		PADEXT			; No, Pad fill the extension
-0575: E292     CA9BE2     	JZ		GetExtension1	; yes, process the extension
-0576: E295     CDE1E2     	CALL	PadField		; No, Pad fill the extension
-0577: E298     C3A9E2     	JMP		ClearS1S2EX		; process the stuff after the extension
+0572: E28E     0603       	MVI		B,03H				; file extension size
+0573: E290     FE2E       	CPI		PERIOD				; do we have the Period '.'
+0574: E292                ;	JNZ		PADEXT				; No, Pad fill the extension
+0575: E292     CA9BE2     	JZ		GetExtension1		; yes, process the extension
+0576: E295     CDE1E2     	CALL	PadField			; No, Pad fill the extension
+0577: E298     C3A9E2     	JMP		ClearS1S2EX			; process the stuff after the extension
 0578: E29B                GetExtension1:      
-0579: E29B     13         	INX		D				; get past the period
-0580: E29C     CDC9E2     	CALL	ExpandName		; Expand all 3 characters in extension
+0579: E29B     13         	INX		D					; get past the period
+0580: E29C     CDC9E2     	CALL	ExpandName			; Expand all 3 characters in extension
 0581: E29F                                    
 0582: E29F                GetExtension4:      
-0583: E29F     CD19E2     	CALL	IsItValidCharacter		; Do we have a delimiter ?.
-0584: E2A2     CAA9E2     	JZ		ClearS1S2EX		; Yes, Clear the EX, S1 & S2
-0585: E2A5     13         	INX		D				; No, point a the next character
-0586: E2A6     C39FE2     	JMP		GetExtension4	; and see if its a demiliter
+0583: E29F     CD19E2     	CALL	IsItValidCharacter	; Do we have a delimiter ?.
+0584: E2A2     CAA9E2     	JZ		ClearS1S2EX			; Yes, Clear the EX, S1 & S2
+0585: E2A5     13         	INX		D					; No, point a the next character
+0586: E2A6     C39FE2     	JMP		GetExtension4		; and see if its a demiliter
 0587: E2A9                	                   
 0588: E2A9                ClearS1S2EX:        
-0589: E2A9     0603       	MVI		B,03H		; set count for clearing EX, S1 & S2
+0589: E2A9     0603       	MVI		B,03H				; set count for clearing EX, S1 & S2
 0590: E2AB                ClearS1S2EX1:       
-0591: E2AB     23         	INX		H			; point at location in the CCP FCB
-0592: E2AC     3600       	MVI		M,0			; initialize it
-0593: E2AE     05         	DCR		B			; keep count
-0594: E2AF     C2ABE2     	JNZ		ClearS1S2EX1	; loop til done
+0591: E2AB     23         	INX		H					; point at location in the CCP FCB
+0592: E2AC     3600       	MVI		M,0					; initialize it
+0593: E2AE     05         	DCR		B					; keep count
+0594: E2AF     C2ABE2     	JNZ		ClearS1S2EX1		; loop til done
 0595: E2B2     EB         	XCHG               
 0596: E2B3     2285E0     	SHLD	InBuffAddress		; save current input line pointer.
-0597: E2B6     E1         	POP		H			; point at correct CCP FCB
+0597: E2B6     E1         	POP		H					; point at correct CCP FCB
 0598: E2B7                ;                   
 0599: E2B7                ;   Check to see if this is an ambigeous file name specification.
 0600: E2B7                ; Set the (A) register to non zero if it is.
 0601: E2B7                ;                   
 0602: E2B7                ;AFN - Ambiguous File Name
-0603: E2B7     010B00     	LXI		B,11		; set name & Extension length .
+0603: E2B7     010B00     	LXI		B,11				; set name & Extension length .
 0604: E2BA                AFN:                
 0605: E2BA     23         	INX		H             
 0606: E2BB     7E         	MOV		A,M           
-0607: E2BC     FE3F       	CPI		QMARK		; '?'	;any question marks?
+0607: E2BC     FE3F       	CPI		QMARK				; '?'	;any question marks?
 0608: E2BE     C2C2E2     	JNZ		AFN1          
-0609: E2C1     04         	INR		B			; increment count
+0609: E2C1     04         	INR		B					; increment count
 0610: E2C2                AFN1:               
 0611: E2C2     0D         	DCR		C             
-0612: E2C3     C2BAE2     	JNZ		AFN			; loop if not done
-0613: E2C6     78         	MOV		A,B			; B has the question mark count 
-0614: E2C7     B7         	ORA		A			; set the Z flag for calling routine
+0612: E2C3     C2BAE2     	JNZ		AFN					; loop if not done
+0613: E2C6     78         	MOV		A,B					; B has the question mark count 
+0614: E2C7     B7         	ORA		A					; set the Z flag for calling routine
 0615: E2C8     C9         	RET                
 0616: E2C9                	                   
 0617: E2C9                ;                   
@@ -736,7 +736,7 @@
 0736: E345     79         	MOV			A,C						; move current disk to acc
 0737: E346                	AN			0FH						; isolate the drive number.
 0738: E346     32BDE7     	STA			CDRIVE					;	and save.
-0739: E349     CDBAE0     	CALL		DSKSEL					; ...and select.
+0739: E349     CDBAE0     	CALL		DiskSelect					; ...and select.
 0740: E34C     3A07E0     	LDA			InBuffCount  
 0741: E34F     B7         	ORA			A						; anything in input buffer already?
 0742: E350     C269E3     	JNZ			CMMND2					; yes, then just process it.
@@ -823,48 +823,48 @@
 0823: E3C9                ; name. On return, the number is in register (A). Any error
 0824: E3C9                ; causes 'filename?' to be printed and the command is aborted.
 0825: E3C9                ;                   
-0826: E3C9                DECODE:             
-0827: E3C9     CD47E2     	CALL	CONVFST		;convert first filename.
-0828: E3CC     3ABEE7     	LDA		ChangeDriveFlag		;do not allow a drive to be specified.
+0826: E3C9                GetCmdNumber:       
+0827: E3C9     CD47E2     	CALL	CONVFST				; convert first filename.
+0828: E3CC     3ABEE7     	LDA		ChangeDriveFlag		; do not allow a drive to be specified.
 0829: E3CF     B7         	ORA		A             
-0830: E3D0     C2F2E1     	JNZ		SYNERR		; exit with a syntax error
-0831: E3D3     219CE7     	LXI		H,FCBfromCCP+1		;convert number now.
-0832: E3D6     010B00     	LXI		B,11		;(B)=sum register, (C)=max digit count.
-0833: E3D9                DECODE1:            
-0834: E3D9     7E         	MOV		A,M			; get the caracter from the CCP FCB
-0835: E3DA     FE20       	CPI		BLANK		; a space terminates the numeral.
-0836: E3DC     CA04E4     	JZ		PADNUMBER	; skip, the rest must be blanks
-0837: E3DF     23         	INX		H			; bump pointer
-0838: E3E0     D630       	SUI		030H  		; '0'	make binary from ascii. ZERO ????
-0839: E3E2     FE0A       	CPI		10			; legal digit?
-0840: E3E4     D2F2E1     	JNC		SYNERR		; exit with syntax error
-0841: E3E7     57         	MOV		D,A			; yes, save the number in (D).
+0830: E3D0     C2F2E1     	JNZ		SYNERR				; exit with a syntax error
+0831: E3D3     219CE7     	LXI		H,FCBfromCCP+1		; convert number now.
+0832: E3D6     010B00     	LXI		B,11				;(B)=sum register, (C)=max digit count.
+0833: E3D9                GetCmdNumber1:      
+0834: E3D9     7E         	MOV		A,M					; get the caracter from the CCP FCB
+0835: E3DA     FE20       	CPI		BLANK				; a space terminates the numeral.
+0836: E3DC     CA04E4     	JZ		PadNumber			; skip, the rest must be blanks
+0837: E3DF     23         	INX		H					; bump pointer
+0838: E3E0     D630       	SUI		030H  				; '0'	make binary from ascii. ZERO ????
+0839: E3E2     FE0A       	CPI		10					; legal digit?
+0840: E3E4     D2F2E1     	JNC		SYNERR				; exit with syntax error
+0841: E3E7     57         	MOV		D,A					; yes, save the number in (D).
 0842: E3E8                	;                  
-0843: E3E8     78         	MOV		A,B			; compute (B)=(B)*10 and check for overflow.
+0843: E3E8     78         	MOV		A,B					; compute (B)=(B)*10 and check for overflow.
 0844: E3E9     E6E0       	ANI		0E0H          
-0845: E3EB     C2F2E1     	JNZ		SYNERR		; Exit with math overflow error??
+0845: E3EB     C2F2E1     	JNZ		SYNERR				; Exit with math overflow error??
 0846: E3EE     78         	MOV		A,B           
 0847: E3EF     07         	RLC                
 0848: E3F0     07         	RLC                
-0849: E3F1     07         	RLC					;(A)=(B)*8 
-0850: E3F2     80         	ADD		B			;.......*9
-0851: E3F3     DAF2E1     	JC		SYNERR		; Exit with math overflow error??	
-0852: E3F6     80         	ADD		B			;.......*10
-0853: E3F7     DAF2E1     	JC		SYNERR		; Exit with math overflow error??
-0854: E3FA     82         	ADD		D			;	add in new digit now.
-0855: E3FB     DAF2E1     	JC		SYNERR		; Exit with math overflow error??
-0856: E3FE     47         	MOV		B,A			;	and save result in B (subtotal)
-0857: E3FF     0D         	DCR		C			;	only look at 11 digits.
-0858: E400     C2D9E3     	JNZ		DECODE1       
-0859: E403     C9         	RET					; return with value in (A)
-0860: E404                PADNUMBER:          
-0861: E404     7E         	MOV		A,M			; spaces must follow (why?).
-0862: E405     FE20       	CPI		BLANK		; is it a blank
-0863: E407     C2F2E1     	JNZ		SYNERR		; exit with syntax error
-0864: E40A     23         	INX		H			; point at next
+0849: E3F1     07         	RLC							;(A)=(B)*8
+0850: E3F2     80         	ADD		B					;.......*9
+0851: E3F3     DAF2E1     	JC		SYNERR				; Exit with math overflow error??	
+0852: E3F6     80         	ADD		B					;.......*10
+0853: E3F7     DAF2E1     	JC		SYNERR				; Exit with math overflow error??
+0854: E3FA     82         	ADD		D					; add in new digit now.
+0855: E3FB     DAF2E1     	JC		SYNERR				; Exit with math overflow error??
+0856: E3FE     47         	MOV		B,A					; and save result in B (subtotal)
+0857: E3FF     0D         	DCR		C					; only look at 11 digits.
+0858: E400     C2D9E3     	JNZ		GetCmdNumber1 
+0859: E403     C9         	RET							; return with value in (A)
+0860: E404                PadNumber:          
+0861: E404     7E         	MOV		A,M					; spaces must follow (why?).
+0862: E405     FE20       	CPI		BLANK				; is it a blank
+0863: E407     C2F2E1     	JNZ		SYNERR				; exit with syntax error
+0864: E40A     23         	INX		H					; point at next
 0865: E40B     0D         	DCR		C             
-0866: E40C     C204E4     	JNZ		PADNUMBER	; loop till done
-0867: E40F     78         	MOV		A,B			;set (A)=the numeric value entered.
+0866: E40C     C204E4     	JNZ		PadNumber			; loop till done
+0867: E40F     78         	MOV		A,B					; set (A)=the numeric value entered.
 0868: E410     C9         	RET                
 0869: E411                ;                   
 0870: E411                ;   Move 3 bytes from (HL) to (DE). Note that there is only
@@ -897,17 +897,17 @@
 0897: E425                ; drive will be selected. In any case, the drive byte of the
 0898: E425                ; fcb will be set to null (means use current drive).
 0899: E425                ;                   
-0900: E425                DSELECT:            
-0901: E425     AF         	XRA		A             
-0902: E426     329BE7     	STA		FCBfromCCP			; null out first byte of fcb.
-0903: E429     3ABEE7     	LDA		ChangeDriveFlag			; is a drive change indicated?
+0900: E425                SelectDrive:        
+0901: E425     AF         	XRA		A					; clear the Acc
+0902: E426     329BE7     	STA		FCBfromCCP			; null out first byte of fcb. ie make it the default drive.
+0903: E429     3ABEE7     	LDA		ChangeDriveFlag		; is a drive change indicated?
 0904: E42C     B7         	ORA		A             
-0905: E42D     C8         	RZ						; No, drive OK
-0906: E42E     3D         	DCR		A				; yes, is it the same as the current drive?
+0905: E42D     C8         	RZ							; No, drive OK
+0906: E42E     3D         	DCR		A					; yes, is it the same as the current drive?
 0907: E42F     21BDE7     	LXI		H,CDRIVE      
-0908: E432     BE         	CMP		M				; FCB drive number same as this?
-0909: E433     C8         	RZ						; Yes, return 					
-0910: E434     C3BAE0     	JMP		DSKSEL			;	no. Select it then.
+0908: E432     BE         	CMP		M					; FCB drive number same as this?
+0909: E433     C8         	RZ							; Yes, return 					
+0910: E434     C3BAE0     	JMP		DiskSelect			;	no. Select it then.
 0911: E437                ;                   
 0912: E437                ;   Check the drive selection and reset it to the previous
 0913: E437                ; drive if it was changed for the preceeding command.
@@ -921,7 +921,7 @@
 0921: E440     BE         	CMP	M              
 0922: E441     C8         	RZ                 
 0923: E442     3ABDE7     	LDA	CDRIVE	;yes, re-select our old drive.
-0924: E445     C3BAE0     	JMP	DSKSEL         
+0924: E445     C3BAE0     	JMP	DiskSelect     
 0925: E448                ;                   
 0926: E448                ;**************************************************************
 0927: E448                ;*                  
@@ -931,7 +931,7 @@
 0931: E448                ;                   
 0932: E448                DIRECT:             
 0933: E448     CD47E2     	CALL	CONVFST	;convert file name.
-0934: E44B     CD25E4     	CALL	DSELECT	;select indicated drive.
+0934: E44B     CD25E4     	CALL	SelectDrive	;select indicated drive.
 0935: E44E     219CE7     	LXI	H,FCBfromCCP+1	;was any file indicated?
 0936: E451     7E         	MOV	A,M            
 0937: E452     FE20       	CPI	BLANK          
@@ -1043,9 +1043,9 @@
 1043: E50F     23         	INX	H              
 1044: E510     2285E0     	SHLD	InBuffAddress	;save input line pointer.
 1045: E513                ERASE1:             
-1046: E513     CD25E4     	CALL	DSELECT	;select desired disk.
+1046: E513     CD25E4     	CALL	SelectDrive	;select desired disk.
 1047: E516     119BE7     	LXI	D,FCBfromCCP   
-1048: E519     CDECE0     	CALL	DELETE	;delete the file.
+1048: E519     CDECE0     	CALL	DeleteFile	;delete the file.
 1049: E51C     3C         	INR	A              
 1050: E51D     CCBBE3     	CZ	NONE	;not there?
 1051: E520     C354E7     	JMP	GETBACK	;return to command level now.
@@ -1061,7 +1061,7 @@
 1061: E52E                TYPE:               
 1062: E52E     CD47E2     	CALL	CONVFST	;convert file name.
 1063: E531     C2F2E1     	JNZ	SYNERR	;wild cards not allowed.
-1064: E534     CD25E4     	CALL	DSELECT	;select indicated drive.
+1064: E534     CD25E4     	CALL	SelectDrive	;select indicated drive.
 1065: E537     CDCDE0     	CALL	OPENFCB	;open the file.
 1066: E53A     CA78E5     	JZ	TYPE5	;not there?
 1067: E53D     CD95E0     	CALL	CRLF	;ok, start a new line on the screen.
@@ -1108,14 +1108,14 @@
 1108: E57E                ;**************************************************************
 1109: E57E                ;                   
 1110: E57E                SAVE:               
-1111: E57E     CDC9E3     	CALL	DECODE		; get numeric number that follows SAVE.
-1112: E581     F5         	PUSH	PSW			; save number of pages to write.
-1113: E582     CD47E2     	CALL	CONVFST		; convert file name linepointer past the number.
-1114: E585     C2F2E1     	JNZ		SYNERR		; exit with syntax error -wild cards not allowed.
-1115: E588     CD25E4     	CALL	DSELECT		; select specified drive.
+1111: E57E     CDC9E3     	CALL	GetCmdNumber	; get numeric number that follows SAVE.
+1112: E581     F5         	PUSH	PSW				; save number of pages to write.
+1113: E582     CD47E2     	CALL	CONVFST			; convert file name linepointer past the number.
+1114: E585     C2F2E1     	JNZ		SYNERR			; exit with syntax error -wild cards not allowed.
+1115: E588     CD25E4     	CALL	SelectDrive		; select specified drive.
 1116: E58B     119BE7     	LXI		D,FCBfromCCP	; now delete this file.
-1117: E58E     D5         	PUSH	D			; save the fcb
-1118: E58F     CDECE0     	CALL	DELETE        
+1117: E58E     D5         	PUSH	D				; save the fcb
+1118: E58F     CDECE0     	CALL	DeleteFile    
 1119: E592     D1         	POP		D             
 1120: E593     CD06E1     	CALL	CREATE		;and create it again.
 1121: E596     CACCE5     	JZ		SAVE3		;can't create?
@@ -1173,7 +1173,7 @@
 1173: E5E4     C2F2E1     	JNZ	SYNERR	;wild cards not allowed.
 1174: E5E7     3ABEE7     	LDA	ChangeDriveFlag	;remember any change in drives specified.
 1175: E5EA     F5         	PUSH	PSW           
-1176: E5EB     CD25E4     	CALL	DSELECT	;and select this drive.
+1176: E5EB     CD25E4     	CALL	SelectDrive	;and select this drive.
 1177: E5EE     CDE6E0     	CALL	SRCHFCB	;is this file present?
 1178: E5F1     C24AE6     	JNZ	RENAME6	;yes, print error message.
 1179: E5F4     219BE7     	LXI	H,FCBfromCCP;yes, move this name into second slot.
@@ -1235,7 +1235,7 @@
 1235: E65F                ;**************************************************************
 1236: E65F                ;                   
 1237: E65F                USER:               
-1238: E65F     CDC9E3     	CALL	DECODE	;get numeric value following command.
+1238: E65F     CDC9E3     	CALL	GetCmdNumber	;get numeric value following command.
 1239: E662     FE10       	CPI	16	;legal user number?
 1240: E664     D2F2E1     	JNC	SYNERR         
 1241: E667     5F         	MOV	E,A	;yes but is there anything else?
@@ -1262,7 +1262,7 @@
 1262: E685     3D         	DCR		A             
 1263: E686     32BDE7     	STA	CDRIVE	;ok, store new drive.
 1264: E689     CD26E1     	CALL	MOVECD	;set (TDRIVE) also.
-1265: E68C     CDBAE0     	CALL	DSKSEL	;and select this drive.
+1265: E68C     CDBAE0     	CALL	DiskSelect	;and select this drive.
 1266: E68F     C357E7     	JMP	GETBACK1;then return.
 1267: E692                ;                   
 1268: E692                ;   Here a file name was typed. Prepare to execute it.
@@ -1274,7 +1274,7 @@
 1274: E698     C2F2E1     	JNZ	SYNERR	;yes, not allowed.
 1275: E69B                UNKWN2:             
 1276: E69B     D5         	PUSH	D             
-1277: E69C     CD25E4     	CALL	DSELECT	;select specified drive.
+1277: E69C     CD25E4     	CALL	SelectDrive	;select specified drive.
 1278: E69F     D1         	POP	D              
 1279: E6A0     2151E7     	LXI	H,COMFILE	;set the extension to 'COM'.
 1280: E6A3     CD11E4     	CALL	MOVE3         
@@ -1361,7 +1361,7 @@
 1361: E72D                ;                   
 1362: E72D     3179E7     	LXI	SP,BatchFlag	;set stack first off.
 1363: E730     CD26E1     	CALL	MOVECD	;move current drive into place (TDRIVE).
-1364: E733     CDBAE0     	CALL	DSKSEL	;and reselect it.
+1364: E733     CDBAE0     	CALL	DiskSelect	;and reselect it.
 1365: E736     C353E3     	JMP	CMMND1	;back to comand mode.
 1366: E739                ;                   
 1367: E739                ;   Get here if some error occured.
@@ -1452,15 +1452,15 @@
 1452: E80B     7B         	MOV		A,E	          
 1453: E80C     323EE8     	STA		ParamE				; Save register (E) in particular.
 1454: E80F     210000     	LXI		H,0           
-1455: E812     223FE8     	SHLD	StatusBDOSReturn	;clear return status.
+1455: E812     223FE8     	SHLD	StatusBDOSReturn	; clear return status.
 1456: E815     39         	DAD		SP            
-1457: E816     2241E8     	SHLD	UserStack			; ave users stack pointer.
-1458: E819     3173E8     	LXI		SP,BDOSstack		; nd set our own.
-1459: E81C     AF         	XRA		A					; lear A for flags resets
-1460: E81D     32D7F5     	STA		AutoSelectFlag		; lear auto select storage Flag
-1461: E820     32D5F5     	STA		AutoSelectActive	; lear auto select Active Flag
-1462: E823     2173E8     	LXI		H,BDOSExit			; et return address to BDOSExit routine
-1463: E826     E5         	PUSH	H					; ut it on the stack
+1457: E816     2241E8     	SHLD	UserStack			; save users stack pointer.
+1458: E819     3173E8     	LXI		SP,BDOSstack		; and set our own.
+1459: E81C     AF         	XRA		A					; clear A for flags resets
+1460: E81D     32D7F5     	STA		AutoSelectFlag		; clear auto select storage Flag
+1461: E820     32D5F5     	STA		AutoSelectActive	; clear auto select Active Flag
+1462: E823     2173E8     	LXI		H,BDOSExit			; get return address to BDOSExit routine
+1463: E826     E5         	PUSH	H					; put it on the stack
 1464: E827     79         	MOV		A,C					; get function number and put into A.
 1465: E828     FE29       	CPI		FunctionCount + 1	; valid function number?
 1466: E82A     D0         	RNC							; Exit if not valid
@@ -1497,7 +1497,7 @@
 1497: E882     B7         	ORA	A              
 1498: E883     CA90E8     	JZ	BDOSExit1       
 1499: E886     77         	MOV	M,A	;yes, reset first byte properly.
-1500: E887     3AD6F5     	LDA	OLDDRV	;and get the old drive and select it.
+1500: E887     3AD6F5     	LDA	OldDrive	;and get the old drive and select it.
 1501: E88A     323EE8     	STA	ParamE         
 1502: E88D     CD61F4     	CALL	fcSelectDisk  
 1503: E890                BDOSExit1:          
@@ -2430,16 +2430,16 @@
 2430: ED27                                    
 2431: ED27                ;                   
 2432: ED27                ;   Extract the write protect status bit for the current drive.
-2433: ED27                ; The result is returned in (A), bit 0.
+2433: ED27                ; 	The result is returned in (A), bit 0.
 2434: ED27                ;                   
-2435: ED27                GETWPRT:            
-2436: ED27     2AA5F5     	LHLD	ROBitMap		;get Read Only Bit Map
-2437: ED2A     3AA2F5     	LDA		CurrentDrive	;which drive is current?
+2435: ED27                GetDiskROStatus:    
+2436: ED27     2AA5F5     	LHLD	ROBitMap			;get Read Only Bit Map
+2437: ED2A     3AA2F5     	LDA		CurrentDrive		;which drive is current?
 2438: ED2D     4F         	MOV		C,A           
 2439: ED2E     CD0DED     	CALL	HLrightC			;shift status such that bit 0 is the
-2440: ED31     7D         	MOV		A,L				;one of interest for this drive.
-2441: ED32     E601       	ANI		01H				;and isolate it.
-2442: ED34     C9         	RET						; Zero if not write protected
+2440: ED31     7D         	MOV		A,L					;one of interest for this drive.
+2441: ED32     E601       	ANI		01H					;and isolate it.
+2442: ED34     C9         	RET							; Zero if not write protected
 2443: ED35                ;                   
 2444: ED35                ;   Function to write protect the current disk.
 2445: ED35                ;                   
@@ -2474,8 +2474,8 @@
 2474: ED5D                ;                   
 2475: ED5D                ;   Check the write protect status of the active disk.
 2476: ED5D                ;                   
-2477: ED5D                CHKWPRT:            
-2478: ED5D     CD27ED     	CALL	GETWPRT			; is it write protected ?
+2477: ED5D                IsDiskRO:           
+2478: ED5D     CD27ED     	CALL	GetDiskROStatus			; is it write protected ?
 2479: ED60     C8         	RZ						; NO, return.
 2480: ED61     21F0E8     	LXI		H,RODISK      
 2481: ED64     C36DEB     	JMP	JumpToHL		; else print message and terminate.
@@ -2526,7 +2526,7 @@
 2526: ED88                ; names in the directory. We are at (FilePosInDirectory) and there are
 2527: ED88                ; (FilePosInDirSegment) of them to check.
 2528: ED88                ;                   
-2529: ED88                MOREFLS:            
+2529: ED88                AnyMoreFiles:       
 2530: ED88     2AE1F5     	LHLD	FilePosInDirectory			;we are here.
 2531: ED8B     EB         	XCHG               
 2532: ED8C     2AABF5     	LHLD	FilePosInDirSegment	;and don't go past here.
@@ -2541,7 +2541,7 @@
 2541: ED95                ; than (FilePosInDirectory).
 2542: ED95                ;                   
 2543: ED95                CHKNMBR:            
-2544: ED95     CD88ED     	CALL	MOREFLS		;FilePosInDirSegment too big?
+2544: ED95     CD88ED     	CALL	AnyMoreFiles		;FilePosInDirSegment too big?
 2545: ED98     D8         	RC                 
 2546: ED99     13         	INX		D		;yes, reset it to (FilePosInDirectory).
 2547: ED9A     72         	MOV		M,D           
@@ -2587,7 +2587,7 @@
 2587: EDC0     CACDED     	JZ	CHKDIR1         
 2588: EDC3     BE         	CMP	M	;check them. 
 2589: EDC4     C8         	RZ		;return if they are the same.
-2590: EDC5     CD88ED     	CALL	MOREFLS	;not the same, do we care?
+2590: EDC5     CD88ED     	CALL	AnyMoreFiles	;not the same, do we care?
 2591: EDC8     D0         	RNC                
 2592: EDC9     CD35ED     	CALL	fcSetDiskRO	;yes, mark this as write protected.
 2593: EDCC     C9         	RET                
@@ -2642,7 +2642,7 @@
 2642: EDFE                ;   Check (FilePosInDirectory) and set the zero flag if it equals 0ffffh.
 2643: EDFE                ; if it is -1 then no active file found
 2644: EDFE                ;                   
-2645: EDFE                CheckFilePosition:  
+2645: EDFE                CheckFilePosition:	 
 2646: EDFE     21E1F5     	LXI	H,FilePosInDirectory
 2647: EE01     7E         	MOV	A,M            
 2648: EE02     23         	INX	H              
@@ -2833,7 +2833,7 @@
 2833: EEA6                ;   Set the status (StatusBDOSReturn) and return.
 2834: EEA6                ;                   
 2835: EEA6                STSTATUS:           
-2836: EEA6     3ACCF5     	LDA	FNDSTAT        
+2836: EEA6     3ACCF5     	LDA	FileFoundFlag  
 2837: EEA9     C35CEB     	JMP	SetStatusBDOS  
 2838: EEAC                ;                   
 2839: EEAC                ;   Check extents in (A) and (C). Set the zero flag if they
@@ -2863,76 +2863,76 @@
 2863: EEBD                ;                   
 2864: EEBD                FindFirst:          
 2865: EEBD     3EFF       	MVI		A,0FFH        
-2866: EEBF     32CCF5     	STA		FNDSTAT			; set flag to not match found
-2867: EEC2     21CFF5     	LXI		H,COUNTER		; point at character counter.
-2868: EEC5     71         	MOV		M,C				; put in number of bytes to match
-2869: EEC6     2A3CE8     	LHLD	ParamsDE		; get filename to match.
-2870: EEC9     22D0F5     	SHLD	SaveFCB			; and save.
+2866: EEBF     32CCF5     	STA		FileFoundFlag		; set flag to: not match found
+2867: EEC2     21CFF5     	LXI		H,CharCounter		; point at character counter.
+2868: EEC5     71         	MOV		M,C					; put in number of bytes to match
+2869: EEC6     2A3CE8     	LHLD	ParamsDE			; get filename to match.
+2870: EEC9     22D0F5     	SHLD	SaveFCB				; and save.
 2871: EECC     CD07EE     	CALL	InitializeFilePosition	; clear initial file position (set to 0ffffh).
-2872: EECF     CDC4EB     	CALL	HomeDrive		;home the drive.
+2872: EECF     CDC4EB     	CALL	HomeDrive			;home the drive.
 2873: EED2                ;                   
 2874: EED2                ;   Entry to locate the next occurence of a filename within the
 2875: EED2                ; directory. The disk is not expected to have been changed. If
 2876: EED2                ; it was, then it will be write protected.
 2877: EED2                ;                   
-2878: EED2                FINDNXT:            
-2879: EED2     0E00       	MVI		C,0				; write protect the disk if changed.
-2880: EED4     CD0EEE     	CALL	GetNextEntry	; get next filename entry in directory.
+2878: EED2                FindNext:           
+2879: EED2     0E00       	MVI		C,0					; write protect the disk if changed.
+2880: EED4     CD0EEE     	CALL	GetNextEntry		; get next filename entry in directory.
 2881: EED7     CDFEED     	CALL	CheckFilePosition	; is file position = 0ffffh?
-2882: EEDA     CA39EF     	JZ		FNDNXT6			; yes, exit now then.
-2883: EEDD     2AD0F5     	LHLD	SaveFCB			; get (DE) pointing to filename to match.
+2882: EEDA     CA39EF     	JZ		FindNext6			; yes, exit now then.
+2883: EEDD     2AD0F5     	LHLD	SaveFCB				; get (DE) pointing to filename to match.
 2884: EEE0     EB         	XCHG               
 2885: EEE1     1A         	LDAX	D             
-2886: EEE2     FEE5       	CPI		EmptyFileFlag	; is it an empty directory entry?
-2887: EEE4     CAEFEE     	JZ		FNDNXT1			; yes - Skip it
+2886: EEE2     FEE5       	CPI		EmptyFileFlag		; is it an empty directory entry?
+2887: EEE4     CAEFEE     	JZ		FindNext1			; yes - Skip it
 2888: EEE7                						; No process it
-2889: EEE7     D5         	PUSH	D             
-2890: EEE8     CD88ED     	CALL	MOREFLS	;more files in directory?
+2889: EEE7     D5         	PUSH	D					; Save  pointer to filename to match.	
+2890: EEE8     CD88ED     	CALL	AnyMoreFiles		; more files in directory?
 2891: EEEB     D1         	POP	D              
-2892: EEEC     D239EF     	JNC	FNDNXT6	;no more. Exit now.
-2893: EEEF                FNDNXT1:            
+2892: EEEC     D239EF     	JNC	FindNext6	;no more. Exit now.
+2893: EEEF                FindNext1:          
 2894: EEEF     CD67ED     	CALL	FCB2HL	;get address of this fcb in directory.
-2895: EEF2     3ACFF5     	LDA	COUNTER	;get number of bytes (characters) to check.
+2895: EEF2     3ACFF5     	LDA	CharCounter	;get number of bytes (characters) to check.
 2896: EEF5     4F         	MOV	C,A            
 2897: EEF6     0600       	MVI	B,0	;initialize byte position counter.
-2898: EEF8                FNDNXT2:            
+2898: EEF8                FindNext2:          
 2899: EEF8     79         	MOV	A,C	;are we done with the compare?
 2900: EEF9     B7         	ORA	A              
-2901: EEFA     CA28EF     	JZ	FNDNXT5         
+2901: EEFA     CA28EF     	JZ	FindNext5       
 2902: EEFD     1A         	LDAX	D	;no, check next byte.
 2903: EEFE     FE3F       	CPI	QMARK		; '?'	;don't care about this character?
-2904: EF00     CA21EF     	JZ	FNDNXT4         
+2904: EF00     CA21EF     	JZ	FindNext4       
 2905: EF03     78         	MOV	A,B	;get bytes position in fcb.
 2906: EF04     FE0D       	CPI	13	;don't care about the thirteenth byte either.
-2907: EF06     CA21EF     	JZ	FNDNXT4         
+2907: EF06     CA21EF     	JZ	FindNext4       
 2908: EF09     FE0C       	CPI	12	;extent byte?
 2909: EF0B     1A         	LDAX	D             
-2910: EF0C     CA18EF     	JZ	FNDNXT3         
+2910: EF0C     CA18EF     	JZ	FindNext3       
 2911: EF0F     96         	SUB	M	;otherwise compare characters.
 2912: EF10     E67F       	ANI	7FH            
-2913: EF12     C2D2EE     	JNZ	FINDNXT	;not the same, check next entry.
-2914: EF15     C321EF     	JMP	FNDNXT4	;so far so good, keep checking.
-2915: EF18                FNDNXT3:            
+2913: EF12     C2D2EE     	JNZ	FindNext	;not the same, check next entry.
+2914: EF15     C321EF     	JMP	FindNext4	;so far so good, keep checking.
+2915: EF18                FindNext3:          
 2916: EF18     C5         	PUSH	B	;check the extent byte here.
 2917: EF19     4E         	MOV	C,M            
 2918: EF1A     CDACEE     	CALL	SAMEXT        
 2919: EF1D     C1         	POP	B              
-2920: EF1E     C2D2EE     	JNZ	FINDNXT	;not the same, look some more.
+2920: EF1E     C2D2EE     	JNZ	FindNext	;not the same, look some more.
 2921: EF21                ;                   
 2922: EF21                ;   So far the names compare. Bump pointers to the next byte
 2923: EF21                ; and continue until all (C) characters have been checked.
 2924: EF21                ;                   
-2925: EF21                FNDNXT4:            
+2925: EF21                FindNext4:          
 2926: EF21     13         	INX	D	;bump pointers.
 2927: EF22     23         	INX	H              
 2928: EF23     04         	INR	B              
 2929: EF24     0D         	DCR	C	;adjust character counter.
-2930: EF25     C3F8EE     	JMP	FNDNXT2        
-2931: EF28                FNDNXT5:            
+2930: EF25     C3F8EE     	JMP	FindNext2      
+2931: EF28                FindNext5:          
 2932: EF28     3AE1F5     	LDA	FilePosInDirectory	;return the position of this entry.
 2933: EF2B     E603       	ANI	03H            
 2934: EF2D     323FE8     	STA	StatusBDOSReturn
-2935: EF30     21CCF5     	LXI	H,FNDSTAT      
+2935: EF30     21CCF5     	LXI	H,FileFoundFlag
 2936: EF33     7E         	MOV	A,M            
 2937: EF34     17         	RAL                
 2938: EF35     D0         	RNC                
@@ -2942,7 +2942,7 @@
 2942: EF39                ;                   
 2943: EF39                ;   Filename was not found. Set appropriate status.
 2944: EF39                ;                   
-2945: EF39                FNDNXT6:            
+2945: EF39                FindNext6:          
 2946: EF39     CD07EE     	CALL	InitializeFilePosition;set (FilePosInDirectory) to 0ffffh.
 2947: EF3C     3EFF       	MVI	A,0FFH	;say not located.
 2948: EF3E     C35CEB     	JMP	SetStatusBDOS  
@@ -2950,10 +2950,10 @@
 2950: EF41                ;   Erase files from the directory. Only the first byte of the
 2951: EF41                ; fcb will be affected. It is set to (E5).
 2952: EF41                ;                   
-2953: EF41                ERAFILE:            
-2954: EF41     CD5DED     	CALL	CHKWPRT		;is disk write protected?
-2955: EF44     0E0C       	MVI		C,12		;only compare file names.
-2956: EF46     CDBDEE     	CALL	FindFirst		;get first file name.
+2953: EF41                EraseFile:          
+2954: EF41     CD5DED     	CALL	IsDiskRO		; if disk write is  protected exit via error message
+2955: EF44     0E0C       	MVI		C,12			; only compare file names.
+2956: EF46     CDBDEE     	CALL	FindFirst		; get first file name.
 2957: EF49                ERAFIL1:            
 2958: EF49     CDFEED     	CALL	CheckFilePosition	;any found?
 2959: EF4C     C8         	RZ					;nope, we must be done.
@@ -2965,7 +2965,7 @@
 2965: EF57     32A3F5     	STA		BitSetFlag	; Flag = 00, clear bit
 2966: EF5A     CD71EE     	CALL	SetClearFATbits
 2967: EF5D     CDCFED     	CALL	DIRWRITE;now write the directory sector back out.
-2968: EF60     CDD2EE     	CALL	FINDNXT	;find the next file name.
+2968: EF60     CDD2EE     	CALL	FindNext	;find the next file name.
 2969: EF63     C349EF     	JMP	ERAFIL1	;and repeat process.
 2970: EF66                ;                   
 2971: EF66                ;   Look through the space allocation map (bit map) for the
@@ -3080,7 +3080,7 @@
 3080: EFBE                ; first 12 characters and the new name 16 bytes into the fcb.
 3081: EFBE                ;                   
 3082: EFBE                CHGNAMES:           
-3083: EFBE     CD5DED     	CALL	CHKWPRT	;check for a write protected disk.
+3083: EFBE     CD5DED     	CALL	IsDiskRO	;check for a write protected disk.
 3084: EFC1     0E0C       	MVI	C,12	;match first 12 bytes of fcb only.
 3085: EFC3     CDBDEE     	CALL	FindFirst	;get first name.
 3086: EFC6     2A3CE8     	LHLD	ParamsDE	;get address of fcb.
@@ -3095,7 +3095,7 @@
 3095: EFD6     0E10       	MVI	C,16	;start 16 bytes into fcb.
 3096: EFD8     1E0C       	MVI	E,12	;and update the first 12 bytes of directory.
 3097: EFDA     CDA9EF     	CALL	UPDATE        
-3098: EFDD     CDD2EE     	CALL	FINDNXT	;get te next file name.
+3098: EFDD     CDD2EE     	CALL	FindNext	;get te next file name.
 3099: EFE0     C3CFEF     	JMP	CHGNAM1	;and continue.
 3100: EFE3                ;                   
 3101: EFE3                ;   Update a files attributes. The procedure is to search for
@@ -3112,7 +3112,7 @@
 3112: EFEC     0E00       	MVI	C,0	;yes, update the first 12 bytes now.
 3113: EFEE     1E0C       	MVI	E,12           
 3114: EFF0     CDA9EF     	CALL	UPDATE	;update filename and write directory.
-3115: EFF3     CDD2EE     	CALL	FINDNXT	;and get the next file.
+3115: EFF3     CDD2EE     	CALL	FindNext	;and get the next file.
 3116: EFF6     C3E8EF     	JMP	SAVATR1	;then continue until done.
 3117: EFF9                ;                   
 3118: EFF9                ;  Open a file (name specified in fcb).
@@ -3186,7 +3186,7 @@
 3186: F04B     323FE8     	STA	StatusBDOSReturn
 3187: F04E     32E1F5     	STA	FilePosInDirectory
 3188: F051     32E2F5     	STA	FilePosInDirectory+1
-3189: F054     CD27ED     	CALL	GETWPRT	;get write protect bit for this drive.
+3189: F054     CD27ED     	CALL	GetDiskROStatus	;get write protect bit for this drive.
 3190: F057     C0         	RNZ		;just return if it is set.
 3191: F058     CD72ED     	CALL	GETS2	;else get the 's2' byte.
 3192: F05B     E680       	ANI	80H	;and look at bit 7 (file unmodified?).
@@ -3266,7 +3266,7 @@
 3266: F0CC                ; will then be cleared for use.
 3267: F0CC                ;                   
 3268: F0CC                GETEMPTY:           
-3269: F0CC     CD5DED     	CALL	CHKWPRT		;make sure disk is not write protected.
+3269: F0CC     CD5DED     	CALL	IsDiskRO		;make sure disk is not write protected.
 3270: F0CF     2A3CE8     	LHLD	ParamsDE	;save current parameters (fcb).
 3271: F0D2     E5         	PUSH	H             
 3272: F0D3     21A4F5     	LXI		H,EmptyDir	;use special one for empty space.
@@ -3397,7 +3397,7 @@
 3397: F1AB                WTSEQ1:             
 3398: F1AB     3E00       	MVI	A,0	;allow an addition empty extent to be opened.
 3399: F1AD     32CBF5     	STA	RDWRTFLG       
-3400: F1B0     CD5DED     	CALL	CHKWPRT	;check write protect status.
+3400: F1B0     CD5DED     	CALL	IsDiskRO	;check write protect status.
 3401: F1B3     2A3CE8     	LHLD	ParamsDE      
 3402: F1B6     CD50ED     	CALL	CKROF1	;check for read only file, (HL) already set to fcb.
 3403: F1B9     CDDEEC     	CALL	STRDATA	;put updated data into fcb.
@@ -3778,7 +3778,7 @@
 3778: F3AC     2B         	DCX	H              
 3779: F3AD     71         	MOV	M,C            
 3780: F3AE                RANSIZ2:            
-3781: F3AE     CDD2EE     	CALL	FINDNXT	;now get the next extent.
+3781: F3AE     CDD2EE     	CALL	FindNext	;now get the next extent.
 3782: F3B1     C38CF3     	JMP	RANSIZ1	;continue til all done.
 3783: F3B4                RANSIZ3:            
 3784: F3B4     E1         	POP	H	;we are done, restore the stack and
@@ -3940,362 +3940,363 @@
 3940: F46D                ; of the fcb is examined for a drive specification. If non
 3941: F46D                ; zero then the drive will be selected and loged in.
 3942: F46D                ;                   
-3943: F46D                AUTOSEL:            
-3944: F46D     3EFF       	MVI		A,0FFH			;say 'auto-select activated'.
+3943: F46D                AutoSelect:         
+3944: F46D     3EFF       	MVI		A,0FFH				;say 'auto-select activated'.
 3945: F46F     32D5F5     	STA		AutoSelectActive
-3946: F472     2A3CE8     	LHLD	ParamsDE		;get drive specified.
-3947: F475     7E         	MOV		A,M           
-3948: F476     E61F       	ANI		1FH				;look at lower 5 bits.
-3949: F478     3D         	DCR		A				;adjust for (1=A, 2=B) etc.
-3950: F479     323EE8     	STA		ParamE			;and save for the select routine.
-3951: F47C     FE1E       	CPI		1EH				;check for 'no change' condition.
-3952: F47E     D291F4     	JNC		AUTOSL1			;yes, don't change.
-3953: F481     3AA2F5     	LDA		CurrentDrive	;we must change, save currently active
-3954: F484     32D6F5     	STA		OLDDRV			;drive.
-3955: F487     7E         	MOV		A,M				;and save first byte of fcb also.
-3956: F488     32D7F5     	STA		AutoSelectFlag	;this must be non-zero.
-3957: F48B     E6E0       	ANI		0E0H			;whats this for (bits 6,7 are used for
-3958: F48D     77         	MOV		M,A				;something)?
-3959: F48E     CD61F4     	CALL	fcSelectDisk			;select and log in this drive.
-3960: F491                AUTOSL1:            
-3961: F491     3AA1F5     	LDA		CurrentUser		;move user number into fcb.
-3962: F494     2A3CE8     	LHLD	ParamsDE		;(* upper half of first byte *)
-3963: F497     B6         	ORA		M             
-3964: F498     77         	MOV		M,A           
-3965: F499     C9         	RET		;and return (all done).
-3966: F49A                ;                   
-3967: F49A                ;   Function to return the current cp/m version number.
-3968: F49A                ;                   
-3969: F49A                fcGetVersion:       
-3970: F49A     3E22       	MVI	A,022h	;version 2.2
-3971: F49C     C35CEB     	JMP	SetStatusBDOS  
-3972: F49F                ;                   
-3973: F49F                ;   Function (0D) to reset the disk system.
-3974: F49F                ;                   
-3975: F49F                fcResetDiskSystem:  
-3976: F49F     210000     	LXI		H,0				; clear write protect status and log
-3977: F4A2     22A5F5     	SHLD	ROBitMap		; clear all Read Only Bits
-3978: F4A5     22A7F5     	SHLD	LoggedBitMap	; clear all logged in drives
-3979: F4A8     AF         	XRA		A             
-3980: F4A9     32A2F5     	STA		CurrentDrive	;select drive 'A'.
-3981: F4AC     218000     	LXI		H,Pg0Buffer		;setup default dma address.
-3982: F4AF     22A9F5     	SHLD	UsersDMA      
-3983: F4B2     CDE3ED     	CALL	Set2UsersDMA	; Call BIOS to set DMA
-3984: F4B5     C3C9F3     	JMP		LoginDrive		;now log in drive 'A'.
-3985: F4B8                ;                   
-3986: F4B8                ;   Function to open a specified file.
-3987: F4B8                ;                   
-3988: F4B8                fcOpenFile:         
-3989: F4B8     CD7BED     	CALL	CLEARS2	;clear 's2' byte.
-3990: F4BB     CD6DF4     	CALL	AUTOSEL	;select proper disk.
-3991: F4BE     C3F9EF     	JMP	OPENIT	;and open the file.
-3992: F4C1                ;                   
-3993: F4C1                ;   Function to close a specified file.
-3994: F4C1                ;                   
-3995: F4C1                fcCloseFile:        
-3996: F4C1     CD6DF4     	CALL	AUTOSEL	;select proper disk.
-3997: F4C4     C34AF0     	JMP	CLOSEIT	;and close the file.
-3998: F4C7                ;                   
-3999: F4C7                ;   Function to return the first occurence of a specified file
-4000: F4C7                ; name. If the first byte of the fcb is '?' then the name will
-4001: F4C7                ; not be checked (get the first entry no matter what).
-4002: F4C7                ;                   
-4003: F4C7                fcSearchForFirst:   
-4004: F4C7     0E00       	MVI	C,0	;prepare for special search.
-4005: F4C9     EB         	XCHG               
-4006: F4CA     7E         	MOV	A,M	;is first byte a '?'?
-4007: F4CB     FE3F       	CPI	QMARK		;'?'    
-4008: F4CD     CADEF4     	JZ	fcSearchForFirst1	;yes, just get very first entry (zero length match).
-4009: F4D0     CDC9EC     	CALL	SETEXT	;get the extension byte from fcb.
-4010: F4D3     7E         	MOV	A,M	;is it '?'? if yes, then we want
-4011: F4D4     FE3F       	CPI	QMARK		; '?'	;an entry with a specific 's2' byte.
-4012: F4D6     C47BED     	CNZ	CLEARS2	;otherwise, look for a zero 's2' byte.
-4013: F4D9     CD6DF4     	CALL	AUTOSEL	;select proper drive.
-4014: F4DC     0E0F       	MVI	C,15	;compare bytes 0-14 in fcb (12&13 excluded).
-4015: F4DE                fcSearchForFirst1:  
-4016: F4DE     CDBDEE     	CALL	FindFirst	;find an entry and then move it into
-4017: F4E1     C3F2ED     	JMP	MOVEDIR	;the users dma space.
-4018: F4E4                ;                   
-4019: F4E4                ;   Function to return the next occurence of a file name.
-4020: F4E4                ;                   
-4021: F4E4                fcSearchForNext:    
-4022: F4E4     2AD0F5     	LHLD	SaveFCB	;restore pointers. note that no
-4023: F4E7     223CE8     	SHLD	ParamsDE	;other dbos calls are allowed.
-4024: F4EA     CD6DF4     	CALL	AUTOSEL	;no error will be returned, but the
-4025: F4ED     CDD2EE     	CALL	FINDNXT	;results will be wrong.
-4026: F4F0     C3F2ED     	JMP	MOVEDIR        
-4027: F4F3                ;                   
-4028: F4F3                ;   Function to delete a file by name.
-4029: F4F3                ;                   
-4030: F4F3                fcDeleteFile:       
-4031: F4F3     CD6DF4     	CALL	AUTOSEL		;select proper drive.
-4032: F4F6     CD41EF     	CALL	ERAFILE		;erase the file.
-4033: F4F9     C3A6EE     	JMP		STSTATUS	;set status and return.
-4034: F4FC                ;                   
-4035: F4FC                ;   Function to execute a sequential read of the specified
-4036: F4FC                ; record number.    
-4037: F4FC                ;                   
-4038: F4FC                fcReadSequential:   
-4039: F4FC     CD6DF4     	CALL	AUTOSEL	;select proper drive then read.
-4040: F4FF     C364F1     	JMP	RDSEQ          
-4041: F502                ;                   
-4042: F502                ;   Function to write the net sequential record.
-4043: F502                ;                   
-4044: F502                fcWriteSequential:  
-4045: F502     CD6DF4     	CALL	AUTOSEL	;select proper drive then write.
-4046: F505     C3A6F1     	JMP	WTSEQ          
-4047: F508                ;                   
-4048: F508                ;   Create a file function.
-4049: F508                ;                   
-4050: F508                fcCreateFile:       
-4051: F508     CD7BED     	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
-4052: F50B     CD6DF4     	CALL	AUTOSEL	;select proper drive and get the next
-4053: F50E     C3CCF0     	JMP		GETEMPTY;empty directory space.
-4054: F511                ;                   
-4055: F511                ;   Function to rename a file.
-4056: F511                ;                   
-4057: F511                fcRenameFile:       
-4058: F511     CD6DF4     	CALL	AUTOSEL	;select proper drive and then switch
-4059: F514     CDBEEF     	CALL	CHGNAMES;file names.
-4060: F517     C3A6EE     	JMP	STSTATUS       
-4061: F51A                ;                   
-4062: F51A                ;   Function to return the logged in Bit map.
-4063: F51A                ;                   
-4064: F51A                fcGetActiveDisks:   
-4065: F51A     2AA7F5     	LHLD	LoggedBitMap  
-4066: F51D     C345F5     	JMP	GETPRM1        
-4067: F520                ;                   
-4068: F520                ;   Function to return the current disk assignment.
-4069: F520                ;                   
-4070: F520                fcGetCurrentDisk:   
-4071: F520     3AA2F5     	LDA	CurrentDrive   
-4072: F523     C35CEB     	JMP	SetStatusBDOS  
-4073: F526                ;                   
-4074: F526                ;   Function to set the dma address.
-4075: F526                ;                   
-4076: F526                fcSetDMA:           
-4077: F526     EB         	XCHG               
-4078: F527     22A9F5     	SHLD	UsersDMA	;save in our space and then get to
-4079: F52A     C3E3ED     	JMP	Set2UsersDMA	;the bios with this also.
-4080: F52D                ;                   
-4081: F52D                ;   Function to return the allocation vector.
-4082: F52D                ;                   
-4083: F52D                fcGetFATtable:      
-4084: F52D     2AB7F5     	LHLD	FATpointer    
-4085: F530     C345F5     	JMP	GETPRM1        
-4086: F533                ;                   
-4087: F533                ;   Function to return the read-only status vector.
-4088: F533                ;                   
-4089: F533                fcGetROdisks:       
-4090: F533     2AA5F5     	LHLD	ROBitMap      
-4091: F536     C345F5     	JMP	GETPRM1        
-4092: F539                ;                   
-4093: F539                ;   Function to set the file attributes (read-only, system).
-4094: F539                ;                   
-4095: F539                fcSetFileAttributes:
-4096: F539     CD6DF4     	CALL	AUTOSEL	;select proper drive then save attributes.
-4097: F53C     CDE3EF     	CALL	SAVEATTR      
-4098: F53F     C3A6EE     	JMP	STSTATUS       
-4099: F542                ;                   
-4100: F542                ;   Function to return the address of the disk parameter block
-4101: F542                ; for the current drive.
-4102: F542                ;                   
-4103: F542                fcGetDPB:           
-4104: F542     2AB3F5     	LHLD	DiskParamBlock
-4105: F545                GETPRM1:            
-4106: F545     223FE8     	SHLD	StatusBDOSReturn
-4107: F548     C9         	RET                
-4108: F549                ;                   
-4109: F549                ;   Function to get or set the user number. If (E) was (FF)
-4110: F549                ; then this is a request to return the current user number.
-4111: F549                ; Else set the user number from (E).
-4112: F549                ;                   
-4113: F549                fcGetUser:          
-4114: F549     3A3EE8     	LDA			ParamE			; get controlling parameter.
-4115: F54C     FEFF       	CPI			0FFH			; want to get user number?
-4116: F54E     C257F5     	JNZ			SetUser			; No, then set it
-4117: F551     3AA1F5     	LDA			CurrentUser		; yes, just return it in A
-4118: F554     C35CEB     	JMP			SetStatusBDOS	; exit while setting return status
-4119: F557                	                   
-4120: F557                SetUser:            
-4121: F557     E61F       	ANI			1FH				; no,just keep the low bits (000X XXXX)
-4122: F559     32A1F5     	STA			CurrentUser		; and save in Current user
-4123: F55C     C9         	RET                
-4124: F55D                ;                   
-4125: F55D                ;   Function to read a random record from a file.
-4126: F55D                ;                   
-4127: F55D                fcReadRandom:       
-4128: F55D     CD6DF4     	CALL	AUTOSEL	;select proper drive and read.
-4129: F560     C33BF3     	JMP	READRAN        
-4130: F563                ;                   
-4131: F563                ;   Function to compute the file size for random files.
-4132: F563                ;                   
-4133: F563                fcWriteRandom:      
-4134: F563     CD6DF4     	CALL	AUTOSEL	;select proper drive and write.
-4135: F566     C344F3     	JMP	WRITERAN       
-4136: F569                ;                   
-4137: F569                ;   Function to compute the size of a random file.
-4138: F569                ;                   
-4139: F569                fcGetFileSize:      
-4140: F569     CD6DF4     	CALL	AUTOSEL	;select proper drive and check file length
-4141: F56C     C37AF3     	JMP	RANSIZE        
-4142: F56F                ;                   
-4143: F56F                ;   Function #37. This allows a program to log off any drives.
-4144: F56F                ; On entry, set (DE) to contain a word with bits set for those
-4145: F56F                ; drives that are to be logged off. The log-in vector and the
-4146: F56F                ; write protect vector will be updated. This must be a M/PM
-4147: F56F                ; special function. 
-4148: F56F                ;                   
-4149: F56F                fcResetDrive:       
-4150: F56F     2A3CE8     	LHLD	ParamsDE	;get drives to log off.
-4151: F572     7D         	MOV	A,L	;for each bit that is set, we want
-4152: F573     2F         	CMA		;to clear that bit in (LoggedBitMap)
-4153: F574     5F         	MOV	E,A	;and (ROBitMap).
-4154: F575     7C         	MOV	A,H            
-4155: F576     2F         	CMA                
-4156: F577     2AA7F5     	LHLD	LoggedBitMap	;reset the login Bit map.
-4157: F57A     A4         	ANA	H              
-4158: F57B     57         	MOV	D,A            
-4159: F57C     7D         	MOV	A,L            
-4160: F57D     A3         	ANA	E              
-4161: F57E     5F         	MOV	E,A            
-4162: F57F     2AA5F5     	LHLD	ROBitMap      
-4163: F582     EB         	XCHG               
-4164: F583     22A7F5     	SHLD	LoggedBitMap	;and save.
-4165: F586     7D         	MOV	A,L	;now do the write protect vector.
-4166: F587     A3         	ANA	E              
-4167: F588     6F         	MOV	L,A            
-4168: F589     7C         	MOV	A,H            
-4169: F58A     A2         	ANA	D              
-4170: F58B     67         	MOV	H,A            
-4171: F58C     22A5F5     	SHLD	ROBitMap	;and save. all done.
-4172: F58F     C9         	RET                
-4173: F590                ;                   
-4174: F590                ;   Get here to return to the user.
-4175: F590                ;                   
-4176: F590                                    
-4177: F590                ;                   
-4178: F590                ;   Function #40. This is a special entry to do random i/o.
-4179: F590                ; For the case where we are writing to unused disk space, this
-4180: F590                ; space will be zeroed out first. This must be a M/PM special
-4181: F590                ; purpose function, because why would any normal program even
-4182: F590                ; care about the previous contents of a sector about to be
-4183: F590                ; written over.     
-4184: F590                ;                   
-4185: F590                fcWriteZeroFill:    
-4186: F590     CD6DF4     	CALL	AUTOSEL	;select proper drive.
-4187: F593     3E02       	MVI	A,2	;use special write mode.
-4188: F595     32CDF5     	STA	MODE           
-4189: F598     0E00       	MVI	C,0	;set write indicator.
-4190: F59A     CDAFF2     	CALL	POSITN1	;position the file.
-4191: F59D     CCABF1     	CZ	WTSEQ1	;and write (if no errors).
-4192: F5A0     C9         	RET                
-4193: F5A1                                    
-4194: F5A1                ;**************************************************************
-4195: F5A1                ;*                  
-4196: F5A1                ;*     BDOS data storage pool.
-4197: F5A1                ;*                  
-4198: F5A1                ;**************************************************************
-4199: F5A1                                    
-4200: F5A1     00         CurrentUser:			DB	0		; current user number.
-4201: F5A2     00         CurrentDrive:			DB	0		; currently active drive.
-4202: F5A3     00         BitSetFlag:				DB	0		; flag to set(01) or reset(00) bit in disk allocation table
-4203: F5A4                                    
-4204: F5A4                ;                   
-4205: F5A4     E5         EmptyDir:				DB	EmptyFileFlag	; empty directory segment indicator.
-4206: F5A5     0000       ROBitMap:				DW	0		; write protect status for all 16 drives.
-4207: F5A7     0000       LoggedBitMap:			DW	0		; drive active word (1 bit per drive).
-4208: F5A9     8000       UsersDMA:				DW	080H	;user's dma address (defaults to 80h).
-4209: F5AB                ;                   
-4210: F5AB                ;   Scratch areas from parameter block.
-4211: F5AB                ;                   
-4212: F5AB     0000       FilePosInDirSegment:			DW	0	; relative position within dir segment for file (0-3).
-4213: F5AD     0000       LastTrackNumber:		DW	0	; last selected track number.
-4214: F5AF     0000       LastSectorNumber:		DW	0	; last selected sector number.
-4215: F5B1                ;                   
-4216: F5B1                ;   Disk storage areas from parameter block.
-4217: F5B1                ;                   
-4218: F5B1                DirBuffSize				EQU	128	; buffer size
-4219: F5B1     0000       DirBuffAddr:			DW	0	;address of directory buffer to use.
-4220: F5B3     0000       DiskParamBlock:			DW	0	;contains address of disk parameter block.
-4221: F5B5     0000       CHKVECT:				DW	0	;address of check vector.
-4222: F5B7     0000       FATpointer:			DW	0	;address of allocation vector (bit map).
-4223: F5B9                ;                   
-4224: F5B9                ;   Disk Parameter block returned from the bios.
-4225: F5B9                ;                   
-4226: F5B9                LogicalSecSize			EQU	128	; Logical sector size
-4227: F5B9     0000       SECTORS:				DW	0	;sectors per track from bios.
-4228: F5BB     00         BLKSHFT:				DB	0	;block shift.
-4229: F5BC     00         BLKMASK:				DB	0	;block mask.
-4230: F5BD     00         EXTMASK:				DB	0	;extent mask.
-4231: F5BE     0000       DiskSize:				DW	0	;disk size from bios (number of blocks-1).
-4232: F5C0     0000       DrectorySize:			DW	0	;directory size, number of entries.
-4233: F5C2     0000       DirectoryFAT0:					DW	0	;storage for first bytes of bit map (dir space used).
-4234: F5C4     0000       DirectoryFAT1:					DW	0
-4235: F5C6     0000       OFFSET:					DW	0	;first usable track number.
-4236: F5C8     0000       XLATE:					DW	0	;sector translation table address.
-4237: F5CA                ;                   
+3946: F472     2A3CE8     	LHLD	ParamsDE			; get drive specified.
+3947: F475     7E         	MOV		A,M					; (A) should be equal to currentDisk where:
+3948: F476     E61F       	ANI		1FH					; (uuuudddd) where 'uuuu' is the user number;look at lower 5 bits.
+3949: F478     3D         	DCR		A					; adjust for (1=A, 2=B) etc.
+3950: F479     323EE8     	STA		ParamE				; and save for the select routine.
+3951: F47C     FE1E       	CPI		1EH					; check for 'no change' condition (00 - 1).
+3952: F47E     D291F4     	JNC		AutoSelect1			; yes, don't change.
+3953: F481                	                   
+3954: F481     3AA2F5     	LDA		CurrentDrive		; we must change
+3955: F484     32D6F5     	STA		OldDrive			;  save currently active drive.
+3956: F487     7E         	MOV		A,M					; and save first byte of fcb also.
+3957: F488     32D7F5     	STA		AutoSelectFlag		; this must be non-zero.
+3958: F48B     E6E0       	ANI		0E0H				; whats this for (bits 6,7 are used for
+3959: F48D     77         	MOV		M,A					; something)? maybe User Number
+3960: F48E     CD61F4     	CALL	fcSelectDisk		; select and log in this drive.
+3961: F491                AutoSelect1:        
+3962: F491     3AA1F5     	LDA		CurrentUser 		; move user number into fcb.
+3963: F494     2A3CE8     	LHLD	ParamsDE			; (* upper half of first byte *)
+3964: F497     B6         	ORA		M             
+3965: F498     77         	MOV		M,A           
+3966: F499     C9         	RET							; and return (all done).
+3967: F49A                ;                   
+3968: F49A                ;   Function to return the current cp/m version number.
+3969: F49A                ;                   
+3970: F49A                fcGetVersion:       
+3971: F49A     3E22       	MVI	A,022h	;version 2.2
+3972: F49C     C35CEB     	JMP	SetStatusBDOS  
+3973: F49F                ;                   
+3974: F49F                ;   Function (0D) to reset the disk system.
+3975: F49F                ;                   
+3976: F49F                fcResetDiskSystem:  
+3977: F49F     210000     	LXI		H,0				; clear write protect status and log
+3978: F4A2     22A5F5     	SHLD	ROBitMap		; clear all Read Only Bits
+3979: F4A5     22A7F5     	SHLD	LoggedBitMap	; clear all logged in drives
+3980: F4A8     AF         	XRA		A             
+3981: F4A9     32A2F5     	STA		CurrentDrive	;select drive 'A'.
+3982: F4AC     218000     	LXI		H,Pg0Buffer		;setup default dma address.
+3983: F4AF     22A9F5     	SHLD	UsersDMA      
+3984: F4B2     CDE3ED     	CALL	Set2UsersDMA	; Call BIOS to set DMA
+3985: F4B5     C3C9F3     	JMP		LoginDrive		;now log in drive 'A'.
+3986: F4B8                ;                   
+3987: F4B8                ;   Function to open a specified file.
+3988: F4B8                ;                   
+3989: F4B8                fcOpenFile:         
+3990: F4B8     CD7BED     	CALL	CLEARS2	;clear 's2' byte.
+3991: F4BB     CD6DF4     	CALL	AutoSelect	;select proper disk.
+3992: F4BE     C3F9EF     	JMP	OPENIT	;and open the file.
+3993: F4C1                ;                   
+3994: F4C1                ;   Function to close a specified file.
+3995: F4C1                ;                   
+3996: F4C1                fcCloseFile:        
+3997: F4C1     CD6DF4     	CALL	AutoSelect	;select proper disk.
+3998: F4C4     C34AF0     	JMP	CLOSEIT	;and close the file.
+3999: F4C7                ;                   
+4000: F4C7                ;   Function to return the first occurence of a specified file
+4001: F4C7                ; name. If the first byte of the fcb is '?' then the name will
+4002: F4C7                ; not be checked (get the first entry no matter what).
+4003: F4C7                ;                   
+4004: F4C7                fcSearchForFirst:   
+4005: F4C7     0E00       	MVI	C,0	;prepare for special search.
+4006: F4C9     EB         	XCHG               
+4007: F4CA     7E         	MOV	A,M	;is first byte a '?'?
+4008: F4CB     FE3F       	CPI	QMARK		;'?'    
+4009: F4CD     CADEF4     	JZ	fcSearchForFirst1	;yes, just get very first entry (zero length match).
+4010: F4D0     CDC9EC     	CALL	SETEXT	;get the extension byte from fcb.
+4011: F4D3     7E         	MOV	A,M	;is it '?'? if yes, then we want
+4012: F4D4     FE3F       	CPI	QMARK		; '?'	;an entry with a specific 's2' byte.
+4013: F4D6     C47BED     	CNZ	CLEARS2	;otherwise, look for a zero 's2' byte.
+4014: F4D9     CD6DF4     	CALL	AutoSelect	;select proper drive.
+4015: F4DC     0E0F       	MVI	C,15	;compare bytes 0-14 in fcb (12&13 excluded).
+4016: F4DE                fcSearchForFirst1:  
+4017: F4DE     CDBDEE     	CALL	FindFirst	;find an entry and then move it into
+4018: F4E1     C3F2ED     	JMP	MOVEDIR	;the users dma space.
+4019: F4E4                ;                   
+4020: F4E4                ;   Function to return the next occurence of a file name.
+4021: F4E4                ;                   
+4022: F4E4                fcSearchForNext:    
+4023: F4E4     2AD0F5     	LHLD	SaveFCB	;restore pointers. note that no
+4024: F4E7     223CE8     	SHLD	ParamsDE	;other dbos calls are allowed.
+4025: F4EA     CD6DF4     	CALL	AutoSelect	;no error will be returned, but the
+4026: F4ED     CDD2EE     	CALL	FindNext	;results will be wrong.
+4027: F4F0     C3F2ED     	JMP	MOVEDIR        
+4028: F4F3                ;                   
+4029: F4F3                ;   Function to delete a file by name.
+4030: F4F3                ;                   
+4031: F4F3                fcDeleteFile:       
+4032: F4F3     CD6DF4     	CALL	AutoSelect		;select proper drive.
+4033: F4F6     CD41EF     	CALL	EraseFile		;erase the file.
+4034: F4F9     C3A6EE     	JMP		STSTATUS	;set status and return.
+4035: F4FC                ;                   
+4036: F4FC                ;   Function to execute a sequential read of the specified
+4037: F4FC                ; record number.    
+4038: F4FC                ;                   
+4039: F4FC                fcReadSequential:   
+4040: F4FC     CD6DF4     	CALL	AutoSelect	;select proper drive then read.
+4041: F4FF     C364F1     	JMP	RDSEQ          
+4042: F502                ;                   
+4043: F502                ;   Function to write the net sequential record.
+4044: F502                ;                   
+4045: F502                fcWriteSequential:  
+4046: F502     CD6DF4     	CALL	AutoSelect	;select proper drive then write.
+4047: F505     C3A6F1     	JMP	WTSEQ          
+4048: F508                ;                   
+4049: F508                ;   Create a file function.
+4050: F508                ;                   
+4051: F508                fcCreateFile:       
+4052: F508     CD7BED     	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
+4053: F50B     CD6DF4     	CALL	AutoSelect	;select proper drive and get the next
+4054: F50E     C3CCF0     	JMP		GETEMPTY;empty directory space.
+4055: F511                ;                   
+4056: F511                ;   Function to rename a file.
+4057: F511                ;                   
+4058: F511                fcRenameFile:       
+4059: F511     CD6DF4     	CALL	AutoSelect	;select proper drive and then switch
+4060: F514     CDBEEF     	CALL	CHGNAMES;file names.
+4061: F517     C3A6EE     	JMP	STSTATUS       
+4062: F51A                ;                   
+4063: F51A                ;   Function to return the logged in Bit map.
+4064: F51A                ;                   
+4065: F51A                fcGetActiveDisks:   
+4066: F51A     2AA7F5     	LHLD	LoggedBitMap  
+4067: F51D     C345F5     	JMP	GETPRM1        
+4068: F520                ;                   
+4069: F520                ;   Function to return the current disk assignment.
+4070: F520                ;                   
+4071: F520                fcGetCurrentDisk:   
+4072: F520     3AA2F5     	LDA	CurrentDrive   
+4073: F523     C35CEB     	JMP	SetStatusBDOS  
+4074: F526                ;                   
+4075: F526                ;   Function to set the dma address.
+4076: F526                ;                   
+4077: F526                fcSetDMA:           
+4078: F526     EB         	XCHG               
+4079: F527     22A9F5     	SHLD	UsersDMA	;save in our space and then get to
+4080: F52A     C3E3ED     	JMP	Set2UsersDMA	;the bios with this also.
+4081: F52D                ;                   
+4082: F52D                ;   Function to return the allocation vector.
+4083: F52D                ;                   
+4084: F52D                fcGetFATtable:      
+4085: F52D     2AB7F5     	LHLD	FATpointer    
+4086: F530     C345F5     	JMP	GETPRM1        
+4087: F533                ;                   
+4088: F533                ;   Function to return the read-only status vector.
+4089: F533                ;                   
+4090: F533                fcGetROdisks:       
+4091: F533     2AA5F5     	LHLD	ROBitMap      
+4092: F536     C345F5     	JMP	GETPRM1        
+4093: F539                ;                   
+4094: F539                ;   Function to set the file attributes (read-only, system).
+4095: F539                ;                   
+4096: F539                fcSetFileAttributes:
+4097: F539     CD6DF4     	CALL	AutoSelect	;select proper drive then save attributes.
+4098: F53C     CDE3EF     	CALL	SAVEATTR      
+4099: F53F     C3A6EE     	JMP	STSTATUS       
+4100: F542                ;                   
+4101: F542                ;   Function to return the address of the disk parameter block
+4102: F542                ; for the current drive.
+4103: F542                ;                   
+4104: F542                fcGetDPB:           
+4105: F542     2AB3F5     	LHLD	DiskParamBlock
+4106: F545                GETPRM1:            
+4107: F545     223FE8     	SHLD	StatusBDOSReturn
+4108: F548     C9         	RET                
+4109: F549                ;                   
+4110: F549                ;   Function to get or set the user number. If (E) was (FF)
+4111: F549                ; then this is a request to return the current user number.
+4112: F549                ; Else set the user number from (E).
+4113: F549                ;                   
+4114: F549                fcGetUser:          
+4115: F549     3A3EE8     	LDA			ParamE			; get controlling parameter.
+4116: F54C     FEFF       	CPI			0FFH			; want to get user number?
+4117: F54E     C257F5     	JNZ			SetUser			; No, then set it
+4118: F551     3AA1F5     	LDA			CurrentUser		; yes, just return it in A
+4119: F554     C35CEB     	JMP			SetStatusBDOS	; exit while setting return status
+4120: F557                	                   
+4121: F557                SetUser:            
+4122: F557     E61F       	ANI			1FH				; no,just keep the low bits (000X XXXX)
+4123: F559     32A1F5     	STA			CurrentUser		; and save in Current user
+4124: F55C     C9         	RET                
+4125: F55D                ;                   
+4126: F55D                ;   Function to read a random record from a file.
+4127: F55D                ;                   
+4128: F55D                fcReadRandom:       
+4129: F55D     CD6DF4     	CALL	AutoSelect	;select proper drive and read.
+4130: F560     C33BF3     	JMP	READRAN        
+4131: F563                ;                   
+4132: F563                ;   Function to compute the file size for random files.
+4133: F563                ;                   
+4134: F563                fcWriteRandom:      
+4135: F563     CD6DF4     	CALL	AutoSelect	;select proper drive and write.
+4136: F566     C344F3     	JMP	WRITERAN       
+4137: F569                ;                   
+4138: F569                ;   Function to compute the size of a random file.
+4139: F569                ;                   
+4140: F569                fcGetFileSize:      
+4141: F569     CD6DF4     	CALL	AutoSelect	;select proper drive and check file length
+4142: F56C     C37AF3     	JMP	RANSIZE        
+4143: F56F                ;                   
+4144: F56F                ;   Function #37. This allows a program to log off any drives.
+4145: F56F                ; On entry, set (DE) to contain a word with bits set for those
+4146: F56F                ; drives that are to be logged off. The log-in vector and the
+4147: F56F                ; write protect vector will be updated. This must be a M/PM
+4148: F56F                ; special function. 
+4149: F56F                ;                   
+4150: F56F                fcResetDrive:       
+4151: F56F     2A3CE8     	LHLD	ParamsDE	;get drives to log off.
+4152: F572     7D         	MOV	A,L	;for each bit that is set, we want
+4153: F573     2F         	CMA		;to clear that bit in (LoggedBitMap)
+4154: F574     5F         	MOV	E,A	;and (ROBitMap).
+4155: F575     7C         	MOV	A,H            
+4156: F576     2F         	CMA                
+4157: F577     2AA7F5     	LHLD	LoggedBitMap	;reset the login Bit map.
+4158: F57A     A4         	ANA	H              
+4159: F57B     57         	MOV	D,A            
+4160: F57C     7D         	MOV	A,L            
+4161: F57D     A3         	ANA	E              
+4162: F57E     5F         	MOV	E,A            
+4163: F57F     2AA5F5     	LHLD	ROBitMap      
+4164: F582     EB         	XCHG               
+4165: F583     22A7F5     	SHLD	LoggedBitMap	;and save.
+4166: F586     7D         	MOV	A,L	;now do the write protect vector.
+4167: F587     A3         	ANA	E              
+4168: F588     6F         	MOV	L,A            
+4169: F589     7C         	MOV	A,H            
+4170: F58A     A2         	ANA	D              
+4171: F58B     67         	MOV	H,A            
+4172: F58C     22A5F5     	SHLD	ROBitMap	;and save. all done.
+4173: F58F     C9         	RET                
+4174: F590                ;                   
+4175: F590                ;   Get here to return to the user.
+4176: F590                ;                   
+4177: F590                                    
+4178: F590                ;                   
+4179: F590                ;   Function #40. This is a special entry to do random i/o.
+4180: F590                ; For the case where we are writing to unused disk space, this
+4181: F590                ; space will be zeroed out first. This must be a M/PM special
+4182: F590                ; purpose function, because why would any normal program even
+4183: F590                ; care about the previous contents of a sector about to be
+4184: F590                ; written over.     
+4185: F590                ;                   
+4186: F590                fcWriteZeroFill:    
+4187: F590     CD6DF4     	CALL	AutoSelect	;select proper drive.
+4188: F593     3E02       	MVI	A,2	;use special write mode.
+4189: F595     32CDF5     	STA	MODE           
+4190: F598     0E00       	MVI	C,0	;set write indicator.
+4191: F59A     CDAFF2     	CALL	POSITN1	;position the file.
+4192: F59D     CCABF1     	CZ	WTSEQ1	;and write (if no errors).
+4193: F5A0     C9         	RET                
+4194: F5A1                                    
+4195: F5A1                ;**************************************************************
+4196: F5A1                ;*                  
+4197: F5A1                ;*     BDOS data storage pool.
+4198: F5A1                ;*                  
+4199: F5A1                ;**************************************************************
+4200: F5A1                                    
+4201: F5A1     00         CurrentUser:			DB	0		; current user number.
+4202: F5A2     00         CurrentDrive:			DB	0		; currently active drive.
+4203: F5A3     00         BitSetFlag:				DB	0		; flag to set(01) or reset(00) bit in disk allocation table
+4204: F5A4                                    
+4205: F5A4                ;                   
+4206: F5A4     E5         EmptyDir:				DB	EmptyFileFlag	; empty directory segment indicator.
+4207: F5A5     0000       ROBitMap:				DW	0		; write protect status for all 16 drives.
+4208: F5A7     0000       LoggedBitMap:			DW	0		; drive active word (1 bit per drive).
+4209: F5A9     8000       UsersDMA:				DW	080H	;user's dma address (defaults to 80h).
+4210: F5AB                ;                   
+4211: F5AB                ;   Scratch areas from parameter block.
+4212: F5AB                ;                   
+4213: F5AB     0000       FilePosInDirSegment:			DW	0	; relative position within dir segment for file (0-3).
+4214: F5AD     0000       LastTrackNumber:		DW	0	; last selected track number.
+4215: F5AF     0000       LastSectorNumber:		DW	0	; last selected sector number.
+4216: F5B1                ;                   
+4217: F5B1                ;   Disk storage areas from parameter block.
+4218: F5B1                ;                   
+4219: F5B1                DirBuffSize				EQU	128	; buffer size
+4220: F5B1     0000       DirBuffAddr:			DW	0	;address of directory buffer to use.
+4221: F5B3     0000       DiskParamBlock:			DW	0	;contains address of disk parameter block.
+4222: F5B5     0000       CHKVECT:				DW	0	;address of check vector.
+4223: F5B7     0000       FATpointer:			DW	0	;address of allocation vector (bit map).
+4224: F5B9                ;                   
+4225: F5B9                ;   Disk Parameter block returned from the bios.
+4226: F5B9                ;                   
+4227: F5B9                LogicalSecSize			EQU	128	; Logical sector size
+4228: F5B9     0000       SECTORS:				DW	0	;sectors per track from bios.
+4229: F5BB     00         BLKSHFT:				DB	0	;block shift.
+4230: F5BC     00         BLKMASK:				DB	0	;block mask.
+4231: F5BD     00         EXTMASK:				DB	0	;extent mask.
+4232: F5BE     0000       DiskSize:				DW	0	;disk size from bios (number of blocks-1).
+4233: F5C0     0000       DrectorySize:			DW	0	;directory size, number of entries.
+4234: F5C2     0000       DirectoryFAT0:			DW	0	;storage for first bytes of bit map (dir space used).
+4235: F5C4     0000       DirectoryFAT1:			DW	0
+4236: F5C6     0000       OFFSET:					DW	0	;first usable track number.
+4237: F5C8     0000       XLATE:					DW	0	;sector translation table address.
 4238: F5CA                ;                   
-4239: F5CA     00         CLOSEFLG:				DB	0	;close flag (=0ffh is extent written ok).
-4240: F5CB     00         RDWRTFLG:				DB	0	;read/write flag (0ffh=read, 0=write).
-4241: F5CC     00         FNDSTAT:				DB	0	;filename found status (0=found first entry, -1 not found).
-4242: F5CD     00         MODE:					DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
-4243: F5CE     00         RELBLOCK:				DB	0	;relative position within fcb of block number written.
-4244: F5CF     00         COUNTER:				DB	0	;byte counter for directory name searches.
-4245: F5D0     00000000   SaveFCB:				DW	0,0	;save space for address of fcb (for directory searches).
-4246: F5D4     00         SmallDisk:				DB	0	;if =0 then disk is > 256 blocks long.
-4247: F5D5     00         AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
-4248: F5D6     00         OLDDRV:					DB	0	;on auto select, storage for previous drive.
-4249: F5D7     00         AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
-4250: F5D8     00         SAVNXT:					DB	0	;storage for next record number to access.
-4251: F5D9     00         SAVEXT:					DB	0	;storage for extent number of file.
-4252: F5DA     0000       SAVNREC:				DW	0	;storage for number of records in file.
-4253: F5DC     0000       BlockNumber:				DW	0	;block number (physical sector) used within a file or logical sector.
-4254: F5DE     0000       LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
-4255: F5E0     00         FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
-4256: F5E1     0000       FilePosInDirectory:			DW	0	;files position within directory (0 to max entries -1).
-4257: F5E3                ;                   
-4258: F5E3                ;   Disk directory buffer checksum bytes. One for each of the
-4259: F5E3                ; 16 possible drives.
-4260: F5E3                ;                   
-4261: F5E3                CheckSumTable:      
-4262: F5E3     00000000000000000000000000000000 	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-4263: F5F3                ;                   
-4264: F5F3                ;   Extra space ?   
-4265: F5F3                ;                   
-4266: F5F3     00000000   	DB	0,0,0,0         
-4267: F5F7                ;                   
-4268: F5F7                ;**************************************************************
-4269: F5F7                ;*                  
-4270: F5F7                ;*        B I O S   J U M P   T A B L E
-4271: F5F7                ;*                  
-4272: F5F7                ;**************************************************************
-4273: F5F7                ;                   
-4274: F5F7                BIOSEntry	Equ	0F600H		; start of bios
-4275: F5F7                                    
-4276: F5F7                biosBoot			EQU		BIOSEntry + 000H	
-4277: F5F7                fcSystemReset		EQU		BIOSEntry + 003H
-4278: F5F7                biosConsoleStatus	EQU		BIOSEntry + 006H
-4279: F5F7                biosConsoleIn		EQU		BIOSEntry + 009H
-4280: F5F7                biosConsoleOut		EQU		BIOSEntry + 00CH
-4281: F5F7                fcListOut			EQU		BIOSEntry + 00FH
-4282: F5F7                fcPunchOut			EQU		BIOSEntry + 012H
-4283: F5F7                biosReaderIn		EQU		BIOSEntry + 015H
-4284: F5F7                biosHomeDisk		EQU		BIOSEntry + 018H
-4285: F5F7                biosSelectDisk		EQU		BIOSEntry + 01BH
-4286: F5F7                biosSetTrack		EQU		BIOSEntry + 01EH
-4287: F5F7                biosSetSector		EQU		BIOSEntry + 021H
-4288: F5F7                biosSetDMA			EQU		BIOSEntry + 024H
-4289: F5F7                biosReadDisk		EQU		BIOSEntry + 027H
-4290: F5F7                biosWriteDisk		EQU		BIOSEntry + 02AH
-4291: F5F7                biosListStatus		EQU		BIOSEntry + 02DH
-4292: F5F7                biosSectorTranslate	EQU		BIOSEntry + 030H
-4293: F5F7                                    
-4294: F5F7                ;*                  
-4295: F5F7                ;******************   E N D   O F   C P / M   *****************
-4296: F5F7                ;*                  
-4297: F5F7                CodeEnd:            
-4298: F5F7                		END               
+4239: F5CA                ;                   
+4240: F5CA     00         CLOSEFLG:				DB	0	;close flag (=0ffh is extent written ok).
+4241: F5CB     00         RDWRTFLG:				DB	0	;read/write flag (0ffh=read, 0=write).
+4242: F5CC     00         FileFoundFlag:			DB	0	;filename found status (0=found first entry, -1 not found).
+4243: F5CD     00         MODE:					DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
+4244: F5CE     00         RELBLOCK:				DB	0	;relative position within fcb of block number written.
+4245: F5CF     00         CharCounter:			DB	0	;byte counter for directory name searches.
+4246: F5D0     00000000   SaveFCB:				DW	0,0	;save space for address of fcb (for directory searches).
+4247: F5D4     00         SmallDisk:				DB	0	;if =0 then disk is > 256 blocks long.
+4248: F5D5     00         AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
+4249: F5D6     00         OldDrive:				DB	0	;on auto select, storage for previous drive.
+4250: F5D7     00         AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
+4251: F5D8     00         SAVNXT:					DB	0	;storage for next record number to access.
+4252: F5D9     00         SAVEXT:					DB	0	;storage for extent number of file.
+4253: F5DA     0000       SAVNREC:				DW	0	;storage for number of records in file.
+4254: F5DC     0000       BlockNumber:			DW	0	;block number (physical sector) used within a file or logical sector.
+4255: F5DE     0000       LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
+4256: F5E0     00         FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
+4257: F5E1     0000       FilePosInDirectory:		DW	0	;files position within directory (0 to max entries -1).
+4258: F5E3                ;                   
+4259: F5E3                ;   Disk directory buffer checksum bytes. One for each of the
+4260: F5E3                ; 16 possible drives.
+4261: F5E3                ;                   
+4262: F5E3                CheckSumTable:      
+4263: F5E3     00000000000000000000000000000000 	DB	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+4264: F5F3                ;                   
+4265: F5F3                ;   Extra space ?   
+4266: F5F3                ;                   
+4267: F5F3     00000000   	DB	0,0,0,0         
+4268: F5F7                ;                   
+4269: F5F7                ;**************************************************************
+4270: F5F7                ;*                  
+4271: F5F7                ;*        B I O S   J U M P   T A B L E
+4272: F5F7                ;*                  
+4273: F5F7                ;**************************************************************
+4274: F5F7                ;                   
+4275: F5F7                BIOSEntry	Equ	0F600H		; start of bios
+4276: F5F7                                    
+4277: F5F7                biosBoot			EQU		BIOSEntry + 000H	
+4278: F5F7                fcSystemReset		EQU		BIOSEntry + 003H
+4279: F5F7                biosConsoleStatus	EQU		BIOSEntry + 006H
+4280: F5F7                biosConsoleIn		EQU		BIOSEntry + 009H
+4281: F5F7                biosConsoleOut		EQU		BIOSEntry + 00CH
+4282: F5F7                fcListOut			EQU		BIOSEntry + 00FH
+4283: F5F7                fcPunchOut			EQU		BIOSEntry + 012H
+4284: F5F7                biosReaderIn		EQU		BIOSEntry + 015H
+4285: F5F7                biosHomeDisk		EQU		BIOSEntry + 018H
+4286: F5F7                biosSelectDisk		EQU		BIOSEntry + 01BH
+4287: F5F7                biosSetTrack		EQU		BIOSEntry + 01EH
+4288: F5F7                biosSetSector		EQU		BIOSEntry + 021H
+4289: F5F7                biosSetDMA			EQU		BIOSEntry + 024H
+4290: F5F7                biosReadDisk		EQU		BIOSEntry + 027H
+4291: F5F7                biosWriteDisk		EQU		BIOSEntry + 02AH
+4292: F5F7                biosListStatus		EQU		BIOSEntry + 02DH
+4293: F5F7                biosSectorTranslate	EQU		BIOSEntry + 030H
+4294: F5F7                                    
+4295: F5F7                ;*                  
+4296: F5F7                ;******************   E N D   O F   C P / M   *****************
+4297: F5F7                ;*                  
+4298: F5F7                CodeEnd:            
+4299: F5F7                		END               
 
 
 
@@ -4309,12 +4310,13 @@
 0506	E242	ADDATOHL                      		  0524,  0892,  1085,
 0604	E2BA	AFN                           		  0612,
 0610	E2C2	AFN1                          		  0608,
+2529	ED88	ANYMOREFILES                  		  2544,  2590,  2890,
 0050	002A	ASTRK                         		  0627,
 0052	0040	ATSIGN                        		  1735,
-3943	F46D	AUTOSEL                       		  3990,  3996,  4013,  4024,  4031,  4039,  4045,  4052,  4058,  4096,  4128,  4134,  4140,  4186,
-4247	F5D5	AUTOSELECTACTIVE              		  1461,  1491,  3945,
-4249	F5D7	AUTOSELECTFLAG                		  1460,  1496,  3956,
-3960	F491	AUTOSL1                       		  3952,
+3943	F46D	AUTOSELECT                    		  3991,  3997,  4014,  4025,  4032,  4040,  4046,  4053,  4059,  4097,  4129,  4135,  4141,  4187,
+3961	F491	AUTOSELECT1                   		  3952,
+4248	F5D5	AUTOSELECTACTIVE              		  1461,  1491,  3945,
+4250	F5D7	AUTOSELECTFLAG                		  1460,  1496,  3957,
 
 1757	E9FF	BACKUP                        		  1880,  1922,
 1761	EA07	BACKUP1                       		  1758,
@@ -4331,30 +4333,30 @@
 1490	E873	BDOSEXIT                      		  1462,
 1503	E890	BDOSEXIT1                     		  1493,  1498,  1982,
 1488	E873	BDOSSTACK                     		  1458,
-4276	F600	BIOSBOOT                      		
-4279	F609	BIOSCONSOLEIN                 		  1626,  1668,  1671,  1983,
-4280	F60C	BIOSCONSOLEOUT                		  1694,  1760,  1763,  1978,
-4278	F606	BIOSCONSOLESTATUS             		  1665,  1977,  1980,
-4274	F600	BIOSENTRY                     		  4276,  4277,  4278,  4279,  4280,  4281,  4282,  4283,  4284,  4285,  4286,  4287,  4288,  4289,  4290,  4291,  4292,
-4284	F618	BIOSHOMEDISK                  		  2124,
-4291	F62D	BIOSLISTSTATUS                		
-4289	F627	BIOSREADDISK                  		  2139,
-4283	F615	BIOSREADERIN                  		  1965,
-4292	F630	BIOSSECTORTRANSLATE           		  2248,
-4285	F61B	BIOSSELECTDISK                		  2076,
-4288	F624	BIOSSETDMA                    		  2631,
-4287	F621	BIOSSETSECTOR                 		  2251,
-4286	F61E	BIOSSETTRACK                  		  2228,
-4290	F62A	BIOSWRITEDISK                 		  2145,
+4277	F600	BIOSBOOT                      		
+4280	F609	BIOSCONSOLEIN                 		  1626,  1668,  1671,  1983,
+4281	F60C	BIOSCONSOLEOUT                		  1694,  1760,  1763,  1978,
+4279	F606	BIOSCONSOLESTATUS             		  1665,  1977,  1980,
+4275	F600	BIOSENTRY                     		  4277,  4278,  4279,  4280,  4281,  4282,  4283,  4284,  4285,  4286,  4287,  4288,  4289,  4290,  4291,  4292,  4293,
+4285	F618	BIOSHOMEDISK                  		  2124,
+4292	F62D	BIOSLISTSTATUS                		
+4290	F627	BIOSREADDISK                  		  2139,
+4284	F615	BIOSREADERIN                  		  1965,
+4293	F630	BIOSSECTORTRANSLATE           		  2248,
+4286	F61B	BIOSSELECTDISK                		  2076,
+4289	F624	BIOSSETDMA                    		  2631,
+4288	F621	BIOSSETSECTOR                 		  2251,
+4287	F61E	BIOSSETTRACK                  		  2228,
+4291	F62A	BIOSWRITEDISK                 		  2145,
 3834	F3EA	BITMAP                        		
 3853	F3F8	BITMAP1                       		  3859,
 3877	F419	BITMAP2                       		  3887,  3904,
 3898	F43D	BITMAP3                       		  3891,  3895,
-4202	F5A3	BITSETFLAG                    		  2767,  2965,  3901,
+4203	F5A3	BITSETFLAG                    		  2767,  2965,  3901,
 0039	0020	BLANK                         		  0118,  0448,  0472,  0498,  0642,  0694,  0835,  0862,  0937,  0989,  0998,  1001,  1243,  1257,  1273,  1333,  1390,  1653,  1707,  1746,  1759,  1777,
-4229	F5BC	BLKMASK                       		  2336,  3491,
-4228	F5BB	BLKSHFT                       		  2257,  2329,
-4253	F5DC	BLOCKNUMBER                   		  2159,  2167,  2311,  2317,  2330,  2342,  3429,  3484,  3489,  3498,
+4230	F5BC	BLKMASK                       		  2336,  3491,
+4229	F5BB	BLKSHFT                       		  2257,  2329,
+4254	F5DC	BLOCKNUMBER                   		  2159,  2167,  2311,  2317,  2330,  2342,  3429,  3484,  3489,  3498,
 0040	007B	BRACKETLEFT                   		  0284,
 0041	007D	BRACKETRIGHT                  		
 0026	0008	BS                            		  1651,  1714,  1762,  1825,
@@ -4365,21 +4367,21 @@
 1414	E7BD	CDRIVE                        		  0266,  0274,  0302,  0329,  0421,  0548,  0738,  0762,  0907,  0920,  0923,  1263,
 1416	E7BE	CHANGEDRIVEFLAG               		  0528,  0554,  0765,  0828,  0903,  0916,  1174,  1198,  1259,  1313,  1391,
 2031	EB69	CHARBUF                       		  1621,  1662,  1677,
+4245	F5CF	CHARCOUNTER                   		  2867,  2895,
 2573	EDA7	CHECKDIR                      		  2705,
 2645	EDFE	CHECKFILEPOSITION             		  2881,  2958,  3092,  3110,  3123,  3196,  3276,  3304,  3334,  3340,  3758,  3881,
 2420	ED1A	CHECKSUM                      		  2580,
 2424	ED20	CHECKSUM1                     		  2428,
-4261	F5E3	CHECKSUMTABLE                 		  2160,  2574,  2583,
+4262	F5E3	CHECKSUMTABLE                 		  2160,  2574,  2583,
 3091	EFCF	CHGNAM1                       		  3099,
-3082	EFBE	CHGNAMES                      		  4059,
+3082	EFBE	CHGNAMES                      		  4060,
 2316	ECA7	CHKBLK                        		  3380,  3408,
 1644	E96F	CHKCHAR                       		  1632,  1729,
 0382	E1BF	CHKCON                        		  0337,  1015,  1090,
 2594	EDCD	CHKDIR1                       		  2587,
 2543	ED95	CHKNMBR                       		  3293,  3903,
 2464	ED4D	CHKROFL                       		  2960,  3094,
-4221	F5B5	CHKVECT                       		  2581,
-2477	ED5D	CHKWPRT                       		  2954,  3083,  3269,  3400,
+4222	F5B5	CHKVECT                       		  2581,
 2715	EE39	CKBITMAP                      		  2764,  2998,  3027,
 2752	EE5A	CKBMAP1                       		  2755,
 1676	E99D	CKCON1                        		  1670,
@@ -4389,10 +4391,10 @@
 0709	E32B	CLEARBUF                      		  0066,
 0588	E2A9	CLEARS1S2EX                   		  0577,  0584,
 0590	E2AB	CLEARS1S2EX1                  		  0594,
-2511	ED7B	CLEARS2                       		  3989,  4012,  4051,
+2511	ED7B	CLEARS2                       		  3990,  4013,  4052,
 0176	E0D7	CLOSE                         		  0327,  1150,
-4239	F5CA	CLOSEFLG                      		  3258,  3302,  3317,
-3184	F04A	CLOSEIT                       		  3303,  3624,  3997,
+4240	F5CA	CLOSEFLG                      		  3258,  3302,  3317,
+3184	F04A	CLOSEIT                       		  3303,  3624,  3998,
 3205	F075	CLOSEIT1                      		  3241,
 3214	F083	CLOSEIT2                      		  3212,
 3219	F089	CLOSEIT3                      		  3216,
@@ -4410,7 +4412,7 @@
 0034	0015	CNTRLU                        		  1884,
 0035	0018	CNTRLX                        		  1871,
 0036	001A	CNTRLZ                        		  1087,
-4297	F5F7	CODEEND                       		
+4298	F5F7	CODEEND                       		
 0062	E000	CODESTART                     		
 0046	003A	COLON                         		  0482,  0544,  0975,  0980,
 2306	EC9A	COMBLK                        		  3379,  3407,
@@ -4429,26 +4431,23 @@
 0560	E27F	CONVRT3                       		  0550,
 0562	E281	CONVRT4                       		
 0565	E284	CONVRT7                       		  0569,
-4244	F5CF	COUNTER                       		  2867,  2895,
 0030	000D	CR                            		  0110,  1645,  1784,  1820,  1953,
 0235	E106	CREATE                        		  1120,
 0109	E095	CRLF                          		  0126,  0444,  0460,  0748,  0969,  1067,  1355,
-4201	F5A2	CURRENTDRIVE                  		  1609,  2074,  2437,  3808,  3911,  3933,  3953,  3980,  4071,
-4200	F5A1	CURRENTUSER                   		  3889,  3961,  4117,  4122,
+4202	F5A2	CURRENTDRIVE                  		  1609,  2074,  2437,  3808,  3911,  3933,  3954,  3981,  4072,
+4201	F5A1	CURRENTUSER                   		  3889,  3962,  4118,  4123,
 2029	EB67	CURSORPOSITION                		  1703,  1748,  1773,  1805,  1833,  1876,  1918,
 2028	EB66	CURSORPOSITIONSTART           		  1774,  1806,  1856,  1875,
 
-0826	E3C9	DECODE                        		  1111,  1238,
-0833	E3D9	DECODE1                       		  0858,
 0018	005C	DEFAULTFCB                    		  1324,
 0037	007F	DEL                           		  1704,  1838,
-0201	E0EC	DELETE                        		  0420,  1048,  1118,
 0411	E1DA	DELETEBATCHFILE               		  0344,  0351,  0461,
+0201	E0EC	DELETEFILE                    		  0420,  1048,  1118,
 2554	ED9E	DEMINUSHL2HL                  		  2577,  2675,
 2058	EB72	DETOHL                        		  2103,  2108,  2640,  3073,  3135,
 2060	EB73	DETOHL1                       		  2068,
-4219	F5B1	DIRBUFFADDR                   		  2101,  2422,  2487,  2622,  2636,  3473,
-4218	0080	DIRBUFFSIZE                   		  2421,  2639,  3153,
+4220	F5B1	DIRBUFFADDR                   		  2101,  2422,  2487,  2622,  2636,  3473,
+4219	0080	DIRBUFFSIZE                   		  2421,  2639,  3153,
 1979	EB3B	DIRC1                         		  1975,
 0932	E448	DIRECT                        		  0788,
 0940	E459	DIRECT1                       		  0944,
@@ -4460,34 +4459,33 @@
 1012	E4DF	DIRECT7                       		  0999,  1007,
 1014	E4E0	DIRECT8                       		  0961,
 1019	E4EC	DIRECT9                       		  0951,  1016,
-4233	F5C2	DIRECTORYFAT0                 		  3861,
-4234	F5C4	DIRECTORYFAT1                 		  2576,
+4234	F5C2	DIRECTORYFAT0                 		  3861,
+4235	F5C4	DIRECTORYFAT1                 		  2576,
 2609	EDDD	DIRREAD                       		  2703,
 2600	EDCF	DIRWRITE                      		  2967,  3076,
-4220	F5B3	DISKPARAMBLOCK                		  2104,  4104,
+4221	F5B3	DISKPARAMBLOCK                		  2104,  4105,
 1602	E93C	DISKRO                        		  1587,
-4231	F5BE	DISKSIZE                      		  2109,  2820,  3016,  3838,
+0146	E0BA	DISKSELECT                    		  0305,  0331,  0418,  0422,  0739,  0910,  0924,  1265,  1364,
+4232	F5BE	DISKSIZE                      		  2109,  2820,  3016,  3838,
 1727	E9DA	DISPLAYACC                    		  1909,  1938,
 0054	0024	DOLLAR                        		  1793,  3894,
 2138	EBD5	DOREAD                        		  2611,  3384,
 2144	EBDB	DOWRITE                       		  2604,  3488,  3508,
 1000	E4C8	DRECT63                       		  0994,
 1002	E4CA	DRECT65                       		  0990,
-4232	F5C0	DRECTORYSIZE                  		  2453,  2670,
-0900	E425	DSELECT                       		  0934,  1046,  1064,  1115,  1176,  1277,
-0146	E0BA	DSKSEL                        		  0305,  0331,  0418,  0422,  0739,  0910,  0924,  1265,  1364,
+4233	F5C0	DRECTORYSIZE                  		  2453,  2670,
 
-4205	F5A4	EMPTYDIR                      		  3272,
-0057	00E5	EMPTYFILEFLAG                 		  2886,  2962,  3885,  4205,
+4206	F5A4	EMPTYDIR                      		  3272,
+0057	00E5	EMPTYFILEFLAG                 		  2886,  2962,  3885,  4206,
 0056	0000	ENDOFMESSAGE                  		  0819,  1377,
 0017	0005	ENTRY                         		  0096,  0142,  0149,  0155,  0203,  0209,  0244,  0256,  0355,  0384,  0388,  0396,  0407,
 0154	E0C0	ENTRY1                        		  0164,  0178,  0185,  0191,  0237,
 0208	E0F1	ENTRY2                        		  0218,  0231,
 0043	003D	EQUALS                        		  0476,  1186,
 2957	EF49	ERAFIL1                       		  2969,
-2953	EF41	ERAFILE                       		  4032,
 1029	E4F0	ERASE                         		  0789,
 1045	E513	ERASE1                        		  1032,
+2953	EF41	ERASEFILE                     		  4033,
 1575	E8F4	ERROR1                        		  1567,
 1582	E900	ERROR2                        		  1568,
 1586	E906	ERROR3                        		  1569,
@@ -4500,79 +4498,79 @@
 0635	E2DC	EXPANDNAME2                   		  0630,
 2285	EC81	EXTBLK                        		  2310,  3418,
 2296	EC94	EXTBLK1                       		  2292,
-4230	F5BD	EXTMASK                       		  2375,  2847,  3315,
+4231	F5BD	EXTMASK                       		  2375,  2847,  3315,
 0889	E41C	EXTRACT                       		  0959,  0987,  0996,
 
-4222	F5B7	FATPOINTER                    		  2749,  3852,  3863,  4084,
+4223	F5B7	FATPOINTER                    		  2749,  3852,  3863,  4085,
 2486	ED67	FCB2HL                        		  2465,  2788,  2894,  2961,  3071,  3130,  3199,  3760,  3884,
 1410	E79B	FCBFROMCCP                    		  0170,  0171,  0196,  0223,  0523,  0682,  0831,  0902,  0935,  1047,  1116,  1123,  1139,  1149,  1179,  1180,  1208,  1212,  1242,  1256,  1271,  1291,  1316,  1321,  1323,  1325,  1389,
-4255	F5E0	FCBPOSITION                   		  2488,  2698,
+4256	F5E0	FCBPOSITION                   		  2488,  2698,
 3057	EFA5	FCBSET                        		  3294,
-3995	F4C1	FCCLOSEFILE                   		  1536,
+3996	F4C1	FCCLOSEFILE                   		  1536,
 1958	EB23	FCCONSOLEIN                   		  1520,
 1741	E9EB	FCCONSOLEOUT                  		  1521,  1636,  1730,  1798,
 1745	E9F1	FCCONSOLEOUT1                 		  1751,
 2010	EB59	FCCONSOLESTATUSIN             		  1530,
 1804	EA3C	FCCONSOLESTRINGIN             		  1529,  1878,  1888,
 2002	EB53	FCCONSOLESTRINGOUT            		  1528,
-4050	F508	FCCREATEFILE                  		  1542,
-4030	F4F3	FCDELETEFILE                  		  1539,
+4051	F508	FCCREATEFILE                  		  1542,
+4031	F4F3	FCDELETEFILE                  		  1539,
 1972	EB2F	FCDIRECTCONSOLEOUT            		  1525,
-4064	F51A	FCGETACTIVEDISKS              		  1544,
-4070	F520	FCGETCURRENTDISK              		  1545,
-4103	F542	FCGETDPB                      		  1551,
-4083	F52D	FCGETFATTABLE                 		  1547,
-4139	F569	FCGETFILESIZE                 		  1555,
+4065	F51A	FCGETACTIVEDISKS              		  1544,
+4071	F520	FCGETCURRENTDISK              		  1545,
+4104	F542	FCGETDPB                      		  1551,
+4084	F52D	FCGETFATTABLE                 		  1547,
+4140	F569	FCGETFILESIZE                 		  1555,
 1988	EB48	FCGETIOBYTE                   		  1526,
-4089	F533	FCGETRODISKS                  		  1549,
-4113	F549	FCGETUSER                     		  1552,
-3969	F49A	FCGETVERSION                  		  1531,
-4281	F60F	FCLISTOUT                     		  1524,  1699,
-3988	F4B8	FCOPENFILE                    		  1535,
-4282	F612	FCPUNCHOUT                    		  1523,
+4090	F533	FCGETRODISKS                  		  1549,
+4114	F549	FCGETUSER                     		  1552,
+3970	F49A	FCGETVERSION                  		  1531,
+4282	F60F	FCLISTOUT                     		  1524,  1699,
+3989	F4B8	FCOPENFILE                    		  1535,
+4283	F612	FCPUNCHOUT                    		  1523,
 1964	EB29	FCREADERIN                    		  1522,
-4127	F55D	FCREADRANDOM                  		  1553,
-4038	F4FC	FCREADSEQUENTIAL              		  1540,
-4057	F511	FCRENAMEFILE                  		  1543,
-3975	F49F	FCRESETDISKSYSTEM             		  1533,
-4149	F56F	FCRESETDRIVE                  		  1557,
+4128	F55D	FCREADRANDOM                  		  1553,
+4039	F4FC	FCREADSEQUENTIAL              		  1540,
+4058	F511	FCRENAMEFILE                  		  1543,
+3976	F49F	FCRESETDISKSYSTEM             		  1533,
+4150	F56F	FCRESETDRIVE                  		  1557,
 2018	EB5F	FCRETURN                      		  1558,  1559,
-4003	F4C7	FCSEARCHFORFIRST              		  1537,
-4015	F4DE	FCSEARCHFORFIRST1             		  4008,
-4021	F4E4	FCSEARCHFORNEXT               		  1538,
-3931	F461	FCSELECTDISK                  		  1502,  1534,  3959,
+4004	F4C7	FCSEARCHFORFIRST              		  1537,
+4016	F4DE	FCSEARCHFORFIRST1             		  4009,
+4022	F4E4	FCSEARCHFORNEXT               		  1538,
+3931	F461	FCSELECTDISK                  		  1502,  1534,  3960,
 2446	ED35	FCSETDISKRO                   		  1548,  2592,
-4076	F526	FCSETDMA                      		  1546,
-4095	F539	FCSETFILEATTRIBUTES           		  1550,
+4077	F526	FCSETDMA                      		  1546,
+4096	F539	FCSETFILEATTRIBUTES           		  1550,
 1994	EB4E	FCSETIOBYTE                   		  1527,
 3790	F3B6	FCSETRECORDNUMBER             		  1556,
-4277	F603	FCSYSTEMRESET                 		  1519,
-4133	F563	FCWRITERANDOM                 		  1554,
-4044	F502	FCWRITESEQUENTIAL             		  1541,
-4185	F590	FCWRITEZEROFILL               		  1560,
+4278	F603	FCSYSTEMRESET                 		  1519,
+4134	F563	FCWRITERANDOM                 		  1554,
+4045	F502	FCWRITESEQUENTIAL             		  1541,
+4186	F590	FCWRITEZEROFILL               		  1560,
 0029	000C	FF                            		
-4256	F5E1	FILEPOSINDIRECTORY            		  2156,  2530,  2646,  2658,  2672,  2674,  2681,  2932,  3187,  3188,
-4212	F5AB	FILEPOSINDIRSEGMENT           		  2089,  2456,  2532,  3871,
+4242	F5CC	FILEFOUNDFLAG                 		  2836,  2866,  2935,
+4257	F5E1	FILEPOSINDIRECTORY            		  2156,  2530,  2646,  2658,  2672,  2674,  2681,  2932,  3187,  3188,
+4213	F5AB	FILEPOSINDIRSEGMENT           		  2089,  2456,  2532,  3871,
 1601	E937	FILERO                        		  1591,
 0675	E301	FINDDOSCOMMAND                		  0768,
 0678	E306	FINDDOSCOMMAND1               		  0704,
 0684	E30F	FINDDOSCOMMAND2               		  0691,
 0698	E322	FINDDOSCOMMAND3               		  0687,  0701,
 0702	E327	FINDDOSCOMMAND4               		  0695,
-2864	EEBD	FINDFIRST                     		  2956,  3085,  3108,  3122,  3195,  3275,  3333,  3747,  4016,
-2878	EED2	FINDNXT                       		  2913,  2920,  2968,  3098,  3115,  3781,  4025,
-2893	EEEF	FNDNXT1                       		  2887,
-2898	EEF8	FNDNXT2                       		  2930,
-2915	EF18	FNDNXT3                       		  2910,
-2925	EF21	FNDNXT4                       		  2904,  2907,  2914,
-2931	EF28	FNDNXT5                       		  2901,
-2945	EF39	FNDNXT6                       		  2882,  2892,
+2864	EEBD	FINDFIRST                     		  2956,  3085,  3108,  3122,  3195,  3275,  3333,  3747,  4017,
+2878	EED2	FINDNEXT                      		  2913,  2920,  2968,  3098,  3115,  3781,  4026,
+2893	EEEF	FINDNEXT1                     		  2887,
+2898	EEF8	FINDNEXT2                     		  2930,
+2915	EF18	FINDNEXT3                     		  2910,
+2925	EF21	FINDNEXT4                     		  2904,  2907,  2914,
+2931	EF28	FINDNEXT5                     		  2901,
+2945	EF39	FINDNEXT6                     		  2882,  2892,
 2991	EF68	FNDSPA1                       		  3032,  3051,
 3015	EF79	FNDSPA2                       		  2994,
 3037	EF94	FNDSPA3                       		  3000,  3029,
 3048	EF9C	FNDSPA4                       		  3021,
 2984	EF66	FNDSPACE                      		  3422,
-4241	F5CC	FNDSTAT                       		  2836,  2866,  2935,
 1562	0028	FUNCTIONCOUNT                 		  1465,
 1518	E89A	FUNCTIONVECTOR                		  1562,  1468,
 
@@ -4583,20 +4581,22 @@
 2276	EC7F	GETBLK3                       		  2272,
 2256	EC61	GETBLOCK                      		  2307,  3411,
 1620	E956	GETCHAR                       		  1631,  1816,
+0826	E3C9	GETCMDNUMBER                  		  1111,  1238,
+0833	E3D9	GETCMDNUMBER1                 		  0858,
 0394	E1CD	GETCURRENTDISK                		  0749,  0761,  0971,
+2435	ED27	GETDISKROSTATUS               		  2478,  3189,
 1630	E961	GETECHO                       		  1959,
-3268	F0CC	GETEMPTY                      		  3339,  3646,  4053,
+3268	F0CC	GETEMPTY                      		  3339,  3646,  4054,
 0571	E28E	GETEXTENSION                  		  0567,
 0578	E29B	GETEXTENSION1                 		  0575,
 0582	E29F	GETEXTENSION4                 		  0586,
 3285	F0EE	GETMT1                        		  3289,
 3300	F102	GETNEXT                       		  3372,  3540,
 2669	EE0E	GETNEXTENTRY                  		  2880,  3879,
-4105	F545	GETPRM1                       		  4066,  4085,  4091,
+4106	F545	GETPRM1                       		  4067,  4086,  4092,
 2502	ED72	GETS2                         		  2512,  2519,  3191,  3529,  3663,
 0254	E112	GETSETCURRENTUSER             		  0732,  1245,
 0248	E110	GETUSR                        		  0261,
-2435	ED27	GETWPRT                       		  2478,  3189,
 0049	003E	GRTTHAN                       		  0488,  0752,
 3321	F12B	GTNEXT1                       		  3313,
 3331	F136	GTNEXT2                       		  3319,
@@ -4625,27 +4625,27 @@
 0015	0003	IOBYTE                        		  1989,  1995,
 2023	EB60	IOERR1                        		  3354,  3390,  3406,
 2146	EBDE	IORET                         		  2140,
+2477	ED5D	ISDISKRO                      		  2954,  3083,  3269,  3400,
 0467	E219	ISITVALIDCHARACTER            		  0566,  0583,  0624,
 
 2049	EB6D	JUMPTOHL                      		  2150,  2473,  2481,
 
-4214	F5AF	LASTSECTORNUMBER              		  2095,  2130,  2172,  2235,
-4213	F5AD	LASTTRACKNUMBER               		  2092,  2126,  2177,  2230,
+4215	F5AF	LASTSECTORNUMBER              		  2095,  2130,  2172,  2235,
+4214	F5AD	LASTTRACKNUMBER               		  2092,  2126,  2177,  2230,
 0048	003C	LESSTH                        		  0486,
 0028	000A	LF                            		  0112,  1647,  1719,  1786,  1822,
-4207	F5A7	LOGGEDBITMAP                  		  3810,  3821,  3825,  3978,  4065,  4156,  4164,
+4208	F5A7	LOGGEDBITMAP                  		  3810,  3821,  3825,  3979,  4066,  4157,  4165,
 2328	ECAD	LOGICAL                       		  3382,  3456,
-4226	0080	LOGICALSECSIZE                		  1074,  1135,  1295,  3370,  3405,
+4227	0080	LOGICALSECSIZE                		  1074,  1135,  1295,  3370,  3405,
 2331	ECB3	LOGICL1                       		  2334,
-3807	F3C9	LOGINDRIVE                    		  3937,  3984,
-4254	F5DE	LOGSECT                       		  2335,  3481,
+3807	F3C9	LOGINDRIVE                    		  3937,  3985,
+4255	F5DE	LOGSECT                       		  2335,  3481,
 
 0013	0040	MEM                           		  0061,
-4242	F5CD	MODE                          		  2386,  3361,  3396,  3457,  3536,  3570,  4188,
-2529	ED88	MOREFLS                       		  2544,  2590,  2890,
+4243	F5CD	MODE                          		  2386,  3361,  3396,  3457,  3536,  3570,  4189,
 0873	E411	MOVE3                         		  1280,
 0273	E126	MOVECD                        		  0356,  1264,  1363,
-2635	EDF2	MOVEDIR                       		  4017,  4026,
+2635	EDF2	MOVEDIR                       		  4018,  4027,
 3166	F03C	MOVEWORD                      		  3224,  3226,
 
 1418	E7BF	NBYTES                        		  1068,  1071,
@@ -4656,11 +4656,11 @@
 0815	E3BB	NONE                          		  0949,  1050,  1219,
 1162	E5D8	NOSPACE                       		  1157,
 
-4235	F5C6	OFFSET                        		  2224,
-4248	F5D6	OLDDRV                        		  1500,  3954,
+4236	F5C6	OFFSET                        		  2224,
+4249	F5D6	OLDDRIVE                      		  1500,  3955,
 0162	E0C8	OPEN                          		  0172,  0307,
 0168	E0CD	OPENFCB                       		  1065,  1281,
-3120	EFF9	OPENIT                        		  3637,  3991,
+3120	EFF9	OPENIT                        		  3637,  3992,
 3125	F002	OPENIT1                       		  3344,
 3154	F033	OPENIT2                       		  3150,  3152,
 1686	E9A3	OUTCHAR                       		  1733,  1744,  1747,  1770,  1778,  1785,  1787,  1954,
@@ -4671,14 +4671,14 @@
 
 0640	E2E1	PADFIELD                      		  0576,  0625,  0644,
 0860	E404	PADNUMBER                     		  0836,  0866,
-1481	E83E	PARAME                        		  1453,  1501,  3932,  3950,  4114,
-1480	E83C	PARAMSDE                      		  1450,  1476,  1494,  1807,  2286,  2348,  2357,  2503,  2869,  3068,  3086,  3132,  3155,  3202,  3270,  3273,  3278,  3306,  3401,  3431,  3576,  3748,  3791,  3946,  3962,  4023,  4150,
+1481	E83E	PARAME                        		  1453,  1501,  3932,  3950,  4115,
+1480	E83C	PARAMSDE                      		  1450,  1476,  1494,  1807,  2286,  2348,  2357,  2503,  2869,  3068,  3086,  3132,  3155,  3202,  3270,  3273,  3278,  3306,  3401,  3431,  3576,  3748,  3791,  3946,  3963,  4024,  4151,
 0045	002E	PERIOD                        		  0480,  0573,
-0019	0080	PG0BUFFER                     		  0319,  0401,  0759,  0890,  1084,  1342,  1354,  3981,
+0019	0080	PG0BUFFER                     		  0319,  0401,  0759,  0890,  1084,  1342,  1354,  3982,
 0124	E0A4	PLINE                         		  0808,  0817,  1034,  1158,  1226,  1374,
 0128	E0A9	PLINE2                        		  0136,  0336,
 3568	F2AB	POSITION                      		  3679,  3687,
-3574	F2AF	POSITN1                       		  4190,
+3574	F2AF	POSITN1                       		  4191,
 3621	F2EF	POSITN2                       		  3611,
 3654	F327	POSITN3                       		  3617,  3640,
 3661	F32C	POSITN4                       		  3630,  3645,  3650,
@@ -4690,12 +4690,12 @@
 1606	E940	PRTERR                        		  1577,  1594,
 1791	EA2E	PRTMESG                       		  1613,  1615,  1800,  2006,
 
-0042	003F	QMARK                         		  0458,  0607,  0629,  0941,  2903,  4007,  4011,
+0042	003F	QMARK                         		  0458,  0607,  0629,  0941,  2903,  4008,  4012,
 
 3757	F38C	RANSIZ1                       		  3782,
 3780	F3AE	RANSIZ2                       		  3774,
 3783	F3B4	RANSIZ3                       		  3759,
-3745	F37A	RANSIZE                       		  4141,
+3745	F37A	RANSIZE                       		  4142,
 1812	EA4A	RDBUF1                        		  1830,  1842,  1868,  1949,
 1893	EACB	RDBUF10                       		  1835,
 1900	EAD3	RDBUF11                       		  1912,
@@ -4716,14 +4716,14 @@
 0809	E3B0	RDERR                         		  0807,
 0806	E3AA	RDERROR                       		  1099,
 0216	E0F6	RDREC                         		  0224,  0313,  1292,
-3359	F164	RDSEQ                         		  4040,
+3359	F164	RDSEQ                         		  4041,
 3362	F169	RDSEQ1                        		  3680,
 3378	F18E	RDSEQ2                        		  3369,
 3389	F1A3	RDSEQ3                        		  3371,  3377,  3381,
-4240	F5CB	RDWRTFLG                      		  3336,  3364,  3399,
+4241	F5CB	RDWRTFLG                      		  3336,  3364,  3399,
 0222	E0FB	READFCB                       		  1077,
-3677	F33B	READRAN                       		  4129,
-4243	F5CE	RELBLOCK                      		  3412,  3436,
+3677	F33B	READRAN                       		  4130,
+4244	F5CE	RELBLOCK                      		  3412,  3436,
 0242	E10B	RENAM                         		  1213,
 1171	E5E1	RENAME                        		  0792,
 1190	E610	RENAME1                       		  1187,
@@ -4734,7 +4734,7 @@
 1224	E64A	RENAME6                       		  1178,
 0140	E0B5	RESETDISKSYSTEM               		  0733,
 0915	E437	RESETDR                       		  1101,  1222,  1311,  1370,  1386,
-4206	F5A5	ROBITMAP                      		  2436,  2447,  2452,  3977,  4090,  4162,  4171,
+4207	F5A5	ROBITMAP                      		  2436,  2447,  2452,  3978,  4091,  4163,  4172,
 1569	E8F0	RODISK                        		  2480,
 1570	E8F2	ROFILE                        		  2472,
 1412	E7BC	RTNCODE                       		  0156,  0952,
@@ -4746,16 +4746,17 @@
 1148	E5C2	SAVE2                         		  1132,
 1156	E5CC	SAVE3                         		  1121,  1143,
 1159	E5D2	SAVE4                         		  1152,
-3106	EFE3	SAVEATTR                      		  4097,
-4245	F5D0	SAVEFCB                       		  2870,  2883,  4022,
-4251	F5D9	SAVEXT                        		  2269,  2377,
-4252	F5DA	SAVNREC                       		  2259,  2338,  2370,  2392,  3366,  3374,  3404,  3510,  3546,
-4250	F5D8	SAVNXT                        		  2373,  2396,  3367,  3511,
-4227	F5B9	SECTORS                       		  2106,  2190,  2202,
+3106	EFE3	SAVEATTR                      		  4098,
+4246	F5D0	SAVEFCB                       		  2870,  2883,  4023,
+4252	F5D9	SAVEXT                        		  2269,  2377,
+4253	F5DA	SAVNREC                       		  2259,  2338,  2370,  2392,  3366,  3374,  3404,  3510,  3546,
+4251	F5D8	SAVNXT                        		  2373,  2396,  3367,  3511,
+4228	F5B9	SECTORS                       		  2106,  2190,  2202,
 2073	EB7C	SELECTDISK                    		  3814,
 2116	EBC0	SELECTDISK1                   		  2114,
+0900	E425	SELECTDRIVE                   		  0934,  1046,  1064,  1115,  1176,  1277,
 0047	003B	SEMIC                         		  0484,
-2615	EDE3	SET2USERSDMA                  		  2605,  3499,  3983,  4079,
+2615	EDE3	SET2USERSDMA                  		  2605,  3499,  3984,  4080,
 3910	F44B	SETBIT                        		  2451,  3824,
 3914	F452	SETBIT1                       		  3918,
 3919	F45A	SETBIT2                       		  3916,
@@ -4765,7 +4766,7 @@
 2621	EDE9	SETDIRDMA                     		  2602,  2610,  3480,
 0405	E1D5	SETDMA                        		  0760,  1138,  1290,
 2627	EDEC	SETDMA0                       		  2617,
-2347	ECC9	SETEXT                        		  2374,  3126,  4009,
+2347	ECC9	SETEXT                        		  2374,  3126,  4010,
 2793	EE7A	SETFL1                        		  2830,
 2809	EE8B	SETFL2                        		  2801,
 2816	EE91	SETFL3                        		  2807,
@@ -4773,21 +4774,21 @@
 2356	ECD1	SETHLDE                       		  2368,  2385,
 2384	ECF5	SETNREC                       		  3385,  3539,  3550,
 2518	ED81	SETS2B7                       		  3136,  3295,  3355,  3673,
-2016	EB5C	SETSTATUSBDOS                 		  1960,  1966,  1984,  1990,  2025,  2837,  2948,  3348,  3427,  3657,  3971,  4072,  4118,
-4120	F557	SETUSER                       		  4116,
+2016	EB5C	SETSTATUSBDOS                 		  1960,  1966,  1984,  1990,  2025,  2837,  2948,  3348,  3427,  3657,  3972,  4073,  4119,
+4121	F557	SETUSER                       		  4117,
 2044	EB6A	SLCTERR                       		  3815,
-4246	F5D4	SMALLDISK                     		  2111,  2290,  2799,  3206,  3434,
+4247	F5D4	SMALLDISK                     		  2111,  2290,  2799,  3206,  3434,
 0117	E09F	SPACE                         		  0979,  0983,  1010,
 0195	E0E6	SRCHFCB                       		  0948,  1177,  1210,
 0183	E0DC	SRCHFST                       		  0197,
 0189	E0E1	SRCHNXT                       		  1017,
-1482	E83F	STATUSBDOSRETURN              		  1455,  1506,  2017,  2934,  3186,  3261,  3375,  3452,  3541,  3628,  3638,  3648,  3672,  3897,  4106,
+1482	E83F	STATUSBDOSRETURN              		  1455,  1506,  2017,  2934,  3186,  3261,  3375,  3452,  3541,  3628,  3638,  3648,  3672,  3897,  4107,
 2762	EE60	STBITMAP                      		  2825,
 2777	EE6A	STBMAP1                       		  2780,  3040,
 0400	E1D2	STDDMA                        		  1160,  1356,
 2390	ED01	STNREC1                       		  2388,
 2367	ECDE	STRDATA                       		  3346,  3365,  3403,
-2835	EEA6	STSTATUS                      		  4033,  4060,  4098,
+2835	EEA6	STSTATUS                      		  4034,  4061,  4099,
 0443	E1F2	SYNERR                        		  0473,  0764,  0830,  0840,  0845,  0851,  0853,  0855,  0863,  1063,  1102,  1114,  1173,  1223,  1240,  1244,  1274,  1371,  1393,
 0446	E1F8	SYNERR1                       		  0456,
 0457	E20B	SYNERR2                       		  0449,  0451,
@@ -4823,13 +4824,13 @@
 0281	E12D	UPPER                         		  0369,
 0044	005F	USCORE                        		  0478,  1188,
 1237	E65F	USER                          		  0793,
-4208	F5A9	USERSDMA                      		  2616,  2638,  3982,  4078,
+4209	F5A9	USERSDMA                      		  2616,  2638,  3983,  4079,
 1483	E841	USERSTACK                     		  1457,  1504,
 
-3685	F344	WRITERAN                      		  4135,
+3685	F344	WRITERAN                      		  4136,
 0229	E101	WRTREC                        		  1140,
-3394	F1A6	WTSEQ                         		  4046,
-3397	F1AB	WTSEQ1                        		  3688,  4191,
+3394	F1A6	WTSEQ                         		  4047,
+3397	F1AB	WTSEQ1                        		  3688,  4192,
 3521	F27A	WTSEQ10                       		  3513,
 3547	F2A6	WTSEQ11                       		  3544,
 3549	F2A8	WTSEQ12                       		  3535,  3538,
@@ -4843,6 +4844,6 @@
 3504	F263	WTSEQ9                        		  3460,  3471,
 3533	F287	WTSEQ99                       		
 
-4236	F5C8	XLATE                         		  2100,  2246,
+4237	F5C8	XLATE                         		  2100,  2246,
 
 1052	E523	YESNO                         		  1033,

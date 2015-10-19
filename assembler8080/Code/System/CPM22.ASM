@@ -1452,15 +1452,15 @@ BDOSEntry:
 	MOV		A,E	
 	STA		ParamE				; Save register (E) in particular.
 	LXI		H,0
-	SHLD	StatusBDOSReturn	;clear return status.
+	SHLD	StatusBDOSReturn	; clear return status.
 	DAD		SP
-	SHLD	UserStack			; ave users stack pointer.
-	LXI		SP,BDOSstack		; nd set our own.
-	XRA		A					; lear A for flags resets
-	STA		AutoSelectFlag		; lear auto select storage Flag
-	STA		AutoSelectActive	; lear auto select Active Flag
-	LXI		H,BDOSExit			; et return address to BDOSExit routine
-	PUSH	H					; ut it on the stack
+	SHLD	UserStack			; save users stack pointer.
+	LXI		SP,BDOSstack		; and set our own.
+	XRA		A					; clear A for flags resets
+	STA		AutoSelectFlag		; clear auto select storage Flag
+	STA		AutoSelectActive	; clear auto select Active Flag
+	LXI		H,BDOSExit			; get return address to BDOSExit routine
+	PUSH	H					; put it on the stack
 	MOV		A,C					; get function number and put into A.
 	CPI		FunctionCount + 1	; valid function number?
 	RNC							; Exit if not valid
@@ -2526,7 +2526,7 @@ SETS2B7:
 ; names in the directory. We are at (FilePosInDirectory) and there are
 ; (FilePosInDirSegment) of them to check.
 ;
-MOREFLS:
+AnyMoreFiles:
 	LHLD	FilePosInDirectory			;we are here.
 	XCHG
 	LHLD	FilePosInDirSegment	;and don't go past here.
@@ -2541,7 +2541,7 @@ MOREFLS:
 ; than (FilePosInDirectory).
 ;
 CHKNMBR:
-	CALL	MOREFLS		;FilePosInDirSegment too big?
+	CALL	AnyMoreFiles		;FilePosInDirSegment too big?
 	RC
 	INX		D		;yes, reset it to (FilePosInDirectory).
 	MOV		M,D
@@ -2587,7 +2587,7 @@ CHECKDIR:
 	JZ	CHKDIR1
 	CMP	M	;check them.
 	RZ		;return if they are the same.
-	CALL	MOREFLS	;not the same, do we care?
+	CALL	AnyMoreFiles	;not the same, do we care?
 	RNC
 	CALL	fcSetDiskRO	;yes, mark this as write protected.
 	RET
@@ -2642,7 +2642,7 @@ MOVEDIR:
 ;   Check (FilePosInDirectory) and set the zero flag if it equals 0ffffh.
 ; if it is -1 then no active file found
 ;
-CheckFilePosition:
+CheckFilePosition:	
 	LXI	H,FilePosInDirectory
 	MOV	A,M
 	INX	H
@@ -2833,7 +2833,7 @@ SETFL4:
 ;   Set the status (StatusBDOSReturn) and return.
 ;
 STSTATUS:
-	LDA	FNDSTAT
+	LDA	FileFoundFlag
 	JMP	SetStatusBDOS
 ;
 ;   Check extents in (A) and (C). Set the zero flag if they
@@ -2863,76 +2863,76 @@ SAMEXT:
 ;
 FindFirst:
 	MVI		A,0FFH
-	STA		FNDSTAT			; set flag to not match found
-	LXI		H,COUNTER		; point at character counter.
-	MOV		M,C				; put in number of bytes to match
-	LHLD	ParamsDE		; get filename to match.
-	SHLD	SaveFCB			; and save.
+	STA		FileFoundFlag		; set flag to: not match found
+	LXI		H,CharCounter		; point at character counter.
+	MOV		M,C					; put in number of bytes to match
+	LHLD	ParamsDE			; get filename to match.
+	SHLD	SaveFCB				; and save.
 	CALL	InitializeFilePosition	; clear initial file position (set to 0ffffh).
-	CALL	HomeDrive		;home the drive.
+	CALL	HomeDrive			;home the drive.
 ;
 ;   Entry to locate the next occurence of a filename within the
 ; directory. The disk is not expected to have been changed. If
 ; it was, then it will be write protected.
 ;
-FINDNXT:
-	MVI		C,0				; write protect the disk if changed.
-	CALL	GetNextEntry	; get next filename entry in directory.
+FindNext:
+	MVI		C,0					; write protect the disk if changed.
+	CALL	GetNextEntry		; get next filename entry in directory.
 	CALL	CheckFilePosition	; is file position = 0ffffh?
-	JZ		FNDNXT6			; yes, exit now then.
-	LHLD	SaveFCB			; get (DE) pointing to filename to match.
+	JZ		FindNext6			; yes, exit now then.
+	LHLD	SaveFCB				; get (DE) pointing to filename to match.
 	XCHG
 	LDAX	D
-	CPI		EmptyFileFlag	; is it an empty directory entry?
-	JZ		FNDNXT1			; yes - Skip it
+	CPI		EmptyFileFlag		; is it an empty directory entry?
+	JZ		FindNext1			; yes - Skip it
 						; No process it
-	PUSH	D
-	CALL	MOREFLS	;more files in directory?
+	PUSH	D					; Save  pointer to filename to match.	
+	CALL	AnyMoreFiles		; more files in directory?
 	POP	D
-	JNC	FNDNXT6	;no more. Exit now.
-FNDNXT1:
+	JNC	FindNext6	;no more. Exit now.
+FindNext1:
 	CALL	FCB2HL	;get address of this fcb in directory.
-	LDA	COUNTER	;get number of bytes (characters) to check.
+	LDA	CharCounter	;get number of bytes (characters) to check.
 	MOV	C,A
 	MVI	B,0	;initialize byte position counter.
-FNDNXT2:
+FindNext2:
 	MOV	A,C	;are we done with the compare?
 	ORA	A
-	JZ	FNDNXT5
+	JZ	FindNext5
 	LDAX	D	;no, check next byte.
 	CPI	QMARK		; '?'	;don't care about this character?
-	JZ	FNDNXT4
+	JZ	FindNext4
 	MOV	A,B	;get bytes position in fcb.
 	CPI	13	;don't care about the thirteenth byte either.
-	JZ	FNDNXT4
+	JZ	FindNext4
 	CPI	12	;extent byte?
 	LDAX	D
-	JZ	FNDNXT3
+	JZ	FindNext3
 	SUB	M	;otherwise compare characters.
 	ANI	7FH
-	JNZ	FINDNXT	;not the same, check next entry.
-	JMP	FNDNXT4	;so far so good, keep checking.
-FNDNXT3:
+	JNZ	FindNext	;not the same, check next entry.
+	JMP	FindNext4	;so far so good, keep checking.
+FindNext3:
 	PUSH	B	;check the extent byte here.
 	MOV	C,M
 	CALL	SAMEXT
 	POP	B
-	JNZ	FINDNXT	;not the same, look some more.
+	JNZ	FindNext	;not the same, look some more.
 ;
 ;   So far the names compare. Bump pointers to the next byte
 ; and continue until all (C) characters have been checked.
 ;
-FNDNXT4:
+FindNext4:
 	INX	D	;bump pointers.
 	INX	H
 	INR	B
 	DCR	C	;adjust character counter.
-	JMP	FNDNXT2
-FNDNXT5:
+	JMP	FindNext2
+FindNext5:
 	LDA	FilePosInDirectory	;return the position of this entry.
 	ANI	03H
 	STA	StatusBDOSReturn
-	LXI	H,FNDSTAT
+	LXI	H,FileFoundFlag
 	MOV	A,M
 	RAL
 	RNC
@@ -2942,7 +2942,7 @@ FNDNXT5:
 ;
 ;   Filename was not found. Set appropriate status.
 ;
-FNDNXT6:
+FindNext6:
 	CALL	InitializeFilePosition;set (FilePosInDirectory) to 0ffffh.
 	MVI	A,0FFH	;say not located.
 	JMP	SetStatusBDOS
@@ -2951,9 +2951,9 @@ FNDNXT6:
 ; fcb will be affected. It is set to (E5).
 ;
 EraseFile:
-	CALL	IsDiskRO		;is disk write protected?
-	MVI		C,12		;only compare file names.
-	CALL	FindFirst		;get first file name.
+	CALL	IsDiskRO		; if disk write is  protected exit via error message
+	MVI		C,12			; only compare file names.
+	CALL	FindFirst		; get first file name.
 ERAFIL1:
 	CALL	CheckFilePosition	;any found?
 	RZ					;nope, we must be done.
@@ -2965,7 +2965,7 @@ ERAFIL1:
 	STA		BitSetFlag	; Flag = 00, clear bit
 	CALL	SetClearFATbits
 	CALL	DIRWRITE;now write the directory sector back out.
-	CALL	FINDNXT	;find the next file name.
+	CALL	FindNext	;find the next file name.
 	JMP	ERAFIL1	;and repeat process.
 ;
 ;   Look through the space allocation map (bit map) for the
@@ -3095,7 +3095,7 @@ CHGNAM1:
 	MVI	C,16	;start 16 bytes into fcb.
 	MVI	E,12	;and update the first 12 bytes of directory.
 	CALL	UPDATE
-	CALL	FINDNXT	;get te next file name.
+	CALL	FindNext	;get te next file name.
 	JMP	CHGNAM1	;and continue.
 ;
 ;   Update a files attributes. The procedure is to search for
@@ -3112,7 +3112,7 @@ SAVATR1:
 	MVI	C,0	;yes, update the first 12 bytes now.
 	MVI	E,12
 	CALL	UPDATE	;update filename and write directory.
-	CALL	FINDNXT	;and get the next file.
+	CALL	FindNext	;and get the next file.
 	JMP	SAVATR1	;then continue until done.
 ;
 ;  Open a file (name specified in fcb).
@@ -3778,7 +3778,7 @@ RANSIZ1:
 	DCX	H
 	MOV	M,C
 RANSIZ2:
-	CALL	FINDNXT	;now get the next extent.
+	CALL	FindNext	;now get the next extent.
 	JMP	RANSIZ1	;continue til all done.
 RANSIZ3:
 	POP	H	;we are done, restore the stack and
@@ -4023,7 +4023,7 @@ fcSearchForNext:
 	LHLD	SaveFCB	;restore pointers. note that no
 	SHLD	ParamsDE	;other dbos calls are allowed.
 	CALL	AutoSelect	;no error will be returned, but the
-	CALL	FINDNXT	;results will be wrong.
+	CALL	FindNext	;results will be wrong.
 	JMP	MOVEDIR
 ;
 ;   Function to delete a file by name.
@@ -4231,30 +4231,30 @@ BLKMASK:				DB	0	;block mask.
 EXTMASK:				DB	0	;extent mask.
 DiskSize:				DW	0	;disk size from bios (number of blocks-1).
 DrectorySize:			DW	0	;directory size, number of entries.
-DirectoryFAT0:					DW	0	;storage for first bytes of bit map (dir space used).
-DirectoryFAT1:					DW	0
+DirectoryFAT0:			DW	0	;storage for first bytes of bit map (dir space used).
+DirectoryFAT1:			DW	0
 OFFSET:					DW	0	;first usable track number.
 XLATE:					DW	0	;sector translation table address.
 ;
 ;
 CLOSEFLG:				DB	0	;close flag (=0ffh is extent written ok).
 RDWRTFLG:				DB	0	;read/write flag (0ffh=read, 0=write).
-FNDSTAT:				DB	0	;filename found status (0=found first entry, -1 not found).
+FileFoundFlag:			DB	0	;filename found status (0=found first entry, -1 not found).
 MODE:					DB	0	;I/o mode select (0=random, 1=sequential, 2=special random).
 RELBLOCK:				DB	0	;relative position within fcb of block number written.
-COUNTER:				DB	0	;byte counter for directory name searches.
+CharCounter:			DB	0	;byte counter for directory name searches.
 SaveFCB:				DW	0,0	;save space for address of fcb (for directory searches).
 SmallDisk:				DB	0	;if =0 then disk is > 256 blocks long.
 AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
-OldDrive:					DB	0	;on auto select, storage for previous drive.
+OldDrive:				DB	0	;on auto select, storage for previous drive.
 AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
 SAVNXT:					DB	0	;storage for next record number to access.
 SAVEXT:					DB	0	;storage for extent number of file.
 SAVNREC:				DW	0	;storage for number of records in file.
-BlockNumber:				DW	0	;block number (physical sector) used within a file or logical sector.
+BlockNumber:			DW	0	;block number (physical sector) used within a file or logical sector.
 LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
 FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
-FilePosInDirectory:			DW	0	;files position within directory (0 to max entries -1).
+FilePosInDirectory:		DW	0	;files position within directory (0 to max entries -1).
 ;
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
