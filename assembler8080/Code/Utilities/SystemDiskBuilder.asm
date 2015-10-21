@@ -13,7 +13,6 @@
 ;      +------+------+------+------+------+------+------+------+-------+
 ;          1      2      3      4      5     6       7     8      9
 
-CodeStart:
 
 DiskStatusBlock		EQU		0043H
 DiskControl			EQU		0045H
@@ -28,10 +27,18 @@ BIOSStart			EQU		0F600H
 WarmBootEntry		EQU		BIOSStart +3
 EnterCPM			EQU		0F840h
 
-CR			EQU		0DH		; Carriage Return
-LF			EQU		0AH		; Line Feed
-EndOfMessage	EQU	00H
+CR					EQU		0DH		; Carriage Return
+LF					EQU		0AH		; Line Feed
+EndOfMessage		EQU		00H
 
+PhysicalSectorSize	EQU		512							; actual disk sector size
+FCBsize				EQU		32							; each Directory 
+DirectorySize		EQU		4 * PhysicalSectorSize		; size of the whole directory
+DirectoryEntries	EQU		DirectorySize/FCBsize		; number of enties in the whole directory
+FATsize				EQU		5 * PhysicalSectorSize		; size of the whole FAT
+EmptyCode			EQU		0E5H
+
+CodeStart:
 
 	ORG		0100H
 Start:
@@ -141,7 +148,15 @@ Begin:
 	CALL	DoWrite
 	LXI		H,WriteMessage3
 	CALL	SendMessage1
-
+;---------------------------------------------------	
+; now we need to address the dirctory and FAT	
+	CALL	ClearImages		; clear the image work area
+	CALL	SetUpDirectory	; put EmptyCode in all the directory entries 
+; Write the Directory and Initial FAT
+	LXI		H,WriteCommand4
+	CALL	DoWrite
+	LXI		H,WriteMessage4
+	CALL	SendMessage1
 	HLT						; temp, until the system is working fully
 	JMP		EnterCPM  	
 
@@ -164,8 +179,38 @@ WaitForWriteComplete:
 	; else we have a problem	
 	LXI		H,ErrorMessage
 	CALL	SendMessage1		; Send 	eroor message
-	HLT							; and stop
+	HLT	
+	; and stop
 ;---------------------------------------------------	
+ClearImages:
+	LXI		B,DirectorySize + FATsize + 1
+	LXI		H,DirectoryImage
+ClearImages1:					
+	MVI		M,0					; clear out the location
+	INX		H					; point at the next location
+	DCX		B					; count down
+	MOV		A,C					; get lo byte
+	ORA		B					; AND with Hi byte 
+	JNZ		ClearImages1		; keep going if both (B) and (C) not 0
+	RET							; we are done
+	
+SetUpDirectory:
+	LXI		H,DirectoryImage
+	LXI		D,FCBsize
+	LXI		B,DirectoryEntries
+SetUpDirectory1:
+	MVI		M,EmptyCode			; put in the empty entry flag
+	DAD		D					; point at next directory entry
+	DCX		B					; count down
+	MOV		A,C					; get lo byte
+	ORA		B					; AND with Hi byte 
+	JNZ		SetUpDirectory1		; keep going if both (B) and (C) not 0
+	
+	LXI		H,FATImage			; point at the File Allocation Table
+	MVI		M,0C0H				; allocate the firt two Blocks
+	RET							; we are done		
+;---------------------------------------------------
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++	
 WriteCommand1:
 	DB		02H					; Write function
 	DB		00H					; unit number
@@ -198,31 +243,53 @@ WriteCommand3:
 	DW		CCPStart + (8*512)	; write from this address
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking
+;---------------------------------------------------	
+WriteCommand4:
+	DB		02H					; Write function
+	DB		00H					; unit number
+	DB		00H					; head number
+	DB		01H					; track number
+	DB		01H					; Starting sector number (First one)
+	DW		9 * 512				; Number of bytes to write (All sectors in Head 0, Track 1)
+	DW		DirectoryImage		; write from this address
+	DW		DiskStatusBlock		; pointer to next block - no linking
+	DW		DiskControlTable	; pointer to next table- no linking
 ;---------------------------------------------------
+
 ErrorMessage:
 	DB		CR,LF
-	DB		' Bad Write '
+	DB		'Bad Write '
 ErrorCount:
 	DB		' 1'
 	DB		CR,LF,EndOfMessage
 ;---------------------------------------------------
 WriteMessage1:
 	DB		CR,LF
-	DB		' The Boot Sector'
+	DB		'The Boot Sector'
 	DB		' has been written'
 	DB		CR,LF,EndOfMessage
 ;---------------------------------------------------
 WriteMessage2:
 	DB		CR,LF
-	DB		' CCP & BDOS'
+	DB		'CCP & BDOS'
 	DB		' has been written'
 	DB		CR,LF,EndOfMessage
 ;---------------------------------------------------
 WriteMessage3:
 	DB		CR,LF
-	DB		' Rest of BDOS'
+	DB		'Rest of BDOS'
 	DB		' has been written'
 	DB		CR,LF,EndOfMessage
 ;---------------------------------------------------
+WriteMessage4:
+	DB		CR,LF
+	DB		'Directory'
+	DB		' and FAT'
+	DB		' has been written'
+	DB		CR,LF,EndOfMessage
+;---------------------------------------------------
+DirectoryImage:		DS		DirectorySize
+
+FATImage:			DS		FATsize		
 ;---------------------------------------------------
 CodeEnd:

@@ -512,14 +512,14 @@ AddAtoHL:
 ;
 ;   Convert the first name in (FCB).
 ;
-CONVFST:
+ConvertFirstName:
 	MVI	A,0		; set up index for first filename
 ;
 ;   Format a file name (convert * to '?', etc.). On return,
 ; (A)=0 is an unambigeous name was specified. Enter with (A) equal to
 ; the position within the fcb for the name (either 0 or 16).
 ;
-CONVERT:
+ConvertFileName:
 	LXI		H,FCBfromCCP		; point at FCB setup by CCP
 	CALL	AddAtoHL			; now pointing at correct FCB
 	PUSH	H					; save correct FCBfromCCP
@@ -760,7 +760,7 @@ CMMND2:
 	CALL		setDMA				; set standard dma address.
 	CALL		GetCurrentDisk
 	STA			CDRIVE				; set current drive.
-	CALL		CONVFST				; convert name typed in.
+	CALL		ConvertFirstName				; convert name typed in.
 	CNZ			SYNERR				; wild cards are not allowed. report error
 	LDA			ChangeDriveFlag		; if a change in drives was indicated,
 	ORA			A					; then treat this as an unknown command
@@ -824,7 +824,7 @@ NOFILE:
 ; causes 'filename?' to be printed and the command is aborted.
 ;
 GetCmdNumber:
-	CALL	CONVFST				; convert first filename.
+	CALL	ConvertFirstName				; convert first filename.
 	LDA		ChangeDriveFlag		; do not allow a drive to be specified.
 	ORA		A
 	JNZ		SYNERR				; exit with a syntax error
@@ -930,7 +930,7 @@ RESETDR:
 ;**************************************************************
 ;
 DIRECT:
-	CALL	CONVFST	;convert file name.
+	CALL	ConvertFirstName	;convert file name.
 	CALL	SelectDrive	;select indicated drive.
 	LXI	H,FCBfromCCP+1	;was any file indicated?
 	MOV	A,M
@@ -1027,7 +1027,7 @@ DIRECT9:
 ;**************************************************************
 ;
 ERASE:
-	CALL	CONVFST	;convert file name.
+	CALL	ConvertFirstName	;convert file name.
 	CPI	11	;was '*.*' entered?
 	JNZ	ERASE1
 	LXI	B,YESNO	;yes, ask for confirmation.
@@ -1059,7 +1059,7 @@ YESNO:
 ;**************************************************************
 ;
 TYPE:
-	CALL	CONVFST	;convert file name.
+	CALL	ConvertFirstName	;convert file name.
 	JNZ	SYNERR	;wild cards not allowed.
 	CALL	SelectDrive	;select indicated drive.
 	CALL	OPENFCB	;open the file.
@@ -1108,24 +1108,24 @@ TYPE5:
 ;**************************************************************
 ;
 SAVE:
-	CALL	GetCmdNumber	; get numeric number that follows SAVE.
-	PUSH	PSW				; save number of pages to write.
-	CALL	CONVFST			; convert file name linepointer past the number.
-	JNZ		SYNERR			; exit with syntax error -wild cards not allowed.
-	CALL	SelectDrive		; select specified drive.
-	LXI		D,FCBfromCCP	; now delete this file.
-	PUSH	D				; save the fcb
+	CALL	GetCmdNumber		; get numeric number that follows SAVE.
+	PUSH	PSW					; save number of pages to write.
+	CALL	ConvertFirstName	; convert file name linepointer past the number.
+	JNZ		SYNERR				; exit with syntax error -wild cards not allowed.
+	CALL	SelectDrive			; select specified drive.
+	LXI		D,FCBfromCCP		; now delete this file.
+	PUSH	D					; save the fcb
 	CALL	DeleteFile
 	POP		D
-	CALL	CREATE		;and create it again.
-	JZ		SAVE3		;can't create?
-	XRA		A			;clear record number byte.
+	CALL	CREATE				; and create it again.
+	JZ		SAVE3				; can't create?
+	XRA		A					; clear record number byte.
 	STA		FCBfromCCP+32
-	POP		PSW			;convert pages to sectors.
+	POP		PSW					; convert pages to sectors.
 	MOV		L,A
 	MVI		H,0
-	DAD		H			;(HL)=number of sectors to write.
-	LXI		D,TBASE		;and we start from here.
+	DAD		H					;(HL)=number of sectors to write.
+	LXI		D,TBASE				; and we start from here.
 SAVE1:
 	MOV		A,H			;done yet?
 	ORA		L
@@ -1169,7 +1169,7 @@ NOSPACE:
 ;**************************************************************
 ;
 RENAME:
-	CALL	CONVFST	;convert first file name.
+	CALL	ConvertFirstName	;convert first file name.
 	JNZ	SYNERR	;wild cards not allowed.
 	LDA	ChangeDriveFlag	;remember any change in drives specified.
 	PUSH	PSW
@@ -1191,7 +1191,7 @@ RENAME1:
 	XCHG
 	INX	H	;ok, skip seperator.
 	SHLD	InBuffAddress	;save input line pointer.
-	CALL	CONVFST	;convert this second file name now.
+	CALL	ConvertFirstName	;convert this second file name now.
 	JNZ	RENAME5	;again, no wild cards.
 	POP	PSW	;if a drive was specified, then it
 	MOV	B,A	;must be the same as before.
@@ -1309,13 +1309,13 @@ UNKWN4:
 	DCR	A	;normal end of file?
 	JNZ	UNKWN0
 	CALL	RESETDR	;yes, reset previous drive.
-	CALL	CONVFST	;convert the first file name that follows
+	CALL	ConvertFirstName	;convert the first file name that follows
 	LXI	H,ChangeDriveFlag;command name.
 	PUSH	H
 	MOV	A,M	;set drive code in default fcb.
 	STA	FCBfromCCP
 	MVI	A,16	;put second name 16 bytes later.
-	CALL	CONVERT	;convert second file name.
+	CALL	ConvertFileName	;convert second file name.
 	POP	H
 	MOV	A,M	;and set the drive for this second file.
 	STA	FCBfromCCP+16
@@ -1385,7 +1385,7 @@ COMFILE:
 GETBACK:
 	CALL	RESETDR	;reset previous drive.
 GETBACK1:
-	CALL	CONVFST	;convert first name in (FCB).
+	CALL	ConvertFirstName	;convert first name in (FCB).
 	LDA	FCBfromCCP+1	;if this was just a drive change request,
 	SUI	BLANK	;make sure it was valid.
 	LXI	H,ChangeDriveFlag
@@ -2157,7 +2157,7 @@ TrackSectorForDir:
 	MVI		C,2						; there are 4 directory entries/Sector.
 	CALL	HLrightC				; file-position/4 = sector #
 	SHLD	BlockNumber				; save this as the block number of interest.
-	SHLD	CheckSumTable			; what's it doing here too?
+	SHLD	DirectoryRecord			; (what's it doing here?)
 ;
 ;   if the sector number has already been set (BlockNumber), enter
 ; at this point.
@@ -2697,7 +2697,7 @@ GetNextEntry:
 	
 	STA		FCBPosition			; save it as position of fcb.
 	ORA		A
-	RNZ						; return if we are within buffer. ?????????
+	RNZ							; return If Not a New Record ?????????
 	PUSH	B					; save C, checksum behavior flag
 	CALL	TrackSectorForDir		;we need the next directory sector.
 	CALL	DIRREAD
@@ -4253,8 +4253,9 @@ SAVEXT:					DB	0	;storage for extent number of file.
 SAVNREC:				DW	0	;storage for number of records in file.
 BlockNumber:			DW	0	;block number (physical sector) used within a file or logical sector.
 LOGSECT:				DW	0	;starting logical (128 byte) sector of block (physical sector).
-FCBPosition:			DB	0	;relative position within buffer for fcb of file of interest.
-FilePosInDirectory:		DW	0	;files position within directory (0 to max entries -1).
+FCBPosition:			DB	0	; relative position within buffer 0...3
+FilePosInDirectory:		DW	0	; files position within directory 0....DirSize.
+DirectoryRecord:		DW	0	; Directory record count. 0...DirSize/4
 ;
 ;   Disk directory buffer checksum bytes. One for each of the
 ; 16 possible drives.
