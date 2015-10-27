@@ -106,7 +106,7 @@ PRINTB:
 ;   Routine to send a carriage return, line feed combination
 ; to the console.
 ;
-CRLF:
+SendEndOfLine:
 	MVI		A,CR
 	CALL	PRINTB
 	MVI		A,LF
@@ -114,7 +114,7 @@ CRLF:
 ;
 ;   Routine to send one space to the console and save (BC).
 ;
-SPACE:
+SpaceToConsole:
 	MVI		A,BLANK		; blank/Space
 	JMP		PRINTB
 ;
@@ -123,7 +123,7 @@ SPACE:
 ;
 PLINE:
 	PUSH	B
-	CALL	CRLF
+	CALL	SendEndOfLine
 	POP		H
 PLINE2:
 	MOV		A,M
@@ -180,13 +180,13 @@ CLOSE:
 ;   Routine to search for the first file with ambigueous name
 ; (DE).
 ;
-SRCHFST:
+SearchForFirst:
 	MVI		C,17
 	JMP		ENTRY1
 ;
 ;   Search for the next ambigeous file name.
 ;
-SRCHNXT:
+SearchForNext:
 	MVI		C,18
 	JMP		ENTRY1
 ;
@@ -194,7 +194,7 @@ SRCHNXT:
 ;
 SRCHFCB:
 	LXI		D,FCBfromCCP
-	JMP		SRCHFST
+	JMP		SearchForFirst
 ;
 ;   Routine to delete a file pointed to by (DE).
 ;
@@ -441,7 +441,7 @@ DeleteBatchFile:
 ;   Print back file name with a '?' to indicate a syntax error.
 ;
 SYNERR:
-	CALL	CRLF	;end current line.
+	CALL	SendEndOfLine	;end current line.
 	LHLD	ErrorMsgPointer	;this points to name in error.
 SYNERR1:
 	MOV	A,M	;print it until a space or null is found.
@@ -457,7 +457,7 @@ SYNERR1:
 SYNERR2:
 	MVI	A,QMARK		;add trailing '?'.
 	CALL	PRINT
-	CALL	CRLF
+	CALL	SendEndOfLine
 	CALL	DeleteBatchFile;delete any batch file.
 	JMP	CMMND1	;and restart from console input.
 ;
@@ -745,7 +745,7 @@ COMMAND:
 ;
 CMMND1:
 	LXI			SP,CCPStack			; set stack straight.
-	CALL		CRLF				; start a new line on the screen.
+	CALL		SendEndOfLine				; start a new line on the screen.
 	CALL		GetCurrentDisk		; get current drive.
 	ADI			041H				; 'A' make it printable
 	CALL		PRINT				; print current drive.
@@ -812,7 +812,7 @@ RDERR:
 ;   Required file was not located.
 ;
 
-NONE:
+FileNotFound:
 	LXI	B,NOFILE
 	JMP	PLINE
 NOFILE:
@@ -930,64 +930,67 @@ RESETDR:
 ;**************************************************************
 ;
 DIRECT:
-	CALL	ConvertFirstName	;convert file name.
-	CALL	SelectDrive	;select indicated drive.
-	LXI	H,FCBfromCCP+1	;was any file indicated?
-	MOV	A,M
-	CPI	BLANK
-	JNZ	DIRECT2
-	MVI	B,11	;no. Fill field with '?' - same as *.*.
+	CALL	ConvertFirstName	; convert file name.
+	CALL	SelectDrive			; select indicated drive.
+;	LXI		H,FCBfromCCP+1		; was any file indicated?
+	LXI		H,FCBfromCCP		; was any file indicated?********************************
+	MOV		A,M
+	CPI		BLANK
+	JNZ		DIRECT2				; Skip if yes
+	
+	MVI		B,11				; no. Fill field with '?' - same as *.*.
 DIRECT1:
-	MVI	M,QMARK		; '?'
-	INX	H
-	DCR	B
-	JNZ	DIRECT1
+	MVI		M,QMARK				; '?'
+	INX		H
+	DCR		B
+	JNZ		DIRECT1				; stay at it util all 11 bytes are filled with "?"s
+	
 DIRECT2:
-	MVI	E,0	;set initial cursor position.
-	PUSH	D
-	CALL	SRCHFCB	;get first file name.
-	CZ	NONE	;none found at all?
+	MVI		E,0					; set initial file name position.
+	PUSH	D					; save file name position. (e)
+	CALL	SRCHFCB				; get first file name.
+	CZ		FileNotFound		; none file found at all?
 DIRECT3:
-	JZ	DIRECT9	;terminate if no more names.
-	LDA	RTNCODE	;get file's position in segment (0-3).
+	JZ		DIRECT9				; terminate if no more names.
+	LDA		RTNCODE				; get file's position in segment (0-3).
 	RRC
 	RRC
 	RRC
-	ANI	60H	;(A)=position*32
-	MOV	C,A
-	MVI	A,10
-	CALL	EXTRACT	;extract the tenth entry in fcb.
-	RAL		;check system file status bit.
-	JC	DIRECT8	;we don't list them.
-	POP	D
-	MOV	A,E	;bump name count.
-	INR	E
-	PUSH	D
-	ANI	03H	;at end of line?
-	PUSH	PSW
-	JNZ	DIRECT4
-	CALL	CRLF	;yes, end this line and start another.
+	ANI		60H					;(A)=position*32 ie correct FCB
+	MOV		C,A
+	MVI		A,10
+	CALL	EXTRACT				; get T2 , because it has system file flag
+	RAL							; Rotate the flag (msb) to the carry
+	JC		DIRECT8				; we don't list it if it is System aka hidden.
+	POP		D					; get saved file name position.
+	MOV		A,E					;  put in Acc
+	INR		E					; increment the file name position
+	PUSH	D					; and save it for later
+	ANI		03H					; at end of line?
+	PUSH	PSW					; save current name position
+	JNZ		DIRECT4
+	CALL	SendEndOfLine		; yes, end this line and start another.
 	PUSH	B
-	CALL	GetCurrentDisk	;start line with ('A:').
-	POP	B
-	ADI	041H	; 'A'
-	CALL	PRINTB
-	MVI	A, COLON		; ':'
-	CALL	PRINTB
+	CALL	GetCurrentDisk		; start line with ('A:').
+	POP		B
+	ADI		041H				; convert to ascii'A'
+	CALL	PRINTB				; send to console
+	MVI		A,COLON				; ':'
+	CALL	PRINTB				; send to console
 	JMP	DIRECT5
 DIRECT4:
-	CALL	SPACE	;add seperator between file names.
-	MVI	A, COLON	;':'
+	CALL	SpaceToConsole		; add seperator between file names.
+	MVI		A, COLON			;	':'
 	CALL	PRINTB
 DIRECT5:
-	CALL	SPACE
-	MVI	B,1	;'extract' each file name character at a time.
+	CALL	SpaceToConsole
+	MVI		B,1					; 'extract' each file name character at a time.
 DIRECT6:
-	MOV	A,B
+	MOV		A,B
 	CALL	EXTRACT
-	ANI	7FH	;strip bit 7 (status bit).
-	CPI	BLANK	;are we at the end of the name?
-	JNZ	DRECT65
+	ANI		7FH					; strip bit 7 (status bit).
+	CPI		BLANK				; are we at the end of the name?
+	JNZ		DRECT65
 	POP	PSW	;yes, don't print spaces at the end of a line.
 	PUSH	PSW
 	CPI	3
@@ -1001,20 +1004,20 @@ DRECT63:
 	MVI	A,BLANK	;else print them.
 DRECT65:
 	CALL	PRINTB
-	INR	B	;bump to next character psoition.
-	MOV	A,B
-	CPI	12	;end of the name?
-	JNC	DIRECT7
-	CPI	9	;nope, starting extension?
-	JNZ	DIRECT6
-	CALL	SPACE	;yes, add seperating space.
-	JMP	DIRECT6
+	INR		B				; bump to next character psoition.
+	MOV		A,B
+	CPI		12				; end of the name?
+	JNC		DIRECT7			; yes , we are done with this one
+	CPI		9				; nope, starting extension?
+	CZ		SpaceToConsole	; yes, add seperating space.
+	JMP		DIRECT6
+	
 DIRECT7:
-	POP	PSW	;get the next file name.
+	POP		PSW				; get the next file name.
 DIRECT8:
 	CALL	CHKCON	;first check console, quit on anything.
 	JNZ	DIRECT9
-	CALL	SRCHNXT	;get next name.
+	CALL	SearchForNext	;get next name.
 	JMP	DIRECT3	;and continue with our list.
 DIRECT9:
 	POP	D	;restore the stack and return to command level.
@@ -1047,7 +1050,7 @@ ERASE1:
 	LXI	D,FCBfromCCP
 	CALL	DeleteFile	;delete the file.
 	INR	A
-	CZ	NONE	;not there?
+	CZ	FileNotFound	;not there?
 	JMP	GETBACK	;return to command level now.
 YESNO:
 	DB	'All (y/n)?',0
@@ -1064,7 +1067,7 @@ TYPE:
 	CALL	SelectDrive	;select indicated drive.
 	CALL	OPENFCB	;open the file.
 	JZ	TYPE5	;not there?
-	CALL	CRLF	;ok, start a new line on the screen.
+	CALL	SendEndOfLine	;ok, start a new line on the screen.
 	LXI	H,NBYTES;initialize byte counter.
 	MVI	M,0FFH	;set to read first sector.
 TYPE1:
@@ -1216,7 +1219,7 @@ RENAME3:
 ;   Process rename errors here.
 ;
 RENAME4:
-	CALL	NONE	;file not there.
+	CALL	FileNotFound	;file not there.
 	JMP	GETBACK
 RENAME5:
 	CALL	RESETDR	;bad command format.
@@ -1352,7 +1355,7 @@ UNKWN7:
 UNKWN8:
 	MOV	A,B	;now store the character count.
 	STA	Pg0Buffer
-	CALL	CRLF	;clean up the screen.
+	CALL	SendEndOfLine	;clean up the screen.
 	CALL	STDDMA	;set standard transfer address.
 	CALL	SetCurrentDrive	;reset current drive.
 	CALL	TBASE	;and execute the program.
@@ -1605,7 +1608,7 @@ DISKRO:		DB	'R/O$'
 ;
 PRTERR:
 	PUSH	H	;save second message pointer.
-	CALL	OUTCRLF	;send (cr)(lf).
+	CALL	EndOfLineToConsole	;send (cr)(lf).
 	LDA	CurrentDrive	;get Current Drive drive.
 	ADI	041H	; 'A'	;make ascii.
 	STA	BDOSDRV	;and put in message.
@@ -1768,7 +1771,7 @@ BackUp1:
 NEWLINE:
 	MVI	C, POUNDSN		; '#'
 	CALL	OUTCHAR	;print this.
-	CALL	OUTCRLF	;start new line.
+	CALL	EndOfLineToConsole	;start new line.
 NEWLN1:
 	LDA	CursorPosition	;move the cursor to the starting position.
 	LXI	H,CursorPositionStart
@@ -1780,7 +1783,7 @@ NEWLN1:
 ;
 ;   Output a (cr) (lf) to the console device (screen).
 ;
-OUTCRLF:
+EndOfLineToConsole:
 	MVI	C,CR
 	CALL	OUTCHAR
 	MVI	C,LF
@@ -1851,7 +1854,7 @@ RDBUF4:
 	JNZ		RDBUF5				; yes, skip the following
 	PUSH	B					; save the buffer size (C) and character count (B)
 	PUSH	H					; save buffer position 
-	CALL	OUTCRLF				; send a crlf to the console
+	CALL	EndOfLineToConsole				; send a crlf to the console
 	XRA		A					; and update starting position.
 	STA		CursorPositionStart
 	JMP		RDBUF2				; aqnd keep on trucking
@@ -2674,9 +2677,6 @@ GetNextEntry:
 	SHLD	FilePosInDirectory			; save  the next location
 	CALL	DEminusHL2HL				; (HL)=(DrectorySize)-(FilePosInDirectory)
 	JC		InitializeFilePosition		; If no more entries, set this flag and exit.
-;	JNC		GetNextEntry1		; are there any more entries?
-;	JMP		InitializeFilePosition		; No. - Set this flag and return.	
-;GetNextEntry1:
 
 	LDA		FilePosInDirectory		; Get current index for file in the  directory.
 	ANI		03H						; only look within this sector (only 4 entries fit).
@@ -2687,14 +2687,7 @@ GetNextEntry:
 	ADD		A						; a * 8  - start of the directory entry for this
 	ADD		A						; a * 16 - file
 	ADD		A						; a * 32
-									; The value in A is: 0,32,64 or 96
-	
-;	MVI		B,5					; convert to relative position (32 bytes each).
-;GetNextEntry2:
-;	ADD		A			;note that this is not efficient code.
-;	DCR		B			;5 'ADD A's would be better.
-;	JNZ		GetNextEntry2
-	
+						; The value in A is: 0,32,64 or 96
 	STA		FCBPosition			; save it as position of fcb.
 	ORA		A
 	RNZ							; return If Not a New Record ?????????
@@ -2888,29 +2881,31 @@ FindNext:
 						; No process it
 	PUSH	D					; Save  pointer to filename to match.	
 	CALL	AnyMoreFiles		; more files in directory?
-	POP	D
-	JNC	FindNext6	;no more. Exit now.
+	POP		D					; retreive  pointer to filename to match.	
+	JNC		FindNext6				; no more. Exit now.
 FindNext1:
-	CALL	FCB2HL	;get address of this fcb in directory.
-	LDA	CharCounter	;get number of bytes (characters) to check.
-	MOV	C,A
-	MVI	B,0	;initialize byte position counter.
+	CALL	FCB2HL				; get address of this fcb in directory.
+	LDA		CharCounter			; get number of bytes (characters) to check.
+	MOV		C,A					; move to Acc
+	MVI		B,0					; initialize byte position counter.
 FindNext2:
-	MOV	A,C	;are we done with the compare?
-	ORA	A
-	JZ	FindNext5
-	LDAX	D	;no, check next byte.
-	CPI	QMARK		; '?'	;don't care about this character?
-	JZ	FindNext4
-	MOV	A,B	;get bytes position in fcb.
-	CPI	13	;don't care about the thirteenth byte either.
-	JZ	FindNext4
-	CPI	12	;extent byte?
-	LDAX	D
-	JZ	FindNext3
-	SUB	M	;otherwise compare characters.
-	ANI	7FH
-	JNZ	FindNext	;not the same, check next entry.
+	MOV		A,C					; get counter to reach
+	ORA		A
+	JZ		FindNext5			; Skip if all characters have been checked
+	
+	LDAX	D					; check next byte.
+	CPI		QMARK				; '?'	;don't care about this character?
+	JZ		FindNext4
+	
+	MOV		A,B					; get bytes position in fcb.
+	CPI		13					; don't care about the thirteenth byte either.
+	JZ		FindNext4
+	CPI		12					; is it an extent byte?
+	LDAX	D					; get the next character
+	JZ		FindNext3			; skip if extent
+	SUB		M					; otherwise compare characters.
+	ANI		7FH
+	JNZ		FindNext			; not the same, check next entry.
 	JMP	FindNext4	;so far so good, keep checking.
 FindNext3:
 	PUSH	B	;check the extent byte here.
@@ -4002,29 +3997,29 @@ fcCloseFile:
 ; not be checked (get the first entry no matter what).
 ;
 fcSearchForFirst:
-	MVI	C,0	;prepare for special search.
+	MVI		C,0					; prepare for special search.
 	XCHG
-	MOV	A,M	;is first byte a '?'?
-	CPI	QMARK		;'?'
-	JZ	fcSearchForFirst1	;yes, just get very first entry (zero length match).
-	CALL	SETEXT	;get the extension byte from fcb.
-	MOV	A,M	;is it '?'? if yes, then we want
-	CPI	QMARK		; '?'	;an entry with a specific 's2' byte.
-	CNZ	CLEARS2	;otherwise, look for a zero 's2' byte.
-	CALL	AutoSelect	;select proper drive.
-	MVI	C,15	;compare bytes 0-14 in fcb (12&13 excluded).
+	MOV		A,M					; is first byte a '?'?
+	CPI		QMARK				; is it '?'?
+	JZ		fcSearchForFirst1	; yes, just get very first entry (zero length match).
+	CALL	SETEXT				; get the extension byte from fcb.
+	MOV		A,M					; is it '?'? if yes, then we want
+	CPI		QMARK				; '?'	;an entry with a specific 's2' byte.
+	CNZ		CLEARS2				; otherwise, look for a zero 's2' byte.
+	CALL	AutoSelect			; select proper drive.
+	MVI		C,15				; compare bytes 0-14 in fcb (12&13 excluded).
 fcSearchForFirst1:
-	CALL	FindFirst	;find an entry and then move it into
-	JMP	MOVEDIR	;the users dma space.
+	CALL	FindFirst			; find an entry and then move it into
+	JMP		MOVEDIR				; the users dma space.
 ;
 ;   Function to return the next occurence of a file name.
 ;
 fcSearchForNext:
-	LHLD	SaveFCB	;restore pointers. note that no
-	SHLD	ParamsDE	;other dbos calls are allowed.
-	CALL	AutoSelect	;no error will be returned, but the
-	CALL	FindNext	;results will be wrong.
-	JMP	MOVEDIR
+	LHLD	SaveFCB				; restore pointers. note that no
+	SHLD	ParamsDE			; other dbos calls are allowed.
+	CALL	AutoSelect			; no error will be returned, but the
+	CALL	FindNext			; results will be wrong.
+	JMP		MOVEDIR
 ;
 ;   Function to delete a file by name.
 ;
