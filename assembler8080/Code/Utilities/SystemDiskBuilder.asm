@@ -33,9 +33,8 @@ EndOfMessage		EQU		00H
 
 PhysicalSectorSize	EQU		512							; actual disk sector size
 FCBsize				EQU		32							; each Directory 
-DirectorySize		EQU		4 * PhysicalSectorSize		; size of the whole directory
+DirectorySize		EQU		8 * PhysicalSectorSize		; size of the whole directory
 DirectoryEntries	EQU		DirectorySize/FCBsize		; number of enties in the whole directory
-FATsize				EQU		5 * PhysicalSectorSize		; size of the whole FAT
 EmptyCode			EQU		0E5H
 
 CodeStart:
@@ -125,8 +124,10 @@ SendMessage1:
 	
 
 ;---------------------------------------------------	
+	
 
-	ORG		512				; past the first sector - write boot record out
+	ORG		($ / 0100H + 1)	* 0100H	; past the first sector - write boot record out
+;	ORG		0200H					; past the first sector - write boot record out
 	
 ;---------------------------------------------------
  
@@ -149,10 +150,10 @@ Begin:
 	LXI		H,WriteMessage3
 	CALL	SendMessage1
 ;---------------------------------------------------	
-; now we need to address the dirctory and FAT	
+; now we need to address the dirctory 	
 	CALL	ClearImages		; clear the image work area
 	CALL	SetUpDirectory	; put EmptyCode in all the directory entries 
-; Write the Directory and Initial FAT
+; Write the Directory 
 	LXI		H,WriteCommand4
 	CALL	DoWrite
 	LXI		H,WriteMessage4
@@ -183,7 +184,7 @@ WaitForWriteComplete:
 	; and stop
 ;---------------------------------------------------	
 ClearImages:
-	LXI		B,DirectorySize + FATsize + 1
+	LXI		B,DirectorySize  + 1
 	LXI		H,DirectoryImage
 ClearImages1:					
 	MVI		M,0					; clear out the location
@@ -206,12 +207,13 @@ SetUpDirectory1:
 	ORA		B					; AND with Hi byte 
 	JNZ		SetUpDirectory1		; keep going if both (B) and (C) not 0
 	
-	LXI		H,FATImage			; point at the File Allocation Table
-	MVI		M,0C0H				; allocate the firt two Blocks
+;	LXI		H,FATImage			; point at the File Allocation Table
+;	MVI		M,0C0H				; allocate the firt two Blocks
 	RET							; we are done		
 ;---------------------------------------------------
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++	
-WriteCommand1:
+; write the boot sector	
+WriteCommand1:					
 	DB		02H					; Write function
 	DB		00H					; unit number
 	DB		00H					; head number
@@ -222,6 +224,7 @@ WriteCommand1:
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking
 ;---------------------------------------------------
+; write the CCP & start of BDOS
 WriteCommand2:
 	DB		02H					; Write function
 	DB		00H					; unit number
@@ -232,7 +235,8 @@ WriteCommand2:
 	DW		CCPStart			; write from this address
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking	
-;---------------------------------------------------	
+;---------------------------------------------------
+; Write the rest of BDOS	
 WriteCommand3:
 	DB		02H					; Write function
 	DB		00H					; unit number
@@ -243,14 +247,15 @@ WriteCommand3:
 	DW		CCPStart + (8*512)	; write from this address
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking
-;---------------------------------------------------	
+;---------------------------------------------------
+; Write Directory image - all entries show deleted file	
 WriteCommand4:
 	DB		02H					; Write function
 	DB		00H					; unit number
 	DB		00H					; head number
 	DB		01H					; track number
 	DB		01H					; Starting sector number (First one)
-	DW		9 * 512				; Number of bytes to write (All sectors in Head 0, Track 1)
+	DW		8 * 512				; Number of bytes to write (All sectors in Head 0, Track 1)
 	DW		DirectoryImage		; write from this address
 	DW		DiskStatusBlock		; pointer to next block - no linking
 	DW		DiskControlTable	; pointer to next table- no linking
@@ -284,12 +289,11 @@ WriteMessage3:
 WriteMessage4:
 	DB		CR,LF
 	DB		'Directory'
-	DB		' and FAT'
 	DB		' has been written'
 	DB		CR,LF,EndOfMessage
 ;---------------------------------------------------
+	ORG		($ / 0100H + 1)	* 0100H		;Make it easier to track in memory
 DirectoryImage:		DS		DirectorySize
 
-FATImage:			DS		FATsize		
 ;---------------------------------------------------
 CodeEnd:

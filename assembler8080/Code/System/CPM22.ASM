@@ -932,8 +932,7 @@ RESETDR:
 DIRECT:
 	CALL	ConvertFirstName	; convert file name.
 	CALL	SelectDrive			; select indicated drive.
-;	LXI		H,FCBfromCCP+1		; was any file indicated?
-	LXI		H,FCBfromCCP		; was any file indicated?********************************
+	LXI		H,FCBfromCCP + 1		; was any file indicated?
 	MOV		A,M
 	CPI		BLANK
 	JNZ		DIRECT2				; Skip if yes
@@ -2425,10 +2424,10 @@ CheckSum:
 	LHLD	DirBuffAddr			; get its address.
 	XRA		A					; clear summation byte.
 CheckSum1:
-	ADD	M						; compute running sum ignoring carries.
-	INX	H
-	DCR	C
-	JNZ	CheckSum1
+	ADD		M					; compute running sum ignoring carries.
+	INX		H
+	DCR		C
+	JNZ		CheckSum1			; keep adding until all bytes have been added
 	RET
 
 ;
@@ -2502,7 +2501,7 @@ ADDA2HL:
 ;   Routine to get the 's2' byte(Extent Count) from the fcb supplied in
 ; the initial parameter specification.
 ;
-GETS2:
+GetS2:
 	LHLD	ParamsDE	;get address of fcb.
 	LXI		D,14		;relative position of 's2'.
 	DAD		D
@@ -2511,15 +2510,15 @@ GETS2:
 ;
 ;   Clear the 's2' byte in the fcb.
 ;
-CLEARS2:
-	CALL	GETS2		;this sets (HL) pointing to it.
+ClearS2:
+	CALL	GetS2		;this sets (HL) pointing to it.
 	MVI		M,0			;now clear it.
 	RET
 ;
 ;   Set bit 7 in the 's2' byte of the fcb.
 ;
-SETS2B7:
-	CALL	GETS2		;get the byte.
+SetBit7InS2:
+	CALL	GetS2		;get the byte.
 	ORI		80H			;and set bit 7.
 	MOV		M,A			;then store.
 	RET
@@ -2578,9 +2577,9 @@ CHECKDIR:
 	XCHG
 	LHLD	DirectoryFAT1
 	CALL	DEminusHL2HL
-	RNC		;ok if (CheckSumTable) > (DirectoryFAT1), so return.
-	PUSH	B
-	CALL	CheckSum;else compute checksum.
+	RNC								; ok if (CheckSumTable) > (DirectoryFAT1), so return.
+	PUSH	B						; save set/check flag (c)
+	CALL	CheckSum				;else compute checksum.
 	LHLD	CHKVECT	;get address of checksum table.
 	XCHG
 	LHLD	CheckSumTable
@@ -3128,7 +3127,7 @@ OPENIT1:
 	MVI	C,32	;move it into users space.
 	PUSH	D
 	CALL	DEtoHL
-	CALL	SETS2B7	;set bit 7 in 's2' byte (unmodified).
+	CALL	SetBit7InS2	;set bit 7 in 's2' byte (unmodified).
 	POP	D	;now get the extent byte from this fcb.
 	LXI	H,12
 	DAD	D
@@ -3183,7 +3182,7 @@ CLOSEIT:
 	STA	FilePosInDirectory+1
 	CALL	GetDiskROStatus	;get write protect bit for this drive.
 	RNZ		;just return if it is set.
-	CALL	GETS2	;else get the 's2' byte.
+	CALL	GetS2	;else get the 's2' byte.
 	ANI	80H	;and look at bit 7 (file unmodified?).
 	RNZ		;just return if set.
 	MVI	C,15	;else look up this file in directory.
@@ -3260,8 +3259,8 @@ CLOSEIT7:
 ;   Routine to get the next empty space in the directory. It
 ; will then be cleared for use.
 ;
-GETEMPTY:
-	CALL	IsDiskRO		;make sure disk is not write protected.
+GetEmptyDirSlot:
+	CALL	IsDiskRO	;make sure disk is not write protected.
 	LHLD	ParamsDE	;save current parameters (fcb).
 	PUSH	H
 	LXI		H,EmptyDir	;use special one for empty space.
@@ -3287,7 +3286,7 @@ GETMT1:
 	MOV	M,A
 	CALL	CHKNMBR	;keep (FilePosInDirSegment) within bounds.
 	CALL	FCBSET	;write out this fcb entry to directory.
-	JMP	SETS2B7	;set 's2' byte bit 7 (unmodified at present).
+	JMP	SetBit7InS2	;set 's2' byte bit 7 (unmodified at present).
 ;
 ;   Routine to close the current extent and open the next one
 ; for reading.
@@ -3331,7 +3330,7 @@ GTNEXT2:
 	LDA	RDWRTFLG;no extent present. Can we open an empty one?
 	INR	A	;0ffh means reading (so not possible).
 	JZ	GTNEXT5	;or an error.
-	CALL	GETEMPTY;we are writing, get an empty entry.
+	CALL	GetEmptyDirSlot;we are writing, get an empty entry.
 	CALL	CheckFilePosition;none?
 	JZ	GTNEXT5	;error if true.
 	JMP	GTNEXT4	;else we are almost done.
@@ -3347,7 +3346,7 @@ GTNEXT4:
 ;
 GTNEXT5:
 	CALL	IOERR1	;set error code, clear bit 7 of 's2'
-	JMP	SETS2B7	;so this is not written on a close.
+	JMP	SetBit7InS2	;so this is not written on a close.
 ;
 ;   Read a sequential file.
 ;
@@ -3521,7 +3520,7 @@ WTSEQ10:
 ; *   End of patch.
 ;
 	PUSH	PSW
-	CALL	GETS2	;set 'extent written to' flag.
+	CALL	GetS2	;set 'extent written to' flag.
 	ANI	7FH	;(* clear bit 7 *)
 	MOV	M,A
 	POP	PSW	;get record count for this extent.
@@ -3638,7 +3637,7 @@ POSITN2:
 	MVI	L,4	;prepare for error.
 	INR	C
 	JZ	POSITN4	;nope, reading unwritten space error.
-	CALL	GETEMPTY;yes we can, try to find space.
+	CALL	GetEmptyDirSlot;yes we can, try to find space.
 	MVI	L,5	;prepare for error.
 	LDA	StatusBDOSReturn
 	INR	A
@@ -3655,7 +3654,7 @@ POSITN3:
 ;
 POSITN4:
 	PUSH	H
-	CALL	GETS2
+	CALL	GetS2
 	MVI	M,0C0H
 	POP	H
 ;
@@ -3665,7 +3664,7 @@ POSITN5:
 	POP	B
 	MOV	A,L	;get error code.
 	STA	StatusBDOSReturn
-	JMP	SETS2B7
+	JMP	SetBit7InS2
 ;
 ;   Read a random record.
 ;
@@ -3982,7 +3981,7 @@ fcResetDiskSystem:
 ;   Function to open a specified file.
 ;
 fcOpenFile:
-	CALL	CLEARS2	;clear 's2' byte.
+	CALL	ClearS2	;clear 's2' byte.
 	CALL	AutoSelect	;select proper disk.
 	JMP	OPENIT	;and open the file.
 ;
@@ -4005,7 +4004,7 @@ fcSearchForFirst:
 	CALL	SETEXT				; get the extension byte from fcb.
 	MOV		A,M					; is it '?'? if yes, then we want
 	CPI		QMARK				; '?'	;an entry with a specific 's2' byte.
-	CNZ		CLEARS2				; otherwise, look for a zero 's2' byte.
+	CNZ		ClearS2				; otherwise, look for a zero 's2' byte.
 	CALL	AutoSelect			; select proper drive.
 	MVI		C,15				; compare bytes 0-14 in fcb (12&13 excluded).
 fcSearchForFirst1:
@@ -4024,9 +4023,9 @@ fcSearchForNext:
 ;   Function to delete a file by name.
 ;
 fcDeleteFile:
-	CALL	AutoSelect		;select proper drive.
-	CALL	EraseFile		;erase the file.
-	JMP		STSTATUS	;set status and return.
+	CALL	AutoSelect		; select proper drive.
+	CALL	EraseFile		; erase the file.
+	JMP		STSTATUS		; set status and return.
 ;
 ;   Function to execute a sequential read of the specified
 ; record number.
@@ -4044,9 +4043,9 @@ fcWriteSequential:
 ;   Create a file function.
 ;
 fcCreateFile:
-	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
-	CALL	AutoSelect	;select proper drive and get the next
-	JMP		GETEMPTY;empty directory space.
+	CALL	ClearS2				; clear the 's2' byte ( extents counter hi byte).
+	CALL	AutoSelect			; select proper drive and get the next
+	JMP		GetEmptyDirSlot			; empty directory space.
 ;
 ;   Function to rename a file.
 ;
