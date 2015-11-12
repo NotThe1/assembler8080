@@ -932,7 +932,7 @@
 0932: E448                DIRECT:             
 0933: E448     CD47E2     	CALL	ConvertFirstName	; convert file name.
 0934: E44B     CD25E4     	CALL	SelectDrive			; select indicated drive.
-0935: E44E     2199E7     	LXI		H,FCBfromCCP + 1		; was any file indicated?
+0935: E44E     2199E7     	LXI		H,FCBfromCCP + 1	; was any file indicated?
 0936: E451     7E         	MOV		A,M           
 0937: E452     FE20       	CPI		BLANK         
 0938: E454     C260E4     	JNZ		DIRECT2				; Skip if yes
@@ -1255,17 +1255,17 @@
 1255: E673                ;                   
 1256: E673                UNKNOWN:            
 1257: E673                ;e68b	CALL	VERIFY	;check for valid system (why?).
-1258: E673     3A99E7     	LDA		FCBfromCCP+1		;anything to execute?
-1259: E676     FE20       	CPI		BLANK		; is it a Space?
+1258: E673     3A99E7     	LDA		FCBfromCCP+1		; anything to execute?
+1259: E676     FE20       	CPI		BLANK				; is it a Space?
 1260: E678     C28FE6     	JNZ		UNKWN1        
 1261: E67B     3ABBE7     	LDA		ChangeDriveFlag		; No, only a drive change?
-1262: E67E     B7         	ORA		A			; Is itEmpty (00)
-1263: E67F     CA54E7     	JZ		GETBACK1	; Yes, get otta here?
+1262: E67E     B7         	ORA		A					; Is itEmpty (00)
+1263: E67F     CA54E7     	JZ		GETBACK1			; Yes, get otta here?
 1264: E682     3D         	DCR		A             
-1265: E683     32BAE7     	STA	CDRIVE	;ok, store new drive.
-1266: E686     CD26E1     	CALL	MOVECD	;set (TDRIVE) also.
-1267: E689     CDBAE0     	CALL	DiskSelect	;and select this drive.
-1268: E68C     C354E7     	JMP	GETBACK1;then return.
+1265: E683     32BAE7     	STA		CDRIVE				; ok, store new drive.
+1266: E686     CD26E1     	CALL	MOVECD				; set (TDRIVE) also.
+1267: E689     CDBAE0     	CALL	DiskSelect			; and select this drive.
+1268: E68C     C354E7     	JMP		GETBACK1			; then return.
 1269: E68F                ;                   
 1270: E68F                ;   Here a file name was typed. Prepare to execute it.
 1271: E68F                ;                   
@@ -2424,10 +2424,10 @@
 2424: ED1C     2AB1F5     	LHLD	DirBuffAddr			; get its address.
 2425: ED1F     AF         	XRA		A					; clear summation byte.
 2426: ED20                CheckSum1:          
-2427: ED20     86         	ADD	M						; compute running sum ignoring carries.
-2428: ED21     23         	INX	H              
-2429: ED22     0D         	DCR	C              
-2430: ED23     C220ED     	JNZ	CheckSum1      
+2427: ED20     86         	ADD		M					; compute running sum ignoring carries.
+2428: ED21     23         	INX		H             
+2429: ED22     0D         	DCR		C             
+2430: ED23     C220ED     	JNZ		CheckSum1			; keep adding until all bytes have been added
 2431: ED26     C9         	RET                
 2432: ED27                                    
 2433: ED27                ;                   
@@ -2501,7 +2501,7 @@
 2501: ED72                ;   Routine to get the 's2' byte(Extent Count) from the fcb supplied in
 2502: ED72                ; the initial parameter specification.
 2503: ED72                ;                   
-2504: ED72                GETS2:              
+2504: ED72                GetS2:              
 2505: ED72     2A3CE8     	LHLD	ParamsDE	;get address of fcb.
 2506: ED75     110E00     	LXI		D,14		;relative position of 's2'.
 2507: ED78     19         	DAD		D             
@@ -2510,15 +2510,15 @@
 2510: ED7B                ;                   
 2511: ED7B                ;   Clear the 's2' byte in the fcb.
 2512: ED7B                ;                   
-2513: ED7B                CLEARS2:            
-2514: ED7B     CD72ED     	CALL	GETS2		;this sets (HL) pointing to it.
+2513: ED7B                ClearS2:            
+2514: ED7B     CD72ED     	CALL	GetS2		;this sets (HL) pointing to it.
 2515: ED7E     3600       	MVI		M,0			;now clear it.
 2516: ED80     C9         	RET                
 2517: ED81                ;                   
 2518: ED81                ;   Set bit 7 in the 's2' byte of the fcb.
 2519: ED81                ;                   
-2520: ED81                SETS2B7:            
-2521: ED81     CD72ED     	CALL	GETS2		;get the byte.
+2520: ED81                SetBit7InS2:        
+2521: ED81     CD72ED     	CALL	GetS2		;get the byte.
 2522: ED84     F680       	ORI		80H			;and set bit 7.
 2523: ED86     77         	MOV		M,A			;then store.
 2524: ED87     C9         	RET                
@@ -2577,9 +2577,9 @@
 2577: EDAA     EB         	XCHG               
 2578: EDAB     2AC4F5     	LHLD	DirectoryFAT1 
 2579: EDAE     CD9EED     	CALL	DEminusHL2HL  
-2580: EDB1     D0         	RNC		;ok if (CheckSumTable) > (DirectoryFAT1), so return.
-2581: EDB2     C5         	PUSH	B             
-2582: EDB3     CD1AED     	CALL	CheckSum;else compute checksum.
+2580: EDB1     D0         	RNC								; ok if (CheckSumTable) > (DirectoryFAT1), so return.
+2581: EDB2     C5         	PUSH	B						; save set/check flag (c)
+2582: EDB3     CD1AED     	CALL	CheckSum				;else compute checksum.
 2583: EDB6     2AB5F5     	LHLD	CHKVECT	;get address of checksum table.
 2584: EDB9     EB         	XCHG               
 2585: EDBA     2AE5F5     	LHLD	CheckSumTable 
@@ -2950,8 +2950,8 @@
 2950: EF46     CDBDEE     	CALL	FindFirst		; get first file name.
 2951: EF49                ERAFIL1:            
 2952: EF49     CDFEED     	CALL	CheckFilePosition	;any found?
-2953: EF4C     C8         	RZ					;nope, we must be done.
-2954: EF4D     CD4DED     	CALL	CHKROFL	;is file read only?
+2953: EF4C     C8         	RZ						; nope, we must be done.
+2954: EF4D     CD4DED     	CALL	CHKROFL			; is file read only?
 2955: EF50     CD67ED     	CALL	FCB2HL	;nope, get address of fcb and
 2956: EF53     36E5       	MVI	M,EmptyFileFlag	;set first byte to 'empty'.
 2957: EF55                ;	MVI	C,0	;clear the space from the bit map.
@@ -3127,7 +3127,7 @@
 3127: F00F     0E20       	MVI	C,32	;move it into users space.
 3128: F011     D5         	PUSH	D             
 3129: F012     CD72EB     	CALL	DEtoHL        
-3130: F015     CD81ED     	CALL	SETS2B7	;set bit 7 in 's2' byte (unmodified).
+3130: F015     CD81ED     	CALL	SetBit7InS2	;set bit 7 in 's2' byte (unmodified).
 3131: F018     D1         	POP	D	;now get the extent byte from this fcb.
 3132: F019     210C00     	LXI	H,12           
 3133: F01C     19         	DAD	D              
@@ -3182,7 +3182,7 @@
 3182: F051     32E2F5     	STA	FilePosInDirectory+1
 3183: F054     CD27ED     	CALL	GetDiskROStatus	;get write protect bit for this drive.
 3184: F057     C0         	RNZ		;just return if it is set.
-3185: F058     CD72ED     	CALL	GETS2	;else get the 's2' byte.
+3185: F058     CD72ED     	CALL	GetS2	;else get the 's2' byte.
 3186: F05B     E680       	ANI	80H	;and look at bit 7 (file unmodified?).
 3187: F05D     C0         	RNZ		;just return if set.
 3188: F05E     0E0F       	MVI	C,15	;else look up this file in directory.
@@ -3259,8 +3259,8 @@
 3259: F0CC                ;   Routine to get the next empty space in the directory. It
 3260: F0CC                ; will then be cleared for use.
 3261: F0CC                ;                   
-3262: F0CC                GETEMPTY:           
-3263: F0CC     CD5DED     	CALL	IsDiskRO		;make sure disk is not write protected.
+3262: F0CC                GetEmptyDirSlot:    
+3263: F0CC     CD5DED     	CALL	IsDiskRO	;make sure disk is not write protected.
 3264: F0CF     2A3CE8     	LHLD	ParamsDE	;save current parameters (fcb).
 3265: F0D2     E5         	PUSH	H             
 3266: F0D3     21A4F5     	LXI		H,EmptyDir	;use special one for empty space.
@@ -3286,7 +3286,7 @@
 3286: F0F8     77         	MOV	M,A            
 3287: F0F9     CD95ED     	CALL	CHKNMBR	;keep (FilePosInDirSegment) within bounds.
 3288: F0FC     CDA5EF     	CALL	FCBSET	;write out this fcb entry to directory.
-3289: F0FF     C381ED     	JMP	SETS2B7	;set 's2' byte bit 7 (unmodified at present).
+3289: F0FF     C381ED     	JMP	SetBit7InS2	;set 's2' byte bit 7 (unmodified at present).
 3290: F102                ;                   
 3291: F102                ;   Routine to close the current extent and open the next one
 3292: F102                ; for reading.      
@@ -3330,7 +3330,7 @@
 3330: F141     3ACBF5     	LDA	RDWRTFLG;no extent present. Can we open an empty one?
 3331: F144     3C         	INR	A	;0ffh means reading (so not possible).
 3332: F145     CA5EF1     	JZ	GTNEXT5	;or an error.
-3333: F148     CDCCF0     	CALL	GETEMPTY;we are writing, get an empty entry.
+3333: F148     CDCCF0     	CALL	GetEmptyDirSlot;we are writing, get an empty entry.
 3334: F14B     CDFEED     	CALL	CheckFilePosition;none?
 3335: F14E     CA5EF1     	JZ	GTNEXT5	;error if true.
 3336: F151     C357F1     	JMP	GTNEXT4	;else we are almost done.
@@ -3346,7 +3346,7 @@
 3346: F15E                ;                   
 3347: F15E                GTNEXT5:            
 3348: F15E     CD60EB     	CALL	IOERR1	;set error code, clear bit 7 of 's2'
-3349: F161     C381ED     	JMP	SETS2B7	;so this is not written on a close.
+3349: F161     C381ED     	JMP	SetBit7InS2	;so this is not written on a close.
 3350: F164                ;                   
 3351: F164                ;   Read a sequential file.
 3352: F164                ;                   
@@ -3520,7 +3520,7 @@
 3520: F27F                ; *   End of patch. 
 3521: F27F                ;                   
 3522: F27F     F5         	PUSH	PSW           
-3523: F280     CD72ED     	CALL	GETS2	;set 'extent written to' flag.
+3523: F280     CD72ED     	CALL	GetS2	;set 'extent written to' flag.
 3524: F283     E67F       	ANI	7FH	;(* clear bit 7 *)
 3525: F285     77         	MOV	M,A            
 3526: F286     F1         	POP	PSW	;get record count for this extent.
@@ -3637,7 +3637,7 @@
 3637: F315     2E04       	MVI	L,4	;prepare for error.
 3638: F317     0C         	INR	C              
 3639: F318     CA2CF3     	JZ	POSITN4	;nope, reading unwritten space error.
-3640: F31B     CDCCF0     	CALL	GETEMPTY;yes we can, try to find space.
+3640: F31B     CDCCF0     	CALL	GetEmptyDirSlot;yes we can, try to find space.
 3641: F31E     2E05       	MVI	L,5	;prepare for error.
 3642: F320     3A3FE8     	LDA	StatusBDOSReturn
 3643: F323     3C         	INR	A              
@@ -3654,7 +3654,7 @@
 3654: F32C                ;                   
 3655: F32C                POSITN4:            
 3656: F32C     E5         	PUSH	H             
-3657: F32D     CD72ED     	CALL	GETS2         
+3657: F32D     CD72ED     	CALL	GetS2         
 3658: F330     36C0       	MVI	M,0C0H         
 3659: F332     E1         	POP	H              
 3660: F333                ;                   
@@ -3664,7 +3664,7 @@
 3664: F333     C1         	POP	B              
 3665: F334     7D         	MOV	A,L	;get error code.
 3666: F335     323FE8     	STA	StatusBDOSReturn
-3667: F338     C381ED     	JMP	SETS2B7        
+3667: F338     C381ED     	JMP	SetBit7InS2    
 3668: F33B                ;                   
 3669: F33B                ;   Read a random record.
 3670: F33B                ;                   
@@ -3981,7 +3981,7 @@
 3981: F4B8                ;   Function to open a specified file.
 3982: F4B8                ;                   
 3983: F4B8                fcOpenFile:         
-3984: F4B8     CD7BED     	CALL	CLEARS2	;clear 's2' byte.
+3984: F4B8     CD7BED     	CALL	ClearS2	;clear 's2' byte.
 3985: F4BB     CD6DF4     	CALL	AutoSelect	;select proper disk.
 3986: F4BE     C3F9EF     	JMP	OPENIT	;and open the file.
 3987: F4C1                ;                   
@@ -4004,7 +4004,7 @@
 4004: F4D0     CDC9EC     	CALL	SETEXT				; get the extension byte from fcb.
 4005: F4D3     7E         	MOV		A,M					; is it '?'? if yes, then we want
 4006: F4D4     FE3F       	CPI		QMARK				; '?'	;an entry with a specific 's2' byte.
-4007: F4D6     C47BED     	CNZ		CLEARS2				; otherwise, look for a zero 's2' byte.
+4007: F4D6     C47BED     	CNZ		ClearS2				; otherwise, look for a zero 's2' byte.
 4008: F4D9     CD6DF4     	CALL	AutoSelect			; select proper drive.
 4009: F4DC     0E0F       	MVI		C,15				; compare bytes 0-14 in fcb (12&13 excluded).
 4010: F4DE                fcSearchForFirst1:  
@@ -4023,9 +4023,9 @@
 4023: F4F3                ;   Function to delete a file by name.
 4024: F4F3                ;                   
 4025: F4F3                fcDeleteFile:       
-4026: F4F3     CD6DF4     	CALL	AutoSelect		;select proper drive.
-4027: F4F6     CD41EF     	CALL	EraseFile		;erase the file.
-4028: F4F9     C3A6EE     	JMP		STSTATUS	;set status and return.
+4026: F4F3     CD6DF4     	CALL	AutoSelect		; select proper drive.
+4027: F4F6     CD41EF     	CALL	EraseFile		; erase the file.
+4028: F4F9     C3A6EE     	JMP		STSTATUS		; set status and return.
 4029: F4FC                ;                   
 4030: F4FC                ;   Function to execute a sequential read of the specified
 4031: F4FC                ; record number.    
@@ -4043,9 +4043,9 @@
 4043: F508                ;   Create a file function.
 4044: F508                ;                   
 4045: F508                fcCreateFile:       
-4046: F508     CD7BED     	CALL	CLEARS2	;clear the 's2' byte ( extents counter hi byte).
-4047: F50B     CD6DF4     	CALL	AutoSelect	;select proper drive and get the next
-4048: F50E     C3CCF0     	JMP		GETEMPTY;empty directory space.
+4046: F508     CD7BED     	CALL	ClearS2				; clear the 's2' byte ( extents counter hi byte).
+4047: F50B     CD6DF4     	CALL	AutoSelect			; select proper drive and get the next
+4048: F50E     C3CCF0     	JMP		GetEmptyDirSlot			; empty directory space.
 4049: F511                ;                   
 4050: F511                ;   Function to rename a file.
 4051: F511                ;                   
@@ -4583,7 +4583,7 @@
 0394	E1CD	GETCURRENTDISK                		  0749,  0761,  0973,
 2437	ED27	GETDISKROSTATUS               		  2480,  3183,
 1632	E961	GETECHO                       		  1961,
-3262	F0CC	GETEMPTY                      		  3333,  3640,  4048,
+3262	F0CC	GETEMPTYDIRSLOT               		  3333,  3640,  4048,
 0571	E28E	GETEXTENSION                  		  0567,
 0578	E29B	GETEXTENSION1                 		  0575,
 0582	E29F	GETEXTENSION4                 		  0586,
@@ -4758,6 +4758,7 @@
 3904	F44B	SETBIT                        		  2453,  3818,
 3908	F452	SETBIT1                       		  3912,
 3913	F45A	SETBIT2                       		  3910,
+2520	ED81	SETBIT7INS2                   		  3130,  3289,  3349,  3667,
 2779	EE71	SETCLEARFATBITS               		  2960,  3896,
 0260	E117	SETCURRENTDRIVE               		  0352,  1359,
 2567	EDA5	SETDIR                        		  2603,
@@ -4771,7 +4772,6 @@
 2818	EEA0	SETFL4                        		  2811,
 2358	ECD1	SETHLDE                       		  2370,  2387,
 2386	ECF5	SETNREC                       		  3379,  3533,  3544,
-2520	ED81	SETS2B7                       		  3130,  3289,  3349,  3667,
 2018	EB5C	SETSTATUSBDOS                 		  1962,  1968,  1986,  1992,  2027,  2829,  2942,  3342,  3421,  3651,  3966,  4067,  4113,
 4115	F557	SETUSER                       		  4111,
 2046	EB6A	SLCTERR                       		  3809,

@@ -932,7 +932,7 @@ RESETDR:
 DIRECT:
 	CALL	ConvertFirstName	; convert file name.
 	CALL	SelectDrive			; select indicated drive.
-	LXI		H,FCBfromCCP + 1		; was any file indicated?
+	LXI		H,FCBfromCCP + 1	; was any file indicated?
 	MOV		A,M
 	CPI		BLANK
 	JNZ		DIRECT2				; Skip if yes
@@ -1255,17 +1255,17 @@ USER:
 ;
 UNKNOWN:
 ;e68b	CALL	VERIFY	;check for valid system (why?).
-	LDA		FCBfromCCP+1		;anything to execute?
-	CPI		BLANK		; is it a Space?
+	LDA		FCBfromCCP+1		; anything to execute?
+	CPI		BLANK				; is it a Space?
 	JNZ		UNKWN1
 	LDA		ChangeDriveFlag		; No, only a drive change?
-	ORA		A			; Is itEmpty (00)
-	JZ		GETBACK1	; Yes, get otta here?
+	ORA		A					; Is itEmpty (00)
+	JZ		GETBACK1			; Yes, get otta here?
 	DCR		A
-	STA	CDRIVE	;ok, store new drive.
-	CALL	MOVECD	;set (TDRIVE) also.
-	CALL	DiskSelect	;and select this drive.
-	JMP	GETBACK1;then return.
+	STA		CDRIVE				; ok, store new drive.
+	CALL	MOVECD				; set (TDRIVE) also.
+	CALL	DiskSelect			; and select this drive.
+	JMP		GETBACK1			; then return.
 ;
 ;   Here a file name was typed. Prepare to execute it.
 ;
@@ -2950,8 +2950,8 @@ EraseFile:
 	CALL	FindFirst		; get first file name.
 ERAFIL1:
 	CALL	CheckFilePosition	;any found?
-	RZ					;nope, we must be done.
-	CALL	CHKROFL	;is file read only?
+	RZ						; nope, we must be done.
+	CALL	CHKROFL			; is file read only?
 	CALL	FCB2HL	;nope, get address of fcb and
 	MVI	M,EmptyFileFlag	;set first byte to 'empty'.
 ;	MVI	C,0	;clear the space from the bit map.
