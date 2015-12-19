@@ -644,7 +644,7 @@
 0644: FA5B     C0         	DB	0C0H				; Bit map for reserving 2 alloc. block
 0645: FA5C     00         	DB	00					;  for file directory
 0646: FA5D     1000       	DW	010H				;Disk change work area size (16)
-0647: FA5F     0200       	DW	02					; Number of tracks before directory
+0647: FA5F     0200       	DW	02					; Number of tracks before directory ******* should be 3
 0648: FA61                	                   
 0649: FA61                			; Disk work area 
 0650: FA61                	                   
