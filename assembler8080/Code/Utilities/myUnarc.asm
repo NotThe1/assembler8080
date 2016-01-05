@@ -25,19 +25,23 @@ flagNoPause		EQU		'P'			; no screen pause
 flagPrint		EQU		'N'			; print flag
 flagCheckValidity	EQU	'C'			; check file validity
 
-vGetConInput	EQU		01H			; get Console Input
-vConsoleOutput	EQU		02H			; COnsole output - char in E
-vListOutput		EQU		05H			; List output - char in E
-vPrintString	EQU		09H			; Print String - $ terminated
-vGetConStat		EQU		0BH			; get console Status
-vGetVersion		EQU		0CH			; Get Version Number
-vSelectDisk		EQU		0EH			; Select disk - in E
-vOpenfile		EQU		0FH			; Open File - DE has FCB address
-vCloseFile		EQU		10H			; close File - DE has FCB address
-vGetCurDisk		EQU		19H			; get current Disk - into A
-vSetDMA			EQU		1AH			; set dma
-vGetDPB			EQU	 1FH			; get disk parameter address
-vSetRandRec		EQu		24H			; set random Record
+vGetConInput	EQU		01H			; A <- ASCII char
+vConsoleOutput	EQU		02H			; E has Char to output, no return value
+vListOutput		EQU		05H			; E has Char to output, no return value
+vPrintString	EQU		09H			; DE buffer address, $ terminated, no return value
+vGetConStat		EQU		0BH			; A<- 00/non zero
+vGetVersion		EQU		0CH			; HL< - Version Number
+vSelectDisk		EQU		0EH			; E has Disk number
+vOpenfile		EQU		0FH			; DE - FCB | A<- FF if not found
+vCloseFile		EQU		10H			; DE - FCB | A<- FF if not found
+vSearchForFirst	EQU		11H			; DE - FCB | A<- directory code
+vDeleteFile		EQU		13H			; DE - FCB | A<- nothing
+vWriteSeq		EQU		15H			; DE - FCB | A<-error code
+vMakeFile		EQU		16H			; DE - FCB | A<- FF if no DIR Space
+vGetCurDisk		EQU		19H			; A <- current disk
+vSetDMA			EQU		1AH			; DE - DMA address, no return value
+vGetDPB			EQU	 	1FH			; HL <- Disk Parameter Block address
+vSetRandRec		EQu		24H			; DE - FCB | r0,r1,r2
 
 
 				  ORG  00100H
@@ -50,18 +54,18 @@ CodeStart:
 
 ;     <New constant fragment-----from 0103 to 010E ( 10E :  270)>
 ;              ORG  00103H
-				DB		008H,000H
-				DB		010H,010H,0FFH,000H,000H
-L010A:
-				DB		006H
-L010B:
-				DB		001H
-L010C:
-				DB		017H			; 05cf
-L010D:
-				DB		000H
-L010E:
-				DB		0FFH
+pageOverhead:	DB		008H		; checked to see if there is enough memory to do this
+L0104:			DB		000H
+maxDrive:		DB		010H		; L0105
+L0106:			DB		010H
+L0107:			DB		0FFH
+L0108:			DB		000H
+L0109:			DB		000H
+L010A:			DB		006H
+L010B:			DB		001H
+L010C:			DB		017H			; 05cf
+L010D:			DB		000H
+L010E:			DB		0FFH
 
 
 ;     <New literal fragment-----from 010F to 013B ( 13B :  315)>
@@ -272,31 +276,31 @@ checkENV:						;L0571:
 				CALL	BDOS 			; HL has Version Number and  Acc?
 				CPI		020H      		; is it at least Ver 2.0 ?
 				LXI		D,messVer		; 01353H
-				JC		0059AH 			; no , jump
-				LDA		00007H  			; get page numbe of start of DBOS
-				LXI		H,00103H 		; point at store value (08)
+				JC		sendErrorMess0	; no , jump - 0059AH 
+				LDA		00007H  		; get page numbe of start of DBOS
+				LXI		H,pageOverhead	; point at stored value (08) - 00103H 		
 				SUB		M  				; subtract fom BDOS page start
-				STA		SetB +1			;00595H  result = 0xE0H, put it away
-				MVI		A,017H
+				STA		SetB +1			; 00595H  result = 0xE0H, put it away
+				MVI		A,017H			; minimum number of pages needed to run
 L0594:
 SetB:
-				CPI  000H 			; is the enough Memory ?
-				RC             		; return if there is enough Memory
-				LXI  D,messNEMemory	; Else send not enough memory message 01375H
-L059A:
+				CPI  000H 				; is the enough Memory ?
+				RC             			; return if there is enough Memory
+				LXI  D,messNEMemory		; Else send not enough memory message 01375H
+sendErrorMess0:							; L059A:
 				POP  H
-sendErrorMess:						; L059B:
+sendErrorMess:							; L059B:
 				CALL sendStringNL00		; 00FB7H
-sendAbortMess:						; L059E
+sendAbortMess:							; L059E
 				LXI  D,messAborted		; 01348H
-sendStringNL00NL:					; L05A1
+sendStringNL00NL:						; L05A1
 				CALL sendStringNL00		; 00FB7H
 				CALL sendNL				;00F85H
 				JMP  00531H
-parseCmdLine:						; L05AA
-				LXI  H,Pg0Buffer			; 00080H
+parseCmdLine:							; L05AA
+				LXI  H,Pg0Buffer		; 00080H
 				MOV  E,M       			; get number of bytes in the buffer
-				MVI  D,000H 				; set hibyte to zero
+				MVI  D,000H 			; set hibyte to zero
 				DAD  D 					; point at the end of the buffer
 				DCX  H 					; is the next
 				MOV  A,M       			;   to last character
@@ -309,72 +313,73 @@ parseCmdLine:						; L05AA
 				CPI  flagPrint			; else - is the a Print flag
 				JNZ  parseCMDLine1		; skip if no  -	005C7H			
 				STA  printFlag			; else store P in the print flag - 0173EH
-parseCMDLine1:						; L05C7:
+parseCMDLine1:							; L05C7:
 				CPI  flagCheckValidity	; Is it a Check Valitity flag ?
 				JNZ  parseCMDLine2		; skip if no - 005CFH
 				STA  checkValidFlag		; else store if checkValidFlag - 0173FH
-parseCMDLine2:						; L05CF:
+; past the cmd line flags [N|P|C]
+parseCMDLine2:							; L05CF:
 				LDA  L010C				; 0010CH
 				STA  SetA3 + 1			; 00F95H
-				STA  01742H 				; save for later ??
-parseCMDLine3:						; L05D8:
+				STA  L1742				; save for later ?? - 01742H
+parseCMDLine3:							; L05D8:
 				MVI  A,SPACE
-				LXI  H,0006CH
-				LXI  D,L174F				; 0174FH
+				LXI  H,0006CH			; cmd arg 2 expanded FCB (SPACES & QMARKS)
+				LXI  D,L174F			; 0174FH
 				PUSH PSW
-				MOV  A,M					; a<- (M)
+				MOV  A,M				; a<- (M)
 				STAX D 					; (de) <- a
 				INX  H
 				INX  D
-				DCX  B  					; ????????
+				DCX  B  				; ????????
 				POP  PSW       			; get the space back into Acc	
-				LXI  D,L1744				; 01744H
+				LXI  D,targetFCB		; 01744H
 				LXI  B,FullNameSize		; filename and ext length 8 + 3 = 11 - 0000BH
-				CMP  M 					; does Memory contain a SPACE ?
+				CMP  M 					; does FCB2 contain a SPACE ?
 				JNZ  parseCMDLine4		; skip if not -  005F7H 				
-				MOV  H,D 					; place memory pointer
+				MOV  H,D 				; place memory pointer
 				MOV  L,E       			;    into from DE to HL
-				MVI  M,QMARK				; put QMARK into memory - (1744)
-				INX  D  					; point past that location
+				MVI  M,QMARK			; put QMARK into memory - (1744)
+				INX  D  				; point past that location
 				DCX  B         			
-parseCMDLine4:						; L05F7:
-				CALL repeatMbcBytes		; 012FFH
-				LXI  H,00065H
+parseCMDLine4:							; L05F7:
+				CALL moveHLtoDE			; 012FFH
+				LXI  H,00065H			; point at ext for FCB1
 				CMP  M					; if SPACE for ARK extension
-				JNZ  parseCMDLine5		; 0060CH
+				JNZ  parseCMDLine5		; skip , else force to ARK
 				MVI  M,ASCII_A
 				INX  H
 				MVI  M,ASCII_R
 				INX  H
 				MVI  M,ASCII_K
-				STA  L173D				; 0173DH
-parseCMDLine5:						; L060C:
-				LXI  H,DefaultFCB +1		; 0005DH
+				STA  flagOS				; 0173DH
+parseCMDLine5:							; L060C:
+				LXI  H,DefaultFCB +1	; 0005DH
 				CMP  M 					; file name start with a SPACE ?
-				JZ   00681H 				; skip if Yes - not good
-				PUSH H 					; save fcb pointee
+				JZ   00681H 			; skip if Yes - not good
+				PUSH H 					; save fcb1 pointer
 				CALL anyQMarks			; 00903H
-				LXI  D,messAmbigFile		; 01387H
-parseCMDLine6:						; L061A:
+				LXI  D,messAmbigFile	; we dont want any. Only one Archive file!
+parseCMDLine6:	
 				JZ   sendErrorMess		;  jump if bad file name 0059BH
-				POP  D         			; restore FCB
-				LXI  H,messArcFileName	; 0146FH
-				MVI  C,SPACE
-				CALL trimFullName			; 00FFEH
-				XRA  A
-				MOV  M,A
+				POP  D         			; put FCB1 into DE
+				LXI  H,messArcFileName	; put target location in HL
+				MVI  C,SPACE			; remove spaces and insert Period
+				CALL trimFullName		;    and put into location pointed at by HL
+				XRA  A					; set Acc = 0
+				MOV  M,A				;   terminate the string -messArcFileName- with NULL
 				DCR  A
-				STA  01740H
-				LXI  H,0005CH
-				LDA  00105H
-				CMP  M
-				LXI  D,messBadArchFileDrive		;01430H
-				JC   sendErrorMess		; 0059BH
-				XCHG
+				STA  L1740				; Store -1  flag ??? 01740H
+				LXI  H,DefaultFCB		; points at the disk (0= current, 1 = A, 2= B)
+				LDA  maxDrive			; 00105H - L0105
+				CMP  M					; is it a good drive number ?
+				LXI  D,messBadArchFileDrive		; load message if not
+				JC   sendErrorMess		; Jump to send error message if drive not valid
+				XCHG					; load DE with FCB for the archive file
 				MVI  C,vOpenfile
-				CALL 006EAH
-				JNZ  00656H
-				LXI  H,L173D							; 0173DH
+				CALL sysCall			; open it
+				JNZ  00656H				; jump if sucsessful open
+				LXI  H,flagOS			;   else not valid open 0173DH
 				ORA  M
 				LXI  D,messMissingArchiveFile			; 013A3H
 				JZ   parseCMDLine6					; 0061AH
@@ -464,9 +469,9 @@ L06DF:
 				CNZ  BDOS
 				INR  A
 				RET
-L06E7:
+sysCall0:									; L06E7:
 				LXI  D,L174F				; 0174FH
-L06EA:
+sysCall:									; L06EA:
 				CALL BDOS
 				INR  A
 				RET
@@ -520,10 +525,10 @@ L0738:
 				PUSH D
 				PUSH H
 L073B:
-				LHLD 01740H
+				LHLD L1740				; 01740H
 				INR  L
 				CZ   0074AH
-				SHLD 01740H
+				SHLD L1740				; 01740H
 				MOV  A,M
 L0746:
 				POP  H
@@ -577,7 +582,7 @@ L0780:
 				JC   0075EH
 				RAR
 				XCHG
-				LXI  H,01740H
+				LXI  H,L1740				; 01740H
 				ADD  M
 				MOV  M,A
 				INR  A
@@ -624,13 +629,13 @@ L07CC:
 				RNZ
 				LXI  H,0177EH
 				MVI  C,004H
-				CALL repeatMbcBytes		; 012FFH
+				CALL moveHLtoDE		; 012FFH
 				RET
 L07DD:
 				LXI  D,01771H
 				LXI  H,01750H
 				PUSH H
-				LXI  H,L1744				; 01744H
+				LXI  H,targetFCB				; 01744H
 				SHLD 01794H
 				POP  H
 				MVI  B,00BH
@@ -802,7 +807,7 @@ L08FB:
 				STA  L174F				; 0174FH
 				RET
 L0900:
-				LXI  H,L1744				; 01744H
+				LXI  H,targetFCB				; 01744H
 anyQMarks:							; L0903:
 				LXI  B,FullNameSize		; 0000BH
 				MVI  A,QMARK
@@ -854,8 +859,8 @@ L095F:
 				JZ   0099BH
 				LXI  D,01A00H
 				CALL 006EFH
-				MVI  C,011H
-				CALL 006E7H
+				MVI  C,vSearchForFirst
+				CALL sysCall0						; 006E7H
 				JZ   0098DH
 				LXI  D,messReplaceQues				; 014D5H
 				CALL sendString00						; 00FBAH
@@ -868,11 +873,11 @@ L0977:
 				CALL 012DAH
 				CPI  059H
 				RNZ
-				MVI  C,013H
-				CALL 006E7H
+				MVI  C,vDeleteFile
+				CALL sysCall0						; 006E7H
 L098D:
-				MVI  C,016H
-				CALL 006E7H
+				MVI  C,vMakeFile
+				CALL sysCall0						; 006E7H
 				LXI  D,messDirFull					; 01505H
 				JZ  sendErrorMess						; 0059BH
 				STA  SetA2 + 1						; 006DEH
@@ -1007,7 +1012,7 @@ L0A6E:
 				MOV  D,H
 				MOV  E,L
 				INX  D
-				CALL repeatMbcBytes		; 012FFH
+				CALL moveHLtoDE		; 012FFH
 				RET
 L0A79:
 				LXI  H,00B85H
@@ -1698,8 +1703,8 @@ L0E41:
 				DAD  D
 				PUSH H
 				CALL 006EFH
-				MVI  C,015H
-				CALL 006E7H
+				MVI  C,vWriteSeq
+				CALL sysCall0						; 006E7H
 				POP  D
 				DCR  A
 				RZ
@@ -1944,25 +1949,25 @@ L0FF7:
 ;		Trim with char to remove in(C)
 ;		Source in (DE)
 ;		Target in (HL)
-;		target with put a period in position 4 fro the end		
+;		target with put a period in position 4 from the end		
 		
 trimFullName:							; L0FFE:
-				MVI  B,FullNameSize +1		;  name.ext 00CH
+				MVI  B,FullNameSize +1	;  name.ext 00CH
 trimFullName1:							; L1000:
-				MOV  A,B						; get position
-				CPI  004H						; is it 4 from the end ?
-				MVI  A,PERIOD					; looking for the period
-				JZ   trimFullName2			; skip if its 4 from the end - 0100EH
-				LDAX D 						
-				INX  D
-				CMP  C
-				JZ   trimFullName3			; 01010H
+				MOV  A,B				; get position
+				CPI  004H				; is it 4 from the end ?
+				MVI  A,PERIOD			; looking for the period
+				JZ   trimFullName2		; skip if its 4 from the end - 0100EH
+				LDAX D 					; get the character						
+				INX  D					; set up for next character
+				CMP  C					; is it the target character
+				JZ   trimFullName3		; skip if yes
 trimFullName2:
-				MOV  M,A
-				INX  H
+				MOV  M,A				; move from source to target location
+				INX  H					; set up for next target location
 trimFullName3:
-				DCR  B
-				JNZ  trimFullName1			; 01000H
+				DCR  B					; keep count
+				JNZ  trimFullName1		;loop if not doen
 				RET
 		
 L1015:
@@ -2034,7 +2039,7 @@ L1055:
 				JZ   0107DH
 				DAD  B
 L107D:
-				CALL repeatMbcBytes		; 012FFH
+				CALL moveHLtoDE		; 012FFH
 				XCHG
 				POP  PSW
 L1082:
@@ -2283,7 +2288,7 @@ L11B6:
 				DAD  B
 				DAD  B
 				MVI  C,003H
-				CALL repeatMbcBytes		; 012FFH
+				CALL moveHLtoDE		; 012FFH
 				XCHG
 				MVI  M,020H
 				INX  H
@@ -2517,12 +2522,12 @@ L12E3:
 				POP  H
 				RET
 ;
-;         take value in (HL) and
-;		  fill for (BC) bytes
-repeatMbcBytes:							; L12FF
+;         move (HL) to (DE) for (BC) bytes
+;		  
+moveHLtoDE:							; L12FF
 
 				PUSH PSW						; save acc
-repeatMbcBytes1:						; L1300
+moveHLtoDE1:						; L1300
 				MOV  A,M						; get value from (HL)
 				STAX D						; put value in (DE)
 				INX  H 						; Incremement HL
@@ -2530,7 +2535,7 @@ repeatMbcBytes1:						; L1300
 				DCX  B						; count down BC
 				MOV  A,B
 				ORA  C
-				JNZ  repeatMbcBytes1			; loop until BC = 00  - 01300H
+				JNZ  moveHLtoDE1			; loop until BC = 00  - 01300H
 				POP  PSW       				; restore ACC
 				RET            				; exit
 
@@ -2734,15 +2739,17 @@ L1739:			DS	1
 L173A:			DS	1
 L173B:			DS	1
 L173C:			DS	1
-L173D:			DS	1
+flagOS:			DS	1		; K = CP/M | C = MS-DOS
 
 printFlag:		DS	1
 ;         ORG  0173FH
-checkValidFlag:
-				DS	1
-L1740:
-				DS 4
-L1744:			DS 11
+checkValidFlag:	DS	1
+L1740:			DS	1		;  flag ???  (was set with -1)
+L1741:			DS	1
+L1742:			DS	1
+L1743:			DS	1
+
+targetFCB:		DS 11
 
 L174F:
 				DB		NULL
