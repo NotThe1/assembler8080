@@ -3,14 +3,19 @@
 
 NULL			EQU		00H			; Null
 SOH				EQU		01H			; Start of Heading
+CTRL_C			EQU		03H			; ETX
 BELL			EQU		07H			; Bell
 LF				EQU		0AH			; Line Feed
+CTRL_K			EQU		0BH			; VT - Vertical tab
 CR				EQU		0DH			; Carriage Return
+CTRL_S			EQU		13H			; X-OFF
 SPACE			EQU		20H			; Space
 DOLLAR			EQU		24H			; Dollar Sign
 PERIOD			EQU		2EH			; Period
 QMARK			EQU		3FH			; Question Mark
+ASCII_MASK		EQU		7FH			; Ascii mask 7 bits
 ASCII_A			EQU		'A'	
+ASCII_C			EQU		'C'	
 ASCII_R			EQU		'R'	
 ASCII_K			EQU		'K'	
 
@@ -36,11 +41,13 @@ vOpenfile		EQU		0FH			; DE - FCB | A<- FF if not found
 vCloseFile		EQU		10H			; DE - FCB | A<- FF if not found
 vSearchForFirst	EQU		11H			; DE - FCB | A<- directory code
 vDeleteFile		EQU		13H			; DE - FCB | A<- nothing
+vReadSeq		EQU		14H			; DE - FCB | A<-error code
 vWriteSeq		EQU		15H			; DE - FCB | A<-error code
 vMakeFile		EQU		16H			; DE - FCB | A<- FF if no DIR Space
 vGetCurDisk		EQU		19H			; A <- current disk
 vSetDMA			EQU		1AH			; DE - DMA address, no return value
 vGetDPB			EQU	 	1FH			; HL <- Disk Parameter Block address
+vReadRandom		EQU		21H			; DE - FCB | A<- nothing error codes in BA & HL
 vSetRandRec		EQu		24H			; DE - FCB | r0,r1,r2
 
 
@@ -54,18 +61,18 @@ CodeStart:
 
 ;     <New constant fragment-----from 0103 to 010E ( 10E :  270)>
 ;              ORG  00103H
-pageOverhead:	DB		008H		; checked to see if there is enough memory to do this
-L0104:			DB		000H
-maxDrive:		DB		010H		; L0105
-L0106:			DB		010H
-L0107:			DB		0FFH
-L0108:			DB		000H
-L0109:			DB		000H
-L010A:			DB		006H
-L010B:			DB		001H
-L010C:			DB		017H			; 05cf
-L010D:			DB		000H
-L010E:			DB		0FFH
+pageOverhead:	DB		008H		; read Only - checked to see if there is enough memory to do this
+L0104:			DB		000H		; read Only
+maxDrive:		DB		010H		; read Only - L0105
+L0106:			DB		010H		; read Only
+L0107:			DB		0FFH		; read Only
+L0108:			DB		000H		; read Only
+L0109:			DB		000H		; read Only
+L010A:			DW		L0106		; read Only
+
+pauseLimit:		DB		23			; read Only - L010C
+L010D:			DB		000H		; read & write  ****
+L010E:			DB		0FFH		; read Only
 
 
 ;     <New literal fragment-----from 010F to 013B ( 13B :  315)>
@@ -187,27 +194,27 @@ BEGIN:
 				LXI		H,00000H
 				DAD		SP
 				SHLD	StackRestore + 1			; 0053CH
-				CALL	checkENV						; 00571H	 checks - CP/M ver, Memory Space
+				CALL	checkENV					; 00571H	 checks - CP/M ver, Memory Space
 				LXI		SP,buffer1					; 0172EH 		buffer1
 				LXI		H,buffer1					; 0172EH
-				LXI		B,01200H						; Fill 00 for 12H bytes
+				LXI		B,01200H					; Fill 00 for 12H bytes
 				CALL	FillMemWithC
-				CALL	parseCmdLine					; 005AAH
-				CALL 00833H
-				LXI H,00003H
-				MOV B,L
+				CALL	parseCmdLine				; 005AAH
+				CALL	00833H
+				LXI		H,00003H
+				MOV		B,L
 L04DF:
-				CALL 00738H
+				CALL getRawData						; 00738H
 				CPI  01AH
 				JZ   004F3H
 				DCR  B
 				JNZ  004DFH
 L04EB:
-				CALL 00738H
+				CALL getRawData					; 00738H
 				CPI  01AH
 				JNZ  0053FH
 L04F3:
-				CALL 00738H
+				CALL getRawData					; 00738H
 				ORA  A
 				JZ   0051EH
 L04FA:
@@ -245,11 +252,11 @@ StackRestore:		; really + 1 from
 				RET
 L053F:
 				CALL 00764H
-				CALL 00738H
+				CALL getRawData					; 00738H
 L0545:
 				CPI  01AH
 				JNZ  0053FH
-				CALL 00738H
+				CALL getRawData					; 00738H
 				PUSH PSW
 				DCR  A
 				CPI  009H
@@ -260,7 +267,7 @@ L0545:
 				CALL 01255H
 				MVI  M,000H
 				LXI  D,messBadArchHeader			; 013D8H
-				CALL 00F7FH
+				CALL sendStringNL00NL				; 00F7FH
 				POP  PSW
 				JMP  004FAH
 L056A:
@@ -269,9 +276,9 @@ L056A:
 				JMP  00545H
 checkENV:						;L0571:
 				XRA		A    			; clear Acc
-				STA		SetA1 + 1		;006D6H
-				STA		SetA2 + 1		;006DEH
-				STA		SetA3 + 1		;00F95H
+				STA		SetA1			; 006D6H
+				STA		SetA2			; 006DEH
+				STA		pauseFlag		; clear the pause Flag (no-Pause);
 				MVI		C,vGetVersion
 				CALL	BDOS 			; HL has Version Number and  Acc?
 				CPI		020H      		; is it at least Ver 2.0 ?
@@ -305,7 +312,7 @@ parseCmdLine:							; L05AA
 				DCX  H 					; is the next
 				MOV  A,M       			;   to last character
 				CPI  SPACE 				;    a Space ?
-				JNZ  parseCMDLine2		; skip if no - 005CFH 		
+				JNZ  parseCMDLine2		; skip if no	
 				INX  H 					; else look at last char, its a flag
 				MOV  A,M       			; get the flag
 				CPI  flagNoPause			; is there a No-Pause flag ?
@@ -313,15 +320,15 @@ parseCmdLine:							; L05AA
 				CPI  flagPrint			; else - is the a Print flag
 				JNZ  parseCMDLine1		; skip if no  -	005C7H			
 				STA  printFlag			; else store P in the print flag - 0173EH
-parseCMDLine1:							; L05C7:
+parseCMDLine1:
 				CPI  flagCheckValidity	; Is it a Check Valitity flag ?
 				JNZ  parseCMDLine2		; skip if no - 005CFH
 				STA  checkValidFlag		; else store if checkValidFlag - 0173FH
+parseCMDLine2:
+				LDA  pauseLimit			; L010C	
+				STA  pauseFlag			; set flag non zero (pauseLimit) else empty for no-pause option
+				STA  pauseCount			; set up count down to pause - L1742
 ; past the cmd line flags [N|P|C]
-parseCMDLine2:							; L05CF:
-				LDA  L010C				; 0010CH
-				STA  SetA3 + 1			; 00F95H
-				STA  L1742				; save for later ?? - 01742H
 parseCMDLine3:							; L05D8:
 				MVI  A,SPACE
 				LXI  H,0006CH			; cmd arg 2 expanded FCB (SPACES & QMARKS)
@@ -369,7 +376,7 @@ parseCMDLine6:
 				XRA  A					; set Acc = 0
 				MOV  M,A				;   terminate the string -messArcFileName- with NULL
 				DCR  A
-				STA  L1740				; Store -1  flag ??? 01740H
+				STA  bufferPointer		; Store -1  as flag to read -01740H
 				LXI  H,DefaultFCB		; points at the disk (0= current, 1 = A, 2= B)
 				LDA  maxDrive			; 00105H - L0105
 				CMP  M					; is it a good drive number ?
@@ -378,39 +385,40 @@ parseCMDLine6:
 				XCHG					; load DE with FCB for the archive file
 				MVI  C,vOpenfile
 				CALL sysCall			; open it
-				JNZ  00656H				; jump if sucsessful open
+				JNZ  haveArcFile		; jump if sucsessful open - 00656H				
 				LXI  H,flagOS			;   else not valid open 0173DH
 				ORA  M
 				LXI  D,messMissingArchiveFile			; 013A3H
-				JZ   parseCMDLine6					; 0061AH
-				MVI  M,000H
-				LXI  H,00067H
-				MVI  M,043H
-				JMP  parseCMDLine5					; 0060CH
-L0656:
-				STA  SetA1 + 1						; 006D6H
-				LXI  D,messArchFileEqual				; 01460H
-				CALL 00F7FH
+				JZ   parseCMDLine6		; if (HL) == (flagOs) error out
+				MVI  M,000H				; force osFlag to MS-DOS
+				LXI  H,DefaultFCB + 11	; point at last char of ext - 00067H
+				MVI  M,ASCII_C			; force type to be ARC
+				JMP  parseCMDLine5		; retry with file ext of ARC
+				
+haveArcFile:							; L0656:
+				STA  SetA1				; save the return code for late testing - 006D6H
+				LXI  D,messArchFileEqual
+				CALL sendStringNL00NL	; Display - Archive File = .....
 				LDA  00104H
-				ORA  A
-				CZ   006C4H
-				JNZ  0067DH
+				ORA  A					; if 104 is Zero then
+				CZ   006C4H				; check indirect 10A (106) is Zero
+				JNZ  0067DH				; set flag and Exit ???
 L0669:
-				LDA  0010DH
+				LDA  0010DH				; check if 10D is Zero
 				ORA  A
-				JNZ  0067DH
+				JNZ  0067DH				; set flag and Exit ??? if not Zero
 				MVI  C,vGetDPB
-				CALL BDOS
+				CALL BDOS				; HL points to the Disk Parameter BlocK
 				INX  H
-				INX  H
-				INX  H
-				MOV  A,M
+				INX  H					; at BSH (Block Shift)
+				INX  H					; at Block Mask
+				MOV  A,M				; get the Block Mask
 				INR  A
 				RRC
 				RRC
 				RRC
 L067D:
-				STA  01743H
+				STA  blockMask			; 01743H
 				RET
 L0681:
 				CALL 006C4H
@@ -442,27 +450,35 @@ L068D:
 L06BE:
 				LXI  D,0014CH
 				JMP  sendStringNL00NL		;005A1H
+;
+;			Check the value found by indirectly addrssing 10A, ie at location 106
+;			If it is zero make Acc = 1 reset Zero flag & return.
+;			if it is not Zero make Acc = 0, set Zero flag & return
 L06C4:
 				PUSH H
 				LHLD 0010AH
 				MOV  A,M
 				POP  H
 				ORA  A
-				JNZ  006D0H
-				INR  A
+				JNZ  006D0H			; if its not 0, jump, zero out and return
+				INR  A				; set Acc to 1, reset zero flag
 				RET
 L06D0:
-				XRA  A
+				XRA  A				; clear register and set Zero flag
 				RET
 L06D2:
 				LXI  D,0005CH
-SetA1:		
-				MVI  A,000H
+; modified code *****
+				DB	0EH							; MVI
+SetA1:			DB	00H							; 0= open file fail/ 1,2,3 = goo open
+
 				CALL 006DFH
 L06DA:
 				LXI  D,L174F				; 0174FH
-SetA2:		
-				MVI  A,000H
+; modified code *****
+				DB	0EH							; MVI
+SetA2:			DB	00H							; 0= ***********
+
 L06DF:
 				ORA  A
 				MVI  C,vCloseFile
@@ -475,24 +491,25 @@ sysCall:									; L06EA:
 				CALL BDOS
 				INR  A
 				RET
-L06EF:
+;		SetDMA - called with DE pointing to the Address
+setDMA:										;L06EF:
 				MVI  C,vSetDMA
-				CALL BDOS
-L06F4:
+				CALL BDOS					; set dma to default 80
+checkConsoleIn:								; L06F4:
 				MVI  C,vGetConStat
 				CALL BDOS
 				ORA  A
-				RZ
+				RZ							; return if no character pending from Console
 				MVI  C,vGetConInput
 				CALL BDOS
-				ANI  07FH
-				CPI  013H
+				ANI  ASCII_MASK
+				CPI  CTRL_S					; X-OFF 013H
 				MVI  C,vGetConInput
 				CZ   BDOS
-				ANI  07FH
-				CPI  003H
-				JZ   00713H
-				CPI  00BH
+				ANI  ASCII_MASK
+				CPI  CTRL_C					; ETX 003H
+				JZ   00713H					; abort if CTRL_C sent
+				CPI  CTRL_K					; VT	00BH
 				RNZ
 L0713:
 				JMP  sendAbortMess			; 0059EH
@@ -520,31 +537,31 @@ L072E:
 				JNZ  0072EH
 				STC
 				JMP  00746H
-L0738:
+getRawData:								; L0738:
 				PUSH B
 				PUSH D
 				PUSH H
 L073B:
-				LHLD L1740				; 01740H
+				LHLD bufferPointer		; L1740
 				INR  L
-				CZ   0074AH
-				SHLD L1740				; 01740H
+				CZ   readSeq			; call read sewq if 1740 was -1 (initialized -1)
+				SHLD bufferPointer		; save buffer pointer in 01740H
 				MOV  A,M
 L0746:
 				POP  H
 				POP  D
 				POP  B
 				RET
-L074A:
-				MVI  C,014H 		; vReadSequential
-L074C:
-				LXI  D,00080H
+readSeq:								; L074A
+				MVI  C,vReadSeq			; 014H
+readFile:								; L074C
+				LXI  D,00080H			; point at default FCB
 				PUSH D
 				PUSH B
-				CALL 006EFH
-				LXI  D,0005CH
-				POP  B
-				CALL BDOS
+				CALL setDMA				; 006EFH
+				LXI  D,DefaultFCB
+				POP  B					; get the kind of read
+				CALL BDOS				; do the read
 				POP  H
 				ORA  A
 				RZ
@@ -582,7 +599,7 @@ L0780:
 				JC   0075EH
 				RAR
 				XCHG
-				LXI  H,L1740				; 01740H
+				LXI  H,bufferPointer		; L1740
 				ADD  M
 				MOV  M,A
 				INR  A
@@ -605,8 +622,8 @@ L079B:
 				DAD  D
 				JC   0075EH
 				SHLD 0007DH
-				MVI  C,021H
-				CALL 0074CH
+				MVI  C,vReadRandom				; 021H
+				CALL readFile					; 0074CH
 				LXI  H,0007CH
 				INR  M
 				RET
@@ -619,7 +636,7 @@ L07B9:
 				MVI  B,018H
 				JMP  007CCH
 L07C9:
-				CALL 00738H
+				CALL getRawData					; 00738H
 L07CC:
 				STAX D
 				INX  D
@@ -684,10 +701,10 @@ L0828:
 L0833:
 				LDA  00106H
 				MOV  B,A
-				LXI  H,0173FH
-				CALL 006C4H
+				LXI  H,checkValidFlag		; 0173FH
+				CALL 006C4H					; check program values
 				DCR  A
-				JNZ  00849H
+				JNZ  00849H					; skip if ????
 				MOV  B,A
 				MOV  M,A
 				STA  0173EH
@@ -696,11 +713,11 @@ L0849:
 				MOV  C,A
 				LDA  L174F				; 0174FH
 				ORA  A
-				JNZ  00863H
-				ORA  M
-				JZ   008D2H
+				JNZ  00863H				; skip if not Zero
+				ORA  M					; or with check Valid Flag
+				JZ   008D2H				; skip if flag not set
 				LXI  D,messCheckingArch					; 0148EH
-				CALL 00F82H
+				CALL sendStringNL00				; 00F82H
 				MVI  A,0FEH
 				STA  L174F				; 0174FH
 				JMP  0088FH
@@ -714,7 +731,7 @@ L0863:
 				ADI  041H
 				STA  0148BH
 				LXI  D,messOutDriveEquals				; 0147CH
-				CALL 00F82H
+				CALL sendStringNL00				; 00F82H
 				MVI  C,vGetCurDisk
 				CALL BDOS
 				POP  D
@@ -858,14 +875,14 @@ L095F:
 				INR  B
 				JZ   0099BH
 				LXI  D,01A00H
-				CALL 006EFH
+				CALL setDMA				; 006EFH
 				MVI  C,vSearchForFirst
 				CALL sysCall0						; 006E7H
 				JZ   0098DH
 				LXI  D,messReplaceQues				; 014D5H
 				CALL sendString00						; 00FBAH
 L0977:
-				CALL 006F4H
+				CALL checkConsoleIn					; 006F4H
 				JZ   00977H
 				MOV  E,A
 				CALL sendNL							; 00F85H
@@ -880,7 +897,7 @@ L098D:
 				CALL sysCall0						; 006E7H
 				LXI  D,messDirFull					; 01505H
 				JZ  sendErrorMess						; 0059BH
-				STA  SetA2 + 1						; 006DEH
+				STA  SetA2						; 006DEH
 L099B:
 				LDA  01770H
 				CPI  004H
@@ -931,7 +948,7 @@ L09D9:
 				LXI  D,messLength							; 01597H
 				CNZ  00FC4H
 				CALL 006DAH
-				LXI  H,SetA2 + 1							; 006DEH
+				LXI  H,SetA2							; 006DEH
 				MVI  M,000H
 				RNZ
 				LXI  D,messCanNotCloseOut					; 01514H
@@ -1671,7 +1688,7 @@ L0E16:
 				POP  H
 				RET
 L0E18:
-				LDA  SetA2 + 1		;006DEH
+				LDA  SetA2		;006DEH
 				ORA  A
 				JZ   00E57H
 				MOV  H,D
@@ -1702,7 +1719,7 @@ L0E41:
 				LXI  H,00080H
 				DAD  D
 				PUSH H
-				CALL 006EFH
+				CALL setDMA				; 006EFH
 				MVI  C,vWriteSeq
 				CALL sysCall0						; 006E7H
 				POP  D
@@ -1711,7 +1728,7 @@ L0E41:
 				LXI  D,messDiskFull					; 014FBH
 				JMP  sendErrorMess					; 0059BH
 L0E57:
-				LDA  0173FH
+				LDA  checkValidFlag					; 0173FH
 				ORA  A
 				RNZ
 				LDA  0173EH
@@ -1745,7 +1762,7 @@ L0E7F:
 				JNC  00E76H
 				CALL sendNL								; 00F85H
 				PUSH D
-				CALL 006F4H
+				CALL checkConsoleIn					; 006F4H
 				POP  D
 				LXI  H,0173CH
 				INR  M
@@ -1765,7 +1782,7 @@ L0EAF:
 				PUSH B
 				MVI  C,vListOutput
 				CALL BDOS
-				CALL 006F4H
+				CALL checkConsoleIn					; 006F4H
 				POP  B
 				POP  H
 				INX  H
@@ -1842,7 +1859,7 @@ L0F1D:
 				LXI  D,01656H
 L0F53:
 				MVI  M,000H
-				JMP  00F82H
+				JMP  sendStringNL00				; 00F82H
 sendCharOut:				;L0F58
 				CPI  BELL
 				JNZ  00F62H 		; skip if BELL
@@ -1868,29 +1885,30 @@ L0F72:
 				CALL sendCharOut								; 00F58H
 				INX  D
 				JMP  00F72H
-L0F7F:
-				CALL sendNL									; 00F85H
-L0F82:
+				
+sendStringNL00NL:								; L0F7F
+				CALL sendNL
+sendString00NL:									; L0F82
 				CALL sendString00								; 00FBAH
 sendNL:													; L0F85
 				MVI  A,CR
 				CALL sendCharOut								; 00F58H
-		
 				MVI  A,LF
 				CALL sendCharOut								; 00F58H
-				LXI  H,01742H 	; points in middle of some text data "unAc16"  the "A"
-				DCR  M
-				RNZ
-SetA3:		
-				MVI  A,000H
-				ORA  A
-				RZ
-				MOV  M,A
-				PUSH D
-				LXI  D,messMore								; 0159EH
-				CALL sendString00								; 00FBAH
+				LXI  H,pauseCount			 	; 01742
+				DCR  M							; decrement pause count
+				RNZ								; return if not pausing here
+; modified code *****
+				DB	0EH							; MVI
+pauseFlag:		DB	00H							; 0= no-pause, nn = pauseLimit
+				ORA  A							; if it is set for no-pause
+				RZ								; then return, don't pause SetA3+1 != 0
+				MOV  M,A						; then reset the pauseCount from pauseFlag
+				PUSH D							; save for later
+				LXI  D,messMore					; Point at the more message [more]
+				CALL sendString00				; display
 L0FA0:
-				CALL 006F4H
+				CALL checkConsoleIn					; 006F4H
 				JZ   00FA0H
 				PUSH PSW
 				LXI  D,015A5H
@@ -1916,7 +1934,7 @@ L0FC4:
 				LXI  D,messWarningStart					; 0156BH
 				CALL sendString00							; 00FBAH
 				POP  D
-				JMP  00F82H
+				JMP  sendStringNL00				; 00F82H
 L0FCF:
 				CALL sendNL								;	00F85H
 				LXI  D,01607H
@@ -2000,12 +2018,12 @@ L1015:
 				ANI  03FH
 				MOV  L,H
 				MOV  H,A
-				LDA  01743H
+				LDA  blockMask			; 01743H
 				DCR  A
 				MOV  E,A
 				MVI  D,000H
 				DAD  D
-				CMA
+				CMA								; complement Acc
 				ANA  L
 				MOV  E,A
 				MOV  D,H
@@ -2554,7 +2572,7 @@ haveValue:					; L130D
 				PUSH PSW			; save the target value
 				MOV  A,B       	; have we counted
 				ORA  C         	;    all the way down
-				JNZ  0130CH    	; keep goin if not
+				JNZ  haveValue0	; keep goin if not
 				POP  PSW       	; else  return flags and target to Acc
 				RET            	; and exxit
 
@@ -2676,7 +2694,7 @@ mess3Dollar:
 				JNZ  016DCH
 				MOV  A,B
 				INR  A
-				STA  01743H
+				STA  blockMask			; 01743H
 				ADI  040H
 				STA  01765H
 				LXI  H,01733H
@@ -2744,10 +2762,11 @@ flagOS:			DS	1		; K = CP/M | C = MS-DOS
 printFlag:		DS	1
 ;         ORG  0173FH
 checkValidFlag:	DS	1
+bufferPointer:
 L1740:			DS	1		;  flag ???  (was set with -1)
 L1741:			DS	1
-L1742:			DS	1
-L1743:			DS	1
+pauseCount:		DS	1		; L1742	
+blockMask:		DS	1		; L1743		
 
 targetFCB:		DS 11
 
