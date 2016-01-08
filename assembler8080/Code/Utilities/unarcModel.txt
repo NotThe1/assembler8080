@@ -1,0 +1,52 @@
+
+Usage:  UNARC [d:]arcfile[.typ] [d:][afn] [N|P|C]
+
+Examples:
+B>UNARC A:SAVE.ARK *.*  ; List all files in CP/M archive SAVE on drive A
+B>UNARC A:SAVE.ARC *.*  ; List all files in MS-DOS archive SAVE on drive A
+A>UNARC SAVE            ; Same as either of above
+A>UNARC SAVE *.* N      ; Same as above (no screen pauses)
+A>UNARC SAVE *.DOC      ; List just .DOC files
+A>UNARC SAVE READ.ME    ; Typeout the file READ.ME
+A>UNARC SAVE READ.ME N  ; Typeout the file READ.ME (no screen pauses)
+A>UNARC SAVE A:         ; Extract all files to drive A
+A>UNARC SAVE B:*.DOC    ; Extract .DOC files to drive B
+A>UNARC SAVE C:READ.ME  ; Extract file READ.ME to drive C
+A>UNARC SAVE PRN.DAT P  ; Print the file PRN.DAT (no formatting)
+A>UNARC SAVE *.* C      ; Check validity of all files in archive
+
+Copyright (C) 1986, 1987 by Robert A. Freed
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+A>unarc80 cpmug009.ark
+Archive File = CPMUG009.ARK
+
+Name           Length  Disk   Method  Ver  Stored Saved    Date    Time   CRC
+============  =======  ====  ======== === ======= ===== ========= ======  ====
+CATALOG .9       1325    2k  Crunched  8      792  41%  29 Apr 84  3:05p  17
+COPCON  .ASC     1095    2k  Crunched  8      654  41%  29 Apr 84  3:05p  871
+COPRAN  .ASC     1902    2k  Crunched  8     1082  44%  29 Apr 84  3:05p  1431
+GETPUT  .ASC     2074    4k  Crunched  8     1166  44%  29 Apr 84  3:05p  1
+GL1     .ASC     6472    8k  Crunched  8     3306  49%  29 Apr 84  3:05p  69
+GL2     .ASC    15880   16k  Crunched  8     7992  50%  29 Apr 84  3:05p  3
+GL3     .ASC     3455    4k  Crunched  8     1893  46%  29 Apr 84  3:05p  050
+
+Invalid archive file format
+UNARC aborted!
+------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------
+A>unarc80 cpmug009.ark
+Archive File = CPMUG009.ARK
+
+Name           Length  Disk   Method  Ver  Stored Saved    Date    Time   CRC
+============  =======  ====  ======== === ======= ===== ========= ======  ====
+CATALOG .9       052D    2k  Crunched  8      318  41%  29 Apr 84  3:05p  11
+COPCON  .ASC     0447    2k  Crunched  8      28E  41%  29 Apr 84  3:05p  367
+COPRAN  .ASC     1902    2k  Crunched  8     0444  44%  29 Apr 84  3:05p  597
+GETPUT  .ASC     081A    4k  Crunched  8     04BE  44%  29 Apr 84  3:05p  1
+GL1     .ASC     1948    8k  Crunched  8     0CEA  49%  29 Apr 84  3:05p  45
+GL2     .ASC     3E08   16k  Crunched  8     1F38  50%  29 Apr 84  3:05p  3
+GL3     .ASC     0D7F    4k  Crunched  8      765  46%  29 Apr 84  3:05p  32
+
+Invalid archive file format
+UNARC aborted!
