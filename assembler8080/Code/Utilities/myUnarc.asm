@@ -656,9 +656,10 @@ L07CC:
 				MVI  C,004H
 				CALL moveHLtoDE		; 012FFH
 				RET
+;		move file name to 1750 ??
 L07DD:
 				LXI  D,01771H					; point at 1771 data moved from rawBuffer
-				LXI  H,01750H					; load for later
+				LXI  H,wFileName				; load for later 1750
 				PUSH H
 				LXI  H,targetFCB				; 01744H
 				SHLD 01794H
@@ -1800,27 +1801,29 @@ L0EAF:
 				ORA  C
 				JNZ  00EAFH
 				RET
+				
+;   display file info????
 L0EC4:
 				LHLD buffer1					; get the value
 				MOV  A,H						; test if value is 00
 				ORA  L
 				INX  H
 				SHLD buffer1					; incremnt and save the value
-				CZ   00FCFH						; call if it was zero
+				CZ		doFilesHeader			; call if it was zero - 00FCFH
 				LXI  D,0177EH
 				PUSH D
 				LXI  H,01736H
-				CALL 012C2H
-				LXI  D,01788H
-				PUSH D
+				CALL add4BytesDEtoHL			; 012C2H
+				LXI  D,01788H					; point at the Length
+				PUSH D							; save and rember 1788 (see below)
 				LXI  H,01730H
-				CALL 012C2H
+				CALL add4BytesDEtoHL			; Add length to 1730
 				LXI  H,016ADH
-				LXI  D,01750H
+				LXI  D,wFileName				; 01750H
 				MVI  C,000H
 				CALL trimFullName						; 00FFEH
 				POP  D
-				PUSH D
+				PUSH D							; save and rember 1788 (see above)
 				CALL 0123FH
 				CALL 01015H
 				CALL 01055H
@@ -1944,34 +1947,38 @@ L0FC4:
 				CALL sendString00							; 00FBAH
 				POP  D
 				JMP  sendStringNL00				; 00F82H
-L0FCF:
-				CALL sendNL								;	00F85H
+; display - List all files in archive on drive n
+; do the 1st line Name etc
+doFilesHeader:									; L0FCF
+				CALL sendNL
 				LXI  D,txtName					; 01607H --
 				PUSH D
 				LDAX D
-L0FD7:
+doFilesHeader1:
 				CPI  EQUAL_SIGN
-				JNZ  00FDEH						; skip if not an Equal Sign
-				MVI  A,SPACE					; else make it a Space
-L0FDE:
+				JNZ  doFilesHeader2					; skip if not an Equal Sign
+				MVI  A,SPACE					; else replace it with  a Space
+doFilesHeader2:
 				CALL sendCharOut
 				INX  D
 				LDAX D
 				ORA  A
-				JNZ  00FD7H
-				POP  D
-				CALL sendNL								; 00F85H
-L0FEB:
+				JNZ  doFilesHeader1				; keep looping until Zero found
+				
+; just finishe displaying header do the underline equal signs;
+				POP  D							; pop txtName
+				CALL sendNL
+doFilesHeader3:
 				LDAX D
 				ORA  A
-				JZ   sendNL		;00F85H
-				CPI  020H
-				JZ   00FF7H
-				MVI  A,03DH
-L0FF7:
-				CALL sendCharOut		;00F58H
+				JZ   sendNL						; done if char is NULL (String00)
+				CPI  SPACE						; if its a space display it else show Equal Sign
+				JZ   doFilesHeader4
+				MVI  A,EQUAL_SIGN				; going to display an Equal Sign
+doFilesHeader4:
+				CALL sendCharOut
 				INX  D
-				JMP  00FEBH
+				JMP  doFilesHeader3				; go for more
 ;
 ;		Trim with char to remove in(C)
 ;		Source in (DE)
@@ -2392,29 +2399,33 @@ L1227:
 				MOV  M,A
 				INX  H
 				RET
+				
 L1231:
 				MVI  B,005H
 				MVI  C,020H
 				JMP  01255H
+				
 L1238:
 				MVI  B,004H
 L123A:
 				MVI  C,020H
 				JMP  01252H
+				
 L123F:
 				LXI  B,00920H
-				PUSH D
+				PUSH D						; save 1788 ie length
 				CALL 012E3H
-				POP  H
+				POP  H						; put 1788 into HL
 				MOV  E,M
 				INX  H
-				MOV  D,M
+				MOV  D,M					; put actual length in DE
 				INX  H
-				MOV  A,M
+				MOV  A,M					; get next byte into A
 				INX  H
-				MOV  H,M
-				XCHG
+				MOV  H,M					; get fourth byte into H
+				XCHG						; HL has actual length, 3rd byte in A , forth byte in D?
 				JMP  0125CH
+				
 L1252:
 				MOV  E,A
 				MVI  D,000H
@@ -2425,9 +2436,9 @@ L1255:
 				XRA  A
 				MOV  D,A
 L125C:
-				MOV  E,A
-				MVI  C,00AH
-				STC
+				MOV  E,A				; HL has  length, DE has next two bytes
+				MVI  C,00AH				; are we converting the number to decimal ?
+				STC						; set the carry
 				PUSH PSW
 L1261:
 				CALL 0128FH
@@ -2461,8 +2472,8 @@ L1286:
 				JMP  0126FH
 L128F:
 				MOV  A,D
-				ORA  E
-				JZ   0129DH
+				ORA  E						; are D and E both Zeros ?
+				JZ   0129DH					; skip if yes
 				XRA  A
 				CALL 01298H
 L1298:
@@ -2470,28 +2481,29 @@ L1298:
 				ORA  A
 				JNZ  012A3H
 L129D:
-				MOV  A,H
-				CMP  C
-				JC   012A8H
-				XRA  A
+				MOV  A,H					; get H's value
+				CMP  C						; is it bigger than 10 decimal?
+				JC   012A8H					; jump if not
+				XRA  A						; else clear Acc
 L12A3:
-				MVI  B,010H
-				JMP  012ADH
+				MVI  B,010H					; put Decimal 16 into B
+				JMP  012ADH					; and jump
 L12A8:
-				MOV  H,L
+				MOV  H,L					; get loByte					
 				MVI  L,000H
-				MVI  B,008H
+				MVI  B,008H					; stuff B with decimal 8
 L12AD:
-				DAD  H
-				RAL  D
-				CMP  C
-				JC   012B5H
-				SUB  C
-				INR  L
+				DAD  H						; multiply Lo byte by 2
+				RAL  D						; any carry ??  --Whats the D there for ??
+				CMP  C						; greater than decimal 10
+				JC   012B5H					; jump if not
+				SUB  C						; else take 10 away and
+				INR  L						;    carry 1 (decimal)
 L12B5:
-				DCR  B
-				JNZ  012ADH
+				DCR  B						; keep count
+				JNZ  012ADH					; if not dome loop for more
 				RET
+				
 L12BA:
 				MOV  E,M
 				INX  H
@@ -2501,18 +2513,19 @@ L12BA:
 				INX  H
 				MOV  B,M
 				RET
-L12C2:
-				MVI  B,004H
-				ORA  A
-L12C5:
-				LDAX D
-				ADC  M
-				MOV  M,A
-				INX  H
-				INX  D
-				DCR  B
-				JNZ  012C5H
+add4BytesDEtoHL:						; L12C2
+				MVI  B,004H				; load the counter
+				ORA  A					; clear Acc
+add4BytesDEtoHL1:
+				LDAX D					; get the byte
+				ADC  M					; with memory content
+				MOV  M,A				; save the result
+				INX  H					; incremnt both
+				INX  D					;   pointers
+				DCR  B					; Count down
+				JNZ  add4BytesDEtoHL1	; loop until done
 				RET
+				
 L12CF:
 				MVI  B,002H
 L12D1:
@@ -2532,16 +2545,18 @@ upperCaseAcc:							; L12DA:
 				RNC						; return if greater than 7BH
 				ADI  0E0H				; else, make Acc upper case
 				RET
+				
+; called a lot
 L12E3:
-				PUSH H
-				LHLD 0178CH
-				XTHL
-				SHLD 0178CH
-				PUSH D
+				PUSH H					; save HL as called
+				LHLD 0178CH				; get whats in 178c
+				XTHL					; put on stack
+				SHLD 0178CH				; put HL's content into 178c
+				PUSH D					; save DE as Called
 				LHLD 0178EH
 				XTHL
-				SHLD 0178EH
-				PUSH B
+				SHLD 0178EH				; put DE's content into 178c
+				PUSH B					; save BC as called
 				LHLD 01790H
 				XTHL
 				SHLD 01790H
@@ -2708,6 +2723,8 @@ txtName:		DB		'Name'
 
 ;     <New code fragment-----from 16AD to 1718 (1718 : 5912)>
 ;              ORG  016ADH
+
+; might not be code fragement ---------
 				MVI  C,vGetCurDisk
 				CALL BDOS
 				MOV  B,A
@@ -2797,7 +2814,8 @@ targetFCB:		DS 11
 
 L174F:
 				DB		NULL
-				DB		CR
+; might just be buffer and storage area ie DS nn, not DB  xx
+wFileName:		DB		CR
 				DB		LF
 				DB		LF
 				DB		'(Self-unpacking file A:UNARC16.COM)'
@@ -2805,9 +2823,11 @@ L174F:
 				DB		LF
 				DB		QMARK
 				
-				DS		1BH
-				
-L1794:			DS		4
+				DS		17H
+L1790:			DS		2
+L1792:			DS		2				
+L1794:			DS		2
+L1796:			DS		2
 L1798:
 	
 
