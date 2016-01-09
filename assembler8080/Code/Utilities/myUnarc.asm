@@ -337,16 +337,16 @@ parseCMDLine2:
 ; past the cmd line flags [N|P|C]
 parseCMDLine3:							; L05D8:
 				MVI  A,SPACE
-				LXI  H,0006CH			; cmd arg 2 expanded FCB (SPACES & QMARKS)
-				LXI  D,L174F			; 0174FH
+				LXI  H,0006CH			; cmd arg 2 expanded FCB 
+				LXI  D,targetDrive		; 0174FH
 				PUSH PSW
 				MOV  A,M				; a<- (M)
-				STAX D 					; (de) <- a
+				STAX D 					; in targetDrive
 				INX  H
 				INX  D
 				DCX  B  				; ????????
 				POP  PSW       			; get the space back into Acc	
-				LXI  D,targetFCB		; 01744H
+				LXI  D,targetFiles
 				LXI  B,FullNameSize		; filename and ext length 8 + 3 = 11 - 0000BH
 				CMP  M 					; does FCB2 contain a SPACE ?
 				JNZ  parseCMDLine4		; skip if not -  005F7H 				
@@ -354,7 +354,8 @@ parseCMDLine3:							; L05D8:
 				MOV  L,E       			;    into from DE to HL
 				MVI  M,QMARK			; put QMARK into memory - (1744)
 				INX  D  				; point past that location
-				DCX  B         			
+				DCX  B 
+; put in ext if its not there				
 parseCMDLine4:							; L05F7:
 				CALL moveHLtoDE			; 012FFH
 				LXI  H,00065H			; point at ext for FCB1
@@ -375,14 +376,14 @@ parseCMDLine5:							; L060C:
 				LXI  D,messAmbigFile	; we dont want any. Only one Archive file!
 parseCMDLine6:	
 				JZ   sendErrorMess		;  jump if bad file name 0059BH
-				POP  D         			; put FCB1 into DE
+				POP  D         			; put Arc file's FCB1 into DE
 				LXI  H,messArcFileName	; put target location in HL
 				MVI  C,SPACE			; remove spaces and insert Period
 				CALL trimFullName		;    and put into location pointed at by HL
 				XRA  A					; set Acc = 0
 				MOV  M,A				;   terminate the string -messArcFileName- with NULL
 				DCR  A
-				STA  bufferPointer		; Store -1  as flag to read -01740H
+				STA  bufferPointer		; Store -1  as flag to read 
 				LXI  H,DefaultFCB		; points at the disk (0= current, 1 = A, 2= B)
 				LDA  maxDrive			; 00105H - L0105
 				CMP  M					; is it a good drive number ?
@@ -391,7 +392,7 @@ parseCMDLine6:
 				XCHG					; load DE with FCB for the archive file
 				MVI  C,vOpenfile
 				CALL sysCall			; open it
-				JNZ  haveArcFile		; jump if sucsessful open - 00656H				
+				JNZ  haveArcFile		; returns 0 (FF inc 1), if failed. jump if sucsessful open - 00656H				
 				LXI  H,flagOS			;   else not valid open 0173DH
 				ORA  M
 				LXI  D,messMissingArchiveFile			; 013A3H
@@ -405,14 +406,14 @@ haveArcFile:							; L0656:
 				STA  SetA1				; save the return code for late testing - 006D6H
 				LXI  D,messArchFileEqual
 				CALL sendStringNL00NL	; Display - Archive File = .....
-				LDA  00104H
+				LDA  00104H				; this is the only reference to 104
 				ORA  A					; if 104 is Zero then
 				CZ   006C4H				; check indirect 10A (106) is Zero
-				JNZ  0067DH				; set flag and Exit ???
+				JNZ  0067DH				; SKIP if 106 was zero  and blockSizeInK to 1
 L0669:
-				LDA  0010DH				; check if 10D is Zero
+				LDA  0010DH				; else, check if 10D is Zero
 				ORA  A
-				JNZ  0067DH				; set flag and Exit ??? if not Zero
+				JNZ  0067DH				; set blockSizeInK to (10D) if it is not empty
 				MVI  C,vGetDPB
 				CALL BDOS				; HL points to the Disk Parameter BlocK
 				INX  H
@@ -424,7 +425,7 @@ L0669:
 				RRC
 				RRC
 L067D:
-				STA  blockMask			; 01743H
+				STA  blockSizeInK			; 01743H
 				RET
 L0681:
 				CALL 006C4H
@@ -476,11 +477,12 @@ L06D2:
 				LXI  D,0005CH
 ; modified code *****
 				DB	0EH							; MVI
-SetA1:			DB	00H							; 0= open file fail/ 1,2,3 = goo open
+SetA1:			DB	00H							; 0= open file fail/ 1,2,3 = good open
+												; (20H * (A-1)) + 80H = directory image ?
 
 				CALL 006DFH
 L06DA:
-				LXI  D,L174F				; 0174FH
+				LXI  D,targetDrive		; 0174FH
 ; modified code *****
 				DB	0EH							; MVI
 SetA2:			DB	00H							; 0= ***********
@@ -492,7 +494,7 @@ L06DF:
 				INR  A
 				RET
 sysCall0:									; L06E7:
-				LXI  D,L174F				; 0174FH
+				LXI  D,targetDrive		; 0174FH
 sysCall:									; L06EA:
 				CALL BDOS
 				INR  A
@@ -661,7 +663,7 @@ L07DD:
 				LXI  D,01771H					; point at 1771 data moved from rawBuffer
 				LXI  H,wFileName				; load for later 1750
 				PUSH H
-				LXI  H,targetFCB				; 01744H
+				LXI  H,targetFiles				; 01744H
 				SHLD 01794H
 				POP  H
 				MVI  B,00BH
@@ -721,7 +723,7 @@ L0833:
 				LDA  00107H
 L0849:
 				MOV  C,A
-				LDA  L174F				; 0174FH
+				LDA  targetDrive		; 0174FH
 				ORA  A
 				JNZ  00863H				; skip if not Zero.
 				ORA  M					; or with check Valid Flag
@@ -729,7 +731,7 @@ L0849:
 				LXI  D,messCheckingArch					; 0148EH
 				CALL sendStringNL00				; 00F82H
 				MVI  A,0FEH
-				STA  L174F				; 0174FH
+				STA  targetDrive		; 0174FH
 				JMP  0088FH
 L0863:
 				DCR  A
@@ -831,17 +833,17 @@ L08F5:
 				RET
 L08FB:
 				DCR  A
-				STA  L174F				; 0174FH
+				STA  targetDrive		; 0174FH
 				RET
 L0900:
-				LXI  H,targetFCB				; 01744H
+				LXI  H,targetFiles				; 01744H
 anyQMarks:							; L0903:
 				LXI  B,FullNameSize		; 0000BH
 				MVI  A,QMARK
 				CALL haveValue			; 0130DH
 				RET
 L090C:
-				LDA  L174F				; 0174FH
+				LDA  targetDrive		; 0174FH
 				ORA  A
 				RZ
 				MOV  B,A
@@ -927,7 +929,7 @@ L09BA:
 				JNC  009B7H
 L09C0:
 				CALL 00DD5H
-				LDA  L174F				; 0174FH
+				LDA  targetDrive		; 0174FH
 				INR  A
 				RZ
 				ORA  A
@@ -2034,7 +2036,7 @@ L1015:
 				ANI  03FH
 				MOV  L,H
 				MOV  H,A
-				LDA  blockMask			; 01743H
+				LDA  blockSizeInK			; 01743H
 				DCR  A
 				MOV  E,A
 				MVI  D,000H
@@ -2736,7 +2738,7 @@ txtName:		DB		'Name'
 				JNZ  016DCH
 				MOV  A,B
 				INR  A
-				STA  blockMask			; 01743H
+				STA  blockSizeInK			; 01743H
 				ADI  040H
 				STA  01765H
 				LXI  H,01733H
@@ -2808,12 +2810,11 @@ bufferPointer:
 L1740:			DS	1		;  flag ???  (was set with -1)
 L1741:			DS	1
 pauseCount:		DS	1		; L1742	
-blockMask:		DS	1		; L1743		
+blockSizeInK:	DS	1		; works out to 2 for us. - L1743		
 
-targetFCB:		DS 11
+targetFiles:	DS 11		; file name with QMARKS and no PERIOD
 
-L174F:
-				DB		NULL
+targetDrive:	DB		NULL	; If not null then EXTRACT !!174F
 ; might just be buffer and storage area ie DS nn, not DB  xx
 wFileName:		DB		CR
 				DB		LF
