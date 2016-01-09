@@ -56,6 +56,9 @@ vGetDPB			EQU	 	1FH			; HL <- Disk Parameter Block address
 vReadRandom		EQU		21H			; DE - FCB | A<- nothing error codes in BA & HL
 vSetRandRec		EQu		24H			; DE - FCB | r0,r1,r2
 
+CODE_CPI		EQU		0FEH		; byte value of CPI command
+CODE_MVI		EQU		00EH		; byte value of MVI command
+
 
 				  ORG  00100H
 
@@ -230,7 +233,7 @@ L04FA:
 				CALL 00EC4H			; display file info????
 				CALL 0090CH
 				CALL 00900H
-				JNZ  00531H
+				JNZ  cleanUp			; 00531H
 L050F:
 				LXI  H,0177EH
 				CALL 012BAH
@@ -248,8 +251,8 @@ L051E:
 				DCR  A
 L052E:
 				CNZ  00F1DH
-L0531:
-				CALL 006D2H
+cleanUp:										; L0531
+				CALL closeFiles					; 006D2H
 				LDA  00103H
 				ORA  A
 				JZ   00000H
@@ -282,8 +285,8 @@ L056A:
 				JMP  00545H
 checkENV:						;L0571:
 				XRA		A    			; clear Acc
-				STA		SetA1			; 006D6H
-				STA		SetA2			; 006DEH
+				STA		openSource			; 006D6H
+				STA		openSpecFile			; 006DEH
 				STA		pauseFlag		; clear the pause Flag (no-Pause);
 				MVI		C,vGetVersion
 				CALL	BDOS 			; HL has Version Number and  Acc?
@@ -293,11 +296,13 @@ checkENV:						;L0571:
 				LDA		00007H  		; get page numbe of start of DBOS
 				LXI		H,pageOverhead	; point at stored value (08) - 00103H 		
 				SUB		M  				; subtract fom BDOS page start
-				STA		SetB +1			; 00595H  result = 0xE0H, put it away
+				STA		workingMemory	;  result = 0xE0H, put it away
 				MVI		A,017H			; minimum number of pages needed to run
 L0594:
-SetB:
-				CPI  000H 				; is the enough Memory ?
+; modified code *****
+				DB		CODE_CPI				; CPI
+workingMemory:	DB		00H					;  check against need memory
+
 				RC             			; return if there is enough Memory
 				LXI  D,messNEMemory		; Else send not enough memory message 01375H
 sendErrorMess0:							; L059A:
@@ -309,7 +314,8 @@ sendAbortMess:							; L059E
 sendStringNL00NL:						; L05A1
 				CALL sendStringNL00		; 00FB7H
 				CALL sendNL				;00F85H
-				JMP  00531H
+				JMP  cleanUp			; 00531H
+				
 parseCmdLine:							; L05AA
 				LXI  H,Pg0Buffer		; 00080H
 				MOV  E,M       			; get number of bytes in the buffer
@@ -403,13 +409,13 @@ parseCMDLine6:
 				JMP  parseCMDLine5		; retry with file ext of ARC
 				
 haveArcFile:							; L0656:
-				STA  SetA1				; save the return code for late testing - 006D6H
+				STA  openSource				; save the return code for late testing - 006D6H
 				LXI  D,messArchFileEqual
 				CALL sendStringNL00NL	; Display - Archive File = .....
 				LDA  00104H				; this is the only reference to 104
 				ORA  A					; if 104 is Zero then
 				CZ   006C4H				; check indirect 10A (106) is Zero
-				JNZ  0067DH				; SKIP if 106 was zero  and blockSizeInK to 1
+				JNZ  0067DH				; SKIP if 106 was zero  and set blockSizeInK to 1
 L0669:
 				LDA  0010DH				; else, check if 10D is Zero
 				ORA  A
@@ -467,32 +473,34 @@ L06C4:
 				MOV  A,M
 				POP  H
 				ORA  A
-				JNZ  006D0H			; if its not 0, jump, zero out and return
-				INR  A				; set Acc to 1, reset zero flag
+				JNZ  006D0H				; if its not 0, jump, zero out and return
+				INR  A					; set Acc to 1, reset zero flag
 				RET
 L06D0:
-				XRA  A				; clear register and set Zero flag
+				XRA  A					; clear register and set Zero flag
 				RET
-L06D2:
-				LXI  D,0005CH
+closeFiles:								; L06D2:
+				LXI  D,DefaultFCB		; point at the Archive file itself
+				
 ; modified code *****
-				DB	0EH							; MVI
-SetA1:			DB	00H							; 0= open file fail/ 1,2,3 = good open
-												; (20H * (A-1)) + 80H = directory image ?
+				DB	CODE_MVI			; MVI
+openSource:		DB	00H					; 0= file not open
 
-				CALL 006DFH
+				CALL closeOneFile		; 006DFH
 L06DA:
 				LXI  D,targetDrive		; 0174FH
+				
 ; modified code *****
-				DB	0EH							; MVI
-SetA2:			DB	00H							; 0= ***********
+				DB	CODE_MVI			; MVI
+openSpecFile:	DB	00H					; 0= file is not open
 
-L06DF:
-				ORA  A
+closeOneFile:							; L06DF:
+				ORA  A					; is the file currently open ?
 				MVI  C,vCloseFile
-				CNZ  BDOS
-				INR  A
-				RET
+				CNZ  BDOS				; if yes, then close it
+				INR  A					; set Acc to 1
+				RET						; and exit
+				
 sysCall0:									; L06E7:
 				LXI  D,targetDrive		; 0174FH
 sysCall:									; L06EA:
@@ -909,7 +917,7 @@ L098D:
 				CALL sysCall0						; 006E7H
 				LXI  D,messDirFull					; 01505H
 				JZ  sendErrorMess						; 0059BH
-				STA  SetA2						; 006DEH
+				STA  openSpecFile						; 006DEH
 L099B:
 				LDA  01770H
 				CPI  004H
@@ -960,7 +968,7 @@ L09D9:
 				LXI  D,messLength							; 01597H
 				CNZ  00FC4H
 				CALL 006DAH
-				LXI  H,SetA2							; 006DEH
+				LXI  H,openSpecFile							; 006DEH
 				MVI  M,000H
 				RNZ
 				LXI  D,messCanNotCloseOut					; 01514H
@@ -1700,7 +1708,7 @@ L0E16:
 				POP  H
 				RET
 L0E18:
-				LDA  SetA2		;006DEH
+				LDA  openSpecFile		;006DEH
 				ORA  A
 				JZ   00E57H
 				MOV  H,D
@@ -1749,7 +1757,7 @@ L0E57:
 L0E63:
 				LDAX D
 				CPI  01AH
-				JZ   00531H
+				JZ   cleanUp			; 00531H
 				PUSH B
 				INR  A
 				ANI  07FH
