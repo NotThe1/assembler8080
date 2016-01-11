@@ -42,9 +42,9 @@ Name           Length  Disk   Method  Ver  Stored Saved    Date    Time   CRC
 ============  =======  ====  ======== === ======= ===== ========= ======  ====
 CATALOG .9       052D    2k  Crunched  8      318  41%  29 Apr 84  3:05p  11
 COPCON  .ASC     0447    2k  Crunched  8      28E  41%  29 Apr 84  3:05p  367
-COPRAN  .ASC     1902    2k  Crunched  8     0444  44%  29 Apr 84  3:05p  597
-GETPUT  .ASC     081A    4k  Crunched  8     04BE  44%  29 Apr 84  3:05p  1
-GL1     .ASC     1948    8k  Crunched  8     0CEA  49%  29 Apr 84  3:05p  45
+COPRAN  .ASC     076E    2k  Crunched  8      43A  44%  29 Apr 84  3:05p  597
+GETPUT  .ASC     081A    4k  Crunched  8      4BE  44%  29 Apr 84  3:05p  1
+GL1     .ASC     1948    8k  Crunched  8      CEA  49%  29 Apr 84  3:05p  45
 GL2     .ASC     3E08   16k  Crunched  8     1F38  50%  29 Apr 84  3:05p  3
 GL3     .ASC     0D7F    4k  Crunched  8      765  46%  29 Apr 84  3:05p  32
 

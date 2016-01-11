@@ -630,7 +630,7 @@ readFile:								; L074C
 				ORA  A
 				RZ
 L075E:
-				LXI  D,sendStringNL00			;013BCH
+				LXI  D,messInvalidArcFileFmt			;013BCH
 				JMP  sendErrorMess		; 0059BH
 L0764:
 				INX  H
@@ -2696,7 +2696,7 @@ messAmbigFile:
 messMissingArchiveFile:
 				DB		'Cannot find archive file'
 				DB		NULL
-sendStringNL00:
+messInvalidArcFileFmt:
 				DB		'Invalid archive file format'
 				DB		NULL
 messBadArchHeader:
