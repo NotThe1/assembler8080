@@ -31,6 +31,7 @@ FullNameSize	EQU		11			; name (8) + Ext (3) = 11
 flagNoPause		EQU		'P'			; no screen pause
 flagPrint		EQU		'N'			; print flag
 flagCheckValidity	EQU	'C'			; check file validity
+ARC_SOF			EQU		01AH		; Start of File
 
 vGetConInput	EQU		01H			; A <- ASCII char
 vConsoleOutput	EQU		02H			; E has Char to output, no return value
@@ -230,7 +231,7 @@ BEGIN:
 				DAD		SP							;      for orderly return
 				SHLD	ccpStackSave				;         to CCP
 				CALL	checkENV					; checks - CP/M ver, Memory Space
-				LXI		SP,buffer1					; 0172EH 		buffer1
+				LXI		SP,appStack					;  Set applications stack - 0172EH
 				LXI		H,buffer1					; 0172EH
 				LXI		B,01200H					; Fill 00 for 12H bytes
 				CALL	FillMemWithC
@@ -240,10 +241,10 @@ BEGIN:
 				MOV		B,L
 L04DF:
 				CALL getRawData						; returns with first byte in Acc
-				CPI  01AH
-				JZ   004F3H							; jump if its 1A - Get next byte in buffer
-				DCR  B								; count down
-				JNZ  004DFH							; loop if not done
+				CPI  ARC_SOF						; is this the start of a file ?
+				JZ   004F3H							; jump if it is.
+				DCR  B								;  else count down
+				JNZ  004DFH							;  and try again if not done
 L04EB:
 				CALL getRawData						; 00738H
 				CPI  01AH
@@ -253,7 +254,7 @@ L04F3:
 				ORA  A								     ; Zero ?
 				JZ   0051EH							; jump if it is
 L04FA:
-				CALL 007B9H							; move data from buffer into 1770
+				CALL 007B9H							;   else move 1C bytes ofdata from buffer into buffer2
 				CALL setSubFileName					; move file name to 1750 ??
 				JNZ  0050FH
 				CALL 00EC4H			; display file info????
@@ -386,7 +387,7 @@ parseComTail3:
 				LXI  D,targetDrive	
 				PUSH PSW
 				MOV  A,M				; a<- (M)
-				STAX D 					; in targetDrive
+				STAX D 					; in targetDrive NULL means no writing of extracted files
 				INX  H
 				INX  D
 				DCX  B  				; ????????
@@ -472,7 +473,9 @@ calcBlockSize:							; L0669
 setBlockSize:								; L067D
 				STA  blockSizeInK
 				RET
-				
+;
+;   if no comm tail then display usage and go back to CCP
+;				
 noComTail:									; L0681:
 				CALL in106Not
 				PUSH PSW
@@ -688,10 +691,10 @@ L079B:
 				LXI  H,0007CH
 				INR  M
 				RET
-;		get data from buffer and put into 1770.
+;		get data from buffer and put into buffer2.
 ;       move 18H bytes if Acc= 1, else make it 1CH bytes
 L07B9:
-				LXI  D,01770H					; point at future FCB ??
+				LXI  D,buffer2
 				MVI  B,01CH						; put a counter in B ??
 				CPI  001H						; does Acc = 01?
 				PUSH PSW
@@ -713,7 +716,7 @@ L07CC:
 				RET
 ;		move file name to 1750 ??
 setSubFileName:									; L07DD:
-				LXI  D,01771H					; point at 1771 data moved from rawBuffer
+				LXI  D,buffSubjectFileName		; point at 1771 data moved from rawBuffer
 				LXI  H,wFileName				; load for later 1750
 				PUSH H
 				LXI  H,subjectFiles				; get address of target file name
@@ -769,20 +772,21 @@ L0833:
 				LDA  00106H
 				MOV  B,A
 				LXI  H,checkValidFlag		; 0173FH
-				CALL in106Not				; check program values
+				CALL in106Not				; 016 has 10 in it so return with Acc =0
 				DCR  A
-				JNZ  00849H					; skip if ????
-				MOV  B,A
-				MOV  M,A
-				STA  0173EH
-				LDA  00107H
+				JNZ  00849H					; skip if Acc was 00 ie 106 was NOT 00
+				MOV  B,A					;  else put 00 into B
+				MOV  M,A					;  clear checkValidFlag or Buffer Pointer ?
+				STA  0173EH					; and clear the print flag
+				LDA  00107H					; and retrieve the value in 107 (FF)
 L0849:
-				MOV  C,A
-				LDA  targetDrive		; 0174FH
+				MOV  C,A					; put (FF) in C
+				LDA  targetDrive			; is there a target drive specified?
 				ORA  A
-				JNZ  00863H				; skip if not Zero.
-				ORA  M					; or with check Valid Flag
-				JZ   008D2H				; skip if check Valid Flag not set
+				JNZ  00863H					; Skip if yes - there is writing of extracted file on disk
+				ORA  M						; or with check Valid Flag
+				JZ   008D2H					; skip if check Valid Flag not set
+				
 				LXI  D,messCheckingArch					; 0148EH
 				CALL sendStringNL00				; 00F82H
 				MVI  A,0FEH
@@ -860,10 +864,11 @@ L08C5:
 				INR  L
 				JNZ  00899H
 				RET
+				
 L08D2:
-				ORA  C
-				CNZ  00900H
-				RZ
+				ORA  C				; Acc has target drive
+				CNZ  00900H			; Call if no target drive specified and C was 00??
+				RZ					; return if there are any QMARKS in Subject files
 				LXI  D,0010FH
 L08DA:
 				LXI  H,0174CH
@@ -908,7 +913,7 @@ L090C:
 				ORA  A
 				RZ
 				MOV  B,A
-				LDA  01770H
+				LDA  buffer2
 				CPI  00AH
 				LXI  D,messNeedNewerArch				; 014A2H
 				JNC  sendErrorMess		; 0059BH
@@ -972,7 +977,7 @@ L098D:
 				JZ  sendErrorMess						; 0059BH
 				STA  openSpecFile						; 006DEH
 L099B:
-				LDA  01770H
+				LDA  buffer2
 				CPI  004H
 				JNC  00A01H
 				CALL 00D90H
@@ -1873,10 +1878,10 @@ L0EC4:
 				INX  H
 				SHLD buffer1					; incremnt and save the value
 				CZ		doFilesHeader			; call if it was zero - 00FCFH
-				LXI  D,0177EH
+				LXI  D,0177EH					; point at  the size of file as stored
 				PUSH D
 				LXI  H,01736H
-				CALL add4BytesDEtoHL			; 012C2H
+				CALL add4BytesDEtoHL			; Add the length to 1736
 				LXI  D,01788H					; point at the Length
 				PUSH D							; save and rember 1788 (see below)
 				LXI  H,01730H
@@ -1884,7 +1889,7 @@ L0EC4:
 				LXI  H,016ADH
 				LXI  D,wFileName				; 01750H
 				MVI  C,000H
-				CALL trimFullName						; 00FFEH
+				CALL trimFullName				; put result in 16AD
 				POP  D
 				PUSH D							; save and rember 1788 (see above)
 				CALL 0123FH
@@ -2119,7 +2124,7 @@ L1055:
 				CALL 012CFH
 				XCHG
 				LXI  H,015D7H
-				LDA  01770H
+				LDA  buffer2
 				PUSH PSW
 				LXI  B,00008H
 				CPI  003H
@@ -2808,6 +2813,7 @@ txtName:		DB		'Name'
 				LXI  H,01733H
 				LXI  B,00037H
 				CALL 01723H
+; might not be code fragement ---------
 				LXI  D,00100H
 				LXI  H,0011AH
 				LXI  B,015ADH
@@ -2819,6 +2825,7 @@ txtName:		DB		'Name'
 				STA  0017EH
 				STA  0049AH
 				LXI  D,01790H
+; might not be code fragement ---------
 				CALL buffer1				; 0172EH
 				LXI  D,0014CH
 				CALL buffer1				; 0172EH
@@ -2827,6 +2834,7 @@ txtName:		DB		'Name'
 				LXI  D,0176AH
 				CALL buffer1				; 0172EH
 				JMP  004BFH
+; might not be code fragement ---------
 				MOV  A,M
 				STAX D
 				INX  H
@@ -2851,20 +2859,9 @@ txtName:		DB		'Name'
 				DB		NULL
 				DB		NULL
 				DB		'    '
+appStack:
+buffer1:		DS		0FH							; L0172E
 
-buffer1:												; L0172E
-			   DB	'       '
-
-;     <New unknown fragment-----from 1735 to 173/E/d (173E : 5950)>
-;              ORG  01735H
-L1735:			DS	1
-L1736:			DS	1
-L1737:			DS	1
-L1738:			DS	1
-L1739:			DS	1
-L173A:			DS	1
-L173B:			DS	1
-L173C:			DS	1
 flagOS:			DS	1			; 0 = MS-DOS , ~0 = CP/M |ARK = CP/M, ARC = MS-DOS
 
 printFlag:		DS	1
@@ -2879,15 +2876,13 @@ blockSizeInK:	DS	1			; works out to 2 for us. - L1743
 subjectFiles:	DS 11			; file name with QMARKS and no PERIOD
 
 targetDrive:	DB		NULL	; Target file drive, 0= No write to disk ; 1=A, 2=B, ...
-; might just be buffer and storage area ie DS nn, not DB  xx
-wFileName:		DB		CR
-				DB		LF
-				DB		LF
-				DB		'(Self-unpacking file A:UNARC16.COM)'
-				DB		CR
-				DB		LF
-				DB		QMARK
-L1779:			DS		7	
+
+wFileName:		DS		11
+
+L175B:			DS		21
+buffer2:		DS		1		; L1770
+buffSubjectFileName:	DS		11	; L1771
+L177C:			DS		4	
 L1780:			DS		2	
 L1782:			DS		4	
 L1786:			DS		2	
