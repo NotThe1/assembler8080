@@ -236,25 +236,26 @@ BEGIN:
 				LXI		B,01200H					; Fill 00 for 12H bytes
 				CALL	FillMemWithC
 				CALL	parseComTail				; 005AAH
-				CALL	00833H
+				CALL	00833H					; came back with QMARKS is Subject file name;
 				LXI		H,00003H					; load b with a limit count
 				MOV		B,L
 L04DF:
-				CALL getRawData						; returns with first byte in Acc
+				CALL getNextRawValue						; returns with first byte in Acc
 				CPI  ARC_SOF						; is this the start of a file ?
 				JZ   004F3H							; jump if it is.
 				DCR  B								;  else count down
 				JNZ  004DFH							;  and try again if not done
 L04EB:
-				CALL getRawData						; 00738H
+				CALL getNextRawValue						; 00738H
 				CPI  01AH
 				JNZ  0053FH
 L04F3:
-				CALL getRawData						; is the return byte
+				CALL getNextRawValue						; is the return byte
 				ORA  A								     ; Zero ?
 				JZ   0051EH							; jump if it is
+	; this must be the start of a file ie 1A 08
 L04FA:
-				CALL 007B9H							;   else move 1C bytes ofdata from buffer into buffer2
+				CALL loadBuffHeader					;   else move 1C bytes of data  into bufferHeader
 				CALL setSubFileName					; move file name to 1750 ??
 				JNZ  0050FH
 				CALL 00EC4H			; display file info????
@@ -262,7 +263,7 @@ L04FA:
 				CALL 00900H
 				JNZ  cleanUp			; 00531H
 L050F:
-				LXI  H,0177EH
+				LXI  H,fileStored
 				CALL 012BAH
 				CALL 0076BH
 				LXI  H,00000H
@@ -293,11 +294,11 @@ ccpStackSave:	DW		0000H
 				RET
 L053F:
 				CALL 00764H
-				CALL getRawData					; 00738H
+				CALL getNextRawValue					; 00738H
 L0545:
 				CPI  01AH
 				JNZ  0053FH
-				CALL getRawData					; 00738H
+				CALL getNextRawValue					; 00738H
 				PUSH PSW
 				DCR  A
 				CPI  009H
@@ -583,13 +584,13 @@ L0719:
 				PUSH B
 				PUSH D
 				PUSH H
-				LXI  H,0177EH
+				LXI  H,fileStored
 				MVI  B,004H
 L0721:
 				MOV  A,M
 				DCR  M
 				ORA  A
-				JNZ  0073BH
+				JNZ  getNextRawValue1
 				INX  H
 				DCR  B
 				JNZ  00721H
@@ -600,18 +601,22 @@ L072E:
 				DCR  B
 				JNZ  0072EH
 				STC
-				JMP  00746H
-getRawData:								; L0738:
+				JMP  restoreRegsBCDEHL
+;
+; Return the next byte from the read buffer in the Acc.
+;  read the next sector if necessary.
+;
+getNextRawValue:								; L0738:
 				PUSH B
 				PUSH D
 				PUSH H
-L073B:
+getNextRawValue1:						; L073B
 				LHLD bufferPointer		; L1740
 				INR  L
 				CZ   readSeq			; call read seq if 1740 was -1 (initialized -1)
 				SHLD bufferPointer		; save buffer pointer in 01740H
 				MOV  A,M				; get the first byte from buffer
-L0746:
+restoreRegsBCDEHL:						; L0746:
 				POP  H
 				POP  D
 				POP  B
@@ -691,26 +696,26 @@ L079B:
 				LXI  H,0007CH
 				INR  M
 				RET
-;		get data from buffer and put into buffer2.
+;		get data from buffer and put into bufferHeader.
 ;       move 18H bytes if Acc= 1, else make it 1CH bytes
-L07B9:
-				LXI  D,buffer2
+loadBuffHeader:									; L07B9
+				LXI  D,bufferHeader
 				MVI  B,01CH						; put a counter in B ??
 				CPI  001H						; does Acc = 01?
-				PUSH PSW
-				JNZ  007CCH						; skip if != 01
+				PUSH PSW						; save the second byte 1A XX
+				JNZ  loadBuffHeader2						; skip if != 01
 				MVI  B,018H						; put a diferent counter in B ??
-				JMP  007CCH
-L07C9:
-				CALL getRawData					; 00738H
-L07CC:
+				JMP  loadBuffHeader2
+loadBuffHeader1:
+				CALL getNextRawValue					; 00738H
+loadBuffHeader2:								; L07CC
 				STAX D
 				INX  D
 				DCR  B
-				JNZ  007C9H						; loop if not done
+				JNZ  loadBuffHeader1			; loop if not done
 				POP  PSW
 				RNZ
-				LXI  H,0177EH
+				LXI  H,fileStored
 				MVI  C,004H
 				CALL moveHLtoDE		; 012FFH
 				RET
@@ -774,18 +779,18 @@ L0833:
 				LXI  H,checkValidFlag		; 0173FH
 				CALL in106Not				; 016 has 10 in it so return with Acc =0
 				DCR  A
-				JNZ  00849H					; skip if Acc was 00 ie 106 was NOT 00
+				JNZ  00849H					; ***skip if Acc was 00 ie 106 was NOT 00
 				MOV  B,A					;  else put 00 into B
 				MOV  M,A					;  clear checkValidFlag or Buffer Pointer ?
 				STA  0173EH					; and clear the print flag
 				LDA  00107H					; and retrieve the value in 107 (FF)
-L0849:
+L0849:	; **
 				MOV  C,A					; put (FF) in C
 				LDA  targetDrive			; is there a target drive specified?
 				ORA  A
 				JNZ  00863H					; Skip if yes - there is writing of extracted file on disk
 				ORA  M						; or with check Valid Flag
-				JZ   008D2H					; skip if check Valid Flag not set
+				JZ   008D2H					; ***skip if check Valid Flag not set
 				
 				LXI  D,messCheckingArch					; 0148EH
 				CALL sendStringNL00				; 00F82H
@@ -865,20 +870,23 @@ L08C5:
 				JNZ  00899H
 				RET
 				
-L08D2:
+L08D2:	; ***
 				ORA  C				; Acc has target drive
 				CNZ  00900H			; Call if no target drive specified and C was 00??
 				RZ					; return if there are any QMARKS in Subject files
+;
+; Subject file is has no QMARKS in it
+;
 				LXI  D,0010FH
 L08DA:
-				LXI  H,0174CH
+				LXI  H,0174CH		; popint at subject files wxr	
 				MVI  B,003H
 L08DF:
-				LDAX D
+				LDAX D				; get character
 				ORA  A
-				JZ   008FBH
-				CPI  03FH
-				JZ   008EAH
+				JZ   008FBH			; skip if its a NULL
+				CPI  QMARK			; is it a QMARK
+				JZ   008EAH			; skip if yes
 				CMP  M
 L08EA:
 				INX  D
@@ -913,7 +921,7 @@ L090C:
 				ORA  A
 				RZ
 				MOV  B,A
-				LDA  buffer2
+				LDA  bufferHeader
 				CPI  00AH
 				LXI  D,messNeedNewerArch				; 014A2H
 				JNC  sendErrorMess		; 0059BH
@@ -977,7 +985,7 @@ L098D:
 				JZ  sendErrorMess						; 0059BH
 				STA  openSpecFile						; 006DEH
 L099B:
-				LDA  buffer2
+				LDA  bufferHeader
 				CPI  004H
 				JNC  00A01H
 				CALL 00D90H
@@ -1017,7 +1025,7 @@ L09D9:
 				POP  H
 				LXI  D,messCRC							; 01593H
 				CNZ  00FC4H
-				LXI  H,01788H
+				LXI  H,fileLength
 				CALL 012BAH
 				MOV  A,B
 				ORA  C
@@ -1737,7 +1745,7 @@ L0DE8:
 				PUSH B
 				MOV  B,H
 				MOV  C,L
-				LHLD 01788H
+				LHLD fileLength
 				PUSH PSW
 				MOV  A,L
 				SBB  C
@@ -1752,7 +1760,7 @@ L0E00:
 				XTHL
 				MOV  A,H
 				POP  H
-				SHLD 01788H
+				SHLD fileLength
 				JNC  00E10H
 				LHLD 0178AH
 				DCX  H
@@ -1872,26 +1880,27 @@ L0EAF:
 				
 ;   display file info????
 L0EC4:
-				LHLD buffer1					; get the value
-				MOV  A,H						; test if value is 00
-				ORA  L
-				INX  H
-				SHLD buffer1					; incremnt and save the value
-				CZ		doFilesHeader			; call if it was zero - 00FCFH
-				LXI  D,0177EH					; point at  the size of file as stored
-				PUSH D
-				LXI  H,01736H
-				CALL add4BytesDEtoHL			; Add the length to 1736
-				LXI  D,01788H					; point at the Length
-				PUSH D							; save and rember 1788 (see below)
-				LXI  H,01730H
-				CALL add4BytesDEtoHL			; Add length to 1730
+				LHLD	fileCounter				; get the file count 
+				MOV		A,H						; test if value is 00
+				ORA		L
+				INX		H
+				SHLD	fileCounter				; increment and save the value
+				CZ		doFilesHeader			; call if it was zero need the heading
+				LXI		D,fileStored				; point at  the size of file as stored
+				PUSH	D
+				LXI		H,sumFileStored
+				CALL	add4BytesDEtoHL			;  add to sunning total of stored file.
+				LXI		D,fileLength			; point at the Length
+				PUSH	D						; save and rember fileLength (see below)
+				LXI		H,sumFileLength
+				CALL	add4BytesDEtoHL			; Add length to sumFileLength
+	;******* pick up here			
 				LXI  H,016ADH
 				LXI  D,wFileName				; 01750H
 				MVI  C,000H
 				CALL trimFullName				; put result in 16AD
 				POP  D
-				PUSH D							; save and rember 1788 (see above)
+				PUSH D							; save and rember fileLength (see above)
 				CALL 0123FH
 				CALL 01015H
 				CALL 01055H
@@ -1918,7 +1927,7 @@ L0F1D:
 				LHLD buffer1				; 0172EH
 				XCHG
 				CALL 01231H
-				LXI  D,01730H
+				LXI  D,sumFileLength
 				PUSH D
 				CALL 0123FH
 				XCHG
@@ -1928,7 +1937,7 @@ L0F1D:
 				MVI  B,00DH
 				CALL 012D1H
 				POP  B
-				LXI  D,01736H
+				LXI  D,sumFileStored
 				CALL 01087H
 				MVI  B,014H
 				CALL 012D1H
@@ -2015,8 +2024,10 @@ L0FC4:
 				CALL sendString00							; 00FBAH
 				POP  D
 				JMP  sendStringNL00				; 00F82H
-; display - List all files in archive on drive n
-; do the 1st line Name etc
+
+;
+; do the 1st line Name etc with the equal signs as underline.
+;
 doFilesHeader:									; L0FCF
 				CALL sendNL
 				LXI  D,txtName					; 01607H --
@@ -2033,7 +2044,7 @@ doFilesHeader2:
 				ORA  A
 				JNZ  doFilesHeader1				; keep looping until Zero found
 				
-; just finishe displaying header do the underline equal signs;
+; just finish displaying header do the underline equal signs;
 				POP  D							; pop txtName
 				CALL sendNL
 doFilesHeader3:
@@ -2074,7 +2085,7 @@ trimFullName3:
 		
 L1015:
 				PUSH H
-				LHLD 01788H
+				LHLD fileLength
 				LDA  0178AH
 				LXI  D,003FFH
 				DAD  D
@@ -2124,7 +2135,7 @@ L1055:
 				CALL 012CFH
 				XCHG
 				LXI  H,015D7H
-				LDA  buffer2
+				LDA  bufferHeader
 				PUSH PSW
 				LXI  B,00008H
 				CPI  003H
@@ -2481,9 +2492,9 @@ L123A:
 				
 L123F:
 				LXI  B,00920H
-				PUSH D						; save 1788 ie length
+				PUSH D						; save fileLength ie length
 				CALL swapAllRegisters
-				POP  H						; put 1788 into HL
+				POP  H						; put fileLength into HL
 				MOV  E,M
 				INX  H
 				MOV  D,M					; put actual length in DE
@@ -2860,8 +2871,11 @@ txtName:		DB		'Name'
 				DB		NULL
 				DB		'    '
 appStack:
-buffer1:		DS		0FH							; L0172E
-
+fileCounter:						; file count ?????
+buffer1:		DS		2
+sumFileLength:	DS		6	
+sumFileStored:	DS		6	
+L173C:			DS  1			
 flagOS:			DS	1			; 0 = MS-DOS , ~0 = CP/M |ARK = CP/M, ARC = MS-DOS
 
 printFlag:		DS	1
@@ -2880,13 +2894,14 @@ targetDrive:	DB		NULL	; Target file drive, 0= No write to disk ; 1=A, 2=B, ...
 wFileName:		DS		11
 
 L175B:			DS		21
-buffer2:		DS		1		; L1770
+bufferHeader:		DS		1		; L1770
 buffSubjectFileName:	DS		11	; L1771
-L177C:			DS		4	
+L177C:			DS		2
+fileStored:		DS		2	
 L1780:			DS		2	
 L1782:			DS		4	
-L1786:			DS		2	
-L1788:			DS		2	
+L1786:			DS		2
+fileLength:		DS		2	
 L178A:			DS		2	
 	
 				
