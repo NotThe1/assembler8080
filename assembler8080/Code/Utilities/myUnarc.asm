@@ -31,7 +31,7 @@ FullNameSize	EQU		11			; name (8) + Ext (3) = 11
 flagNoPause		EQU		'P'			; no screen pause
 flagPrint		EQU		'N'			; print flag
 flagCheckValidity	EQU	'C'			; check file validity
-ARC_SOF			EQU		01AH		; Start of File
+ARC_SOE			EQU		01AH		; Start of File
 
 vGetConInput	EQU		01H			; A <- ASCII char
 vConsoleOutput	EQU		02H			; E has Char to output, no return value
@@ -236,39 +236,42 @@ BEGIN:
 				LXI		B,01200H					; Fill 00 for 12H bytes
 				CALL	FillMemWithC
 				CALL	parseComTail				; 005AAH
-				CALL	00833H					; came back with QMARKS is Subject file name;
+				CALL	00833H						; came back with QMARKS is Subject file name;
 				LXI		H,00003H					; load b with a limit count
 				MOV		B,L
-L04DF:
-				CALL getNextRawValue						; returns with first byte in Acc
-				CPI  ARC_SOF						; is this the start of a file ?
-				JZ   004F3H							; jump if it is.
+findEntryStart:
+				CALL getNextRawValue				; returns with first byte in Acc
+				CPI  ARC_SOE						; is this the start of an Entry ?
+				JZ   entryFound						; jump if it is.
 				DCR  B								;  else count down
-				JNZ  004DFH							;  and try again if not done
+				JNZ  findEntryStart					;  and try again if not done
 L04EB:
-				CALL getNextRawValue						; 00738H
-				CPI  01AH
-				JNZ  0053FH
-L04F3:
-				CALL getNextRawValue						; is the return byte
-				ORA  A								     ; Zero ?
-				JZ   0051EH							; jump if it is
+				CALL getNextRawValue					; 00738H
+				CPI  ARC_SOE						; is this the start of an Entry ?						
+				JNZ  0053FH							; skip if not
+; end of the physical File ?
+entryFound:
+				CALL getNextRawValue				; is the return byte 00 - End of ARK file
+				ORA  A								; Zero ?
+				JZ   endOfArkFile					; jump if it is
 	; this must be the start of a file ie 1A 08
-L04FA:
-				CALL loadBuffHeader					;   else move 1C bytes of data  into bufferHeader
-				CALL setSubFileName					; move file name to 1750 ??
-				JNZ  0050FH
-				CALL 00EC4H			; display file info????
+processEntry:
+				CALL loadBuffHeader					;  else move 1C/18 bytes of data  into bufferHeader
+				CALL setSubFileName					; move file name to 1750 
+				JNZ  pointAtNextEntry				; skip if header file name not matching target file name
+				CALL 00EC4H				; display file info????
 				CALL 0090CH
 				CALL 00900H
 				JNZ  cleanUp			; 00531H
-L050F:
-				LXI  H,fileStored
-				CALL 012BAH
+				
+pointAtNextEntry:
+				LXI		H,fileStored				; get number of bytes to the next entry
+				CALL	dblWord2Regs				; value pointed at by HL
 				CALL 0076BH
 				LXI  H,00000H
 				JMP  004EBH
-L051E:
+				
+endOfArkFile:
 				LHLD buffer1						; 0172EH
 				MOV  A,H
 				ORA  A
@@ -290,8 +293,8 @@ cleanUp:										; L0531
 				DB		CODE_LXI				; LXI
 ccpStackSave:	DW		0000H
 
-			
 				RET
+				
 L053F:
 				CALL 00764H
 				CALL getNextRawValue					; 00738H
@@ -311,7 +314,7 @@ L0545:
 				LXI  D,messBadArchHeader			; 013D8H
 				CALL sendStringNL00NL				; 00F7FH
 				POP  PSW
-				JMP  004FAH
+				JMP  processEntry
 L056A:
 				CALL 00764H
 				POP  PSW
@@ -634,7 +637,7 @@ readFile:								; L074C
 				POP  H
 				ORA  A
 				RZ
-L075E:
+badArcFileFmt:
 				LXI  D,messInvalidArcFileFmt			;013BCH
 				JMP  sendErrorMess		; 0059BH
 L0764:
@@ -642,22 +645,23 @@ L0764:
 				MOV  A,H
 				ORA  L
 				RNZ
-				JMP  0075EH
+				JMP  badArcFileFmt			; exit
+				
 L076B:
 				MOV  A,B
 				ORA  A
-				JNZ  0075EH
-				MOV  A,E
-				MOV  L,D
-				MOV  H,C
-				ADD  A
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
+				JNZ  badArcFileFmt			; exit B must be zero
+				MOV  A,E					; get least byte
+				MOV  L,D					; get mid byte
+				MOV  H,C					; get hi byte
+				ADD  A						; double least byte
+				PUSH PSW					; save above
+				MOV  A,L					; get mid byte
+				ADC  L						; double it
+				MOV  L,A					; put back in L
+				MOV  A,H					; get hi byte
+				ADC  H						; double it
+				MOV  H,A					; put back
 				JNZ  00780H
 				INR  L
 				DCR  L
@@ -665,7 +669,7 @@ L0780:
 				XTHL
 				MOV  A,H
 				POP  H
-				JC   0075EH
+				JC   badArcFileFmt			; exit
 				RAR
 				XCHG
 				LXI  H,bufferPointer		; L1740
@@ -673,6 +677,7 @@ L0780:
 				MOV  M,A
 				INR  A
 				JP   00798H
+; Label ??
 				MOV  A,D
 				ORA  E
 				RZ
@@ -689,7 +694,7 @@ L079B:
 				LHLD 0007DH
 				POP  D
 				DAD  D
-				JC   0075EH
+				JC   badArcFileFmt			; exit
 				SHLD 0007DH
 				MVI  C,vReadRandom				; 021H
 				CALL readFile					; 0074CH
@@ -719,7 +724,8 @@ loadBuffHeader2:								; L07CC
 				MVI  C,004H
 				CALL moveHLtoDE		; 012FFH
 				RET
-;		move file name to 1750 ??
+;		move file name to 1750 
+; return with Zero flag set if file in header matches target file name
 setSubFileName:									; L07DD:
 				LXI  D,buffSubjectFileName		; point at 1771 data moved from rawBuffer
 				LXI  H,wFileName				; load for later 1750
@@ -754,7 +760,7 @@ setSubFileName5:								; L0811
 				MOV		M,A						; put the char away
 				PUSH	H
 				LHLD	ptrSubjectFile			; get the pointer
-				MOV		A,M						; put trhe char here also
+				MOV		A,M						; get character from subject file Name
 				POP		H
 				PUSH	H
 				LHLD	ptrSubjectFile			; get the pointer
@@ -763,8 +769,9 @@ setSubFileName5:								; L0811
 				POP		H
 				CPI		QMARK					; is it a Question mark
 				JZ		setSubFileName6			; skip if it is
-				CMP  M
-				RNZ
+				CMP		M						; does it match ?
+				RNZ								; return - file is not a match
+				
 setSubFileName6:
 				INX		H						; point at next position
 				DCR		B						; count down
@@ -1026,7 +1033,7 @@ L09D9:
 				LXI  D,messCRC							; 01593H
 				CNZ  00FC4H
 				LXI  H,fileLength
-				CALL 012BAH
+				CALL dblWord2Regs				; value pointed at by HL
 				MOV  A,B
 				ORA  C
 				ORA  D
@@ -1886,7 +1893,7 @@ L0EC4:
 				INX		H
 				SHLD	fileCounter				; increment and save the value
 				CZ		doFilesHeader			; call if it was zero need the heading
-				LXI		D,fileStored				; point at  the size of file as stored
+				LXI		D,fileStored			; point at  the size of file as stored
 				PUSH	D
 				LXI		H,sumFileStored
 				CALL	add4BytesDEtoHL			;  add to sunning total of stored file.
@@ -2165,7 +2172,7 @@ L1087:
 				POP  D
 				XTHL
 				PUSH D
-				CALL 012BAH
+				CALL dblWord2Regs				; value pointed at by HL
 				MOV  H,B
 				MOV  L,C
 				PUSH D
@@ -2325,7 +2332,7 @@ L1157:
 				MOV  A,H
 				POP  H
 				XTHL
-				CALL 012BAH
+				CALL dblWord2Regs				; value pointed at by HL
 				PUSH H
 				LHLD ptrSubjectFile
 				XTHL
@@ -2583,15 +2590,23 @@ L12B5:
 				JNZ  012ADH					; if not dome loop for more
 				RET
 				
-L12BA:
-				MOV  E,M
+; HL points at value to be loaded into registers B,C,D & E
+; Hl + 0 =>  E
+; Hl + 1 =>  D
+; Hl + 2 =>  C
+; Hl + 3 =>  B
+				
+dblWord2Regs:
+				MOV  E,M					; Hl + 0 =>  E
 				INX  H
-				MOV  D,M
+				MOV  D,M					; Hl + 1 =>  D
+				INX  H						
+				MOV  C,M					; Hl + 2 =>  C
 				INX  H
-				MOV  C,M
-				INX  H
-				MOV  B,M
+				MOV  B,M					; Hl + 3 =>  B
 				RET
+				
+				
 add4BytesDEtoHL:						; L12C2
 				MVI  B,004H				; load the counter
 				ORA  A					; clear Acc
@@ -2894,14 +2909,18 @@ targetDrive:	DB		NULL	; Target file drive, 0= No write to disk ; 1=A, 2=B, ...
 wFileName:		DS		11
 
 L175B:			DS		21
-bufferHeader:		DS		1		; L1770
+
+; header info placed here---------
+bufferHeader:		DS		1		; entry type 08 or 01		
 buffSubjectFileName:	DS		11	; L1771
 L177C:			DS		2
-fileStored:		DS		2	
-L1780:			DS		2	
+fileStored:		DS		4	
+;L1780:			DS		2	
 L1782:			DS		4	
 L1786:			DS		2
-fileLength:		DS		2	
+fileLength:		DS		4
+; header info placed here---------
+	
 L178A:			DS		2	
 	
 				
