@@ -267,7 +267,7 @@ processEntry:
 				
 pointAtNextEntry:
 				LXI		H,fileStored				; get number of bytes to the next entry
-				CALL	dblWord2Regs				; value pointed at by HL
+				CALL	dblWord2Regs				; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
 				CALL 0076BH
 				LXI  H,00000H
 				JMP  004EBH
@@ -1902,7 +1902,6 @@ L0EC4:
 				PUSH	D						; save and rember fileLength (see below)
 				LXI		H,sumFileLength
 				CALL	add4BytesDEtoHL			; Add length to sumFileLength
-	;******* pick up here			
 				LXI		H,OutBuffer1			; start of output display byffer
 				LXI		D,wFileName				; 01750H
 				MVI		C,000H
@@ -1911,9 +1910,10 @@ L0EC4:
 				PUSH	D						; save and remember fileLength (see above)
 				CALL	hexToAsciiDisplay		; put decimal file length in OutBuffer1
 				CALL	doFileSizeK				; calculate and put file size in k into OutBuffer1
-				CALL 01055H
-				POP  B
-				POP  D
+				CALL	doMethod				; figure out method and set in outbuffer1
+				POP		B
+				POP		D
+	;******* pick up here			
 				CALL 01087H
 				LDA  01782H
 				ORA  A
@@ -2139,42 +2139,49 @@ fiveSpaceWithK:
 				MVI  M,ASCII_LO_K			; put the constant in the buffer
 				INX  H						; point at next buffer position
 				RET
-				
-L1055:
+;
+;doMethod - figures out what methos the file has been processed by.
+; 00 => Inavalid
+; 1-2 => Unpacked
+; 4 => Squeezed
+; 3, 5-8 => Crunched
+;				
+doMethod:
 				CALL	fillMemWith2Spaces	; into outBuffer1
 				XCHG						; DE has pointer into OutBuff1
 				LXI		H,methods			; point at the methods
 				LDA		bufferHeader
 				PUSH	PSW					; save entry type
-				LXI		B,00008H
-				CPI		003H				; is type  bigger than 3 ?
-				JC		0107DH				; jump if yes, Unpacked
+				LXI		B,00008H			; method text size
+				CPI		003H				; is less  than 3 ?
+				JC		foundMethod			; jump if yes, Unpacked
 				DAD		B
-				JZ		0107DH				; jump if type was = 3, Packed
+				JZ		foundMethod			; jump if DAD = 0 - packed
 				DAD		B
 				CPI		004H
-				JZ		0107DH				; jump if type was = 4, Squezed
+				JZ		foundMethod			; jump if type was = 4, Squezed
 				DAD		B
 				CPI		009H
-				JC		0107DH				; skip if less than 9, Chrunched
-				DAD  B
-				JZ   0107DH				; skip Squashed
-				DAD  B					; Unknown
-L107D:
-				CALL moveHLtoDE		; 012FFH
+				JC		foundMethod			; skip if less than 9, Chrunched
+				DAD		B
+				JZ		foundMethod			; skip Squashed
+				DAD		B					; Unknown
+foundMethod:
+				CALL	moveHLtoDE			; put text into outBuffer1
 				XCHG
-				POP  PSW
-L1082:
-				MVI  B,003H
-				JMP  hexToAsciiDisplayB20	; length in B, pad Space
+				POP		PSW					; restore the method in acc
+ascii3HexDigits:
+				MVI		B,003H
+				JMP		hexToAsciiDisplayB20	; Display Version ie Type number
+				
 L1087:
-				PUSH D
-				PUSH B
-				CALL hexToAsciiDisplay
-				POP  D
+				PUSH	D				; save pointer to stored length
+				PUSH	B				; save pointer to file length
+				CALL	hexToAsciiDisplay	; move the stored value to the outbuffer1 
+				POP		D
 				XTHL
-				PUSH D
-				CALL dblWord2Regs				; value pointed at by HL
+				PUSH	D				; save pointer to length
+				CALL dblWord2Regs		; value pointed at by HL
 				MOV  H,B
 				MOV  L,C
 				PUSH D
@@ -2447,7 +2454,7 @@ L11F2:
 				DAD  H
 				PUSH H
 				XCHG
-				CALL 01082H
+				CALL ascii3HexDigits
 				MVI  M,03AH
 				INX  H
 				POP  PSW
@@ -2498,10 +2505,13 @@ hexToAsciiDisplay420:			; length 4, pad Space
 hexToAsciiDisplayB20:			; length in B, pad Space
 				MVI  C,020H
 				JMP  hexToAsciiDisplay1
-				
+;
+; DE points at the hex value
+; HL is where the decimal ascii is put
+;				
 hexToAsciiDisplay:
 				LXI  B,00920H			; B = count, C = value to fill with
-				PUSH D					; save fileLength ie length
+				PUSH D					; save value
 				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
 				POP  H					; put fileLength into HL
 				MOV  E,M
