@@ -22,6 +22,7 @@ ASCII_C			EQU		'C'
 ASCII_R			EQU		'R'	
 ASCII_K			EQU		'K'
 ASCII_LO_A		EQU		'a'
+ASCII_LO_K		EQU		'K'
 LEFT_CURLY		EQU		'{'			; Left curly Bracket	
 DEL				EQU		7FH			; Delete Key	
 
@@ -234,7 +235,7 @@ BEGIN:
 				LXI		SP,appStack					;  Set applications stack - 0172EH
 				LXI		H,buffer1					; 0172EH
 				LXI		B,01200H					; Fill 00 for 12H bytes
-				CALL	FillMemWithC
+				CALL	fillMemWithC
 				CALL	parseComTail				; 005AAH
 				CALL	00833H						; came back with QMARKS is Subject file name;
 				LXI		H,00003H					; load b with a limit count
@@ -490,23 +491,23 @@ noComTail:									; L0681:
 noComTail1:
 				LXI  H,001ABH
 				LXI  B,00480H
-				CZ   FillMemWithC
+				CZ   fillMemWithC
 				LXI  H,00357H
 				MVI  B,09DH
-				CZ   FillMemWithC
+				CZ   fillMemWithC
 				POP  PSW
 				JZ   noComTail2
 				LXI  H,001B7H
 				MVI  B,004H
-				CALL FillMemWithC
+				CALL fillMemWithC
 				LXI  H,003F4H
 				MVI  B,07AH
-				CALL FillMemWithC
+				CALL fillMemWithC
 				LDA  00107H
 				ORA  A
 				LXI  H,002E6H
 				MVI  B,071H
-				CZ   FillMemWithC
+				CZ   fillMemWithC
 noComTail2:
 				LXI  D,0014CH
 				JMP  sendStringNL00NL		;005A1H
@@ -777,7 +778,7 @@ setSubFileName6:
 				DCR		B						; count down
 				JNZ		setSubFileName1			; loop if we are not done
 				LXI  B,01500H
-				JMP  FillMemWithC
+				JMP  fillMemWithC
 				
 				
 L0833:
@@ -961,7 +962,7 @@ L0949:
 				JNZ  0099BH
 				LXI  H,OutBuffer1
 				LXI  B,04E2DH
-				CALL FillMemWithC
+				CALL fillMemWithC
 				CALL 00F17H
 				JMP  0099BH
 L095F:
@@ -1769,9 +1770,9 @@ L0E00:
 				POP  H
 				SHLD fileLength
 				JNC  00E10H
-				LHLD 0178AH
+				LHLD fileLengthHI
 				DCX  H
-				SHLD 0178AH
+				SHLD fileLengthHI
 L0E10:
 				PUSH D
 				CALL 00E18H
@@ -1902,14 +1903,14 @@ L0EC4:
 				LXI		H,sumFileLength
 				CALL	add4BytesDEtoHL			; Add length to sumFileLength
 	;******* pick up here			
-				LXI  H,OutBuffer1
-				LXI  D,wFileName				; 01750H
-				MVI  C,000H
-				CALL trimFullName				; put result in OutBuffer1
-				POP  D
-				PUSH D							; save and rember fileLength (see above)
-				CALL hexToAsciiDisplay
-				CALL 01015H
+				LXI		H,OutBuffer1			; start of output display byffer
+				LXI		D,wFileName				; 01750H
+				MVI		C,000H
+				CALL	trimFullName			; put result in OutBuffer1
+				POP		D
+				PUSH	D						; save and remember fileLength (see above)
+				CALL	hexToAsciiDisplay		; put decimal file length in OutBuffer1
+				CALL	doFileSizeK				; calculate and put file size in k into OutBuffer1
 				CALL 01055H
 				POP  B
 				POP  D
@@ -1918,7 +1919,7 @@ L0EC4:
 				ORA  A
 				JNZ  00F0EH
 				MVI  B,012H
-				CALL 012D1H
+				CALL fillMemWithSpaces				; count in B
 				JMP  00F14H
 L0F0E:
 				CALL 0119AH
@@ -1933,21 +1934,21 @@ L0F1D:
 				XCHG
 				LHLD buffer1				; 0172EH
 				XCHG
-				CALL 01231H
+				CALL hexToAsciiDisplay520	; length 5, pad Space	
 				LXI  D,sumFileLength
 				PUSH D
 				CALL hexToAsciiDisplay
 				XCHG
-				LHLD 01734H
+				LHLD fileSizeK
 				XCHG
-				CALL 0104EH
+				CALL fiveSpaceWithK
 				MVI  B,00DH
-				CALL 012D1H
+				CALL fillMemWithSpaces				; count in B
 				POP  B
 				LXI  D,sumFileStored
 				CALL 01087H
 				MVI  B,014H
-				CALL 012D1H
+				CALL fillMemWithSpaces				; count in B
 				XCHG
 				LHLD 0173AH
 				XCHG
@@ -2090,25 +2091,25 @@ trimFullName3:
 				JNZ  trimFullName1		;loop if not doen
 				RET
 		
-L1015:
-				PUSH H
-				LHLD fileLength
-				LDA  0178AH
-				LXI  D,003FFH
-				DAD  D
-				ACI  000H
-				RAR
-				PUSH PSW
-				MOV  A,H
-				RAR
-				INR  A
-				DCR  A
-				MOV  H,A
+doFileSizeK:
+				PUSH	H				; save buffer Pointer
+				LHLD	fileLength		; point at file length
+				LDA		fileLengthHI	; get fileLength + 2
+				LXI		D,003FFH
+				DAD		D				; add 1K-1 to it ( look for carry )
+				ACI		000H
+				RAR						; if carry, then it is preserved
+				PUSH	PSW				; save the result
+				MOV		A,H				; get LSB
+				RAR						; divid by two, remember remainder (CY)
+				INR		A
+				DCR		A				; clear CY ??
+				MOV		H,A				; save in H
 				XTHL
-				MOV  A,H
-				POP  H
-				RAR
-				PUSH PSW
+				MOV		A,H				; get contents fro stack into A
+				POP		H				; restore modified result
+				RAR		
+				PUSH PSW				; save lsb in CY
 				MOV  A,H
 				RAR
 				INR  A
@@ -2120,7 +2121,7 @@ L1015:
 				ANI  03FH
 				MOV  L,H
 				MOV  H,A
-				LDA  blockSizeInK			; 01743H
+				LDA		blockSizeInK		; read from BIOS
 				DCR  A
 				MOV  E,A
 				MVI  D,000H
@@ -2129,42 +2130,43 @@ L1015:
 				ANA  L
 				MOV  E,A
 				MOV  D,H
-				LHLD 01734H
+				LHLD	fileSizeK
 				DAD  D
-				SHLD 01734H
-				POP  H
-L104E:
-				CALL 01231H
-				MVI  M,06BH
-				INX  H
+				SHLD	fileSizeK			; staore the calculated file size in K 
+				POP  H					; point at OutBuffer1 for size in K
+fiveSpaceWithK:
+				CALL hexToAsciiDisplay520	; length 5, pad Space
+				MVI  M,ASCII_LO_K			; put the constant in the buffer
+				INX  H						; point at next buffer position
 				RET
+				
 L1055:
-				CALL 012CFH
-				XCHG
-				LXI  H,015D7H
-				LDA  bufferHeader
-				PUSH PSW
-				LXI  B,00008H
-				CPI  003H
-				JC   0107DH
+				CALL	fillMemWith2Spaces	; into outBuffer1
+				XCHG						; DE has pointer into OutBuff1
+				LXI		H,methods			; point at the methods
+				LDA		bufferHeader
+				PUSH	PSW					; save entry type
+				LXI		B,00008H
+				CPI		003H				; is type  bigger than 3 ?
+				JC		0107DH				; jump if yes, Unpacked
+				DAD		B
+				JZ		0107DH				; jump if type was = 3, Packed
+				DAD		B
+				CPI		004H
+				JZ		0107DH				; jump if type was = 4, Squezed
+				DAD		B
+				CPI		009H
+				JC		0107DH				; skip if less than 9, Chrunched
 				DAD  B
-				JZ   0107DH
-				DAD  B
-				CPI  004H
-				JZ   0107DH
-				DAD  B
-				CPI  009H
-				JC   0107DH
-				DAD  B
-				JZ   0107DH
-				DAD  B
+				JZ   0107DH				; skip Squashed
+				DAD  B					; Unknown
 L107D:
 				CALL moveHLtoDE		; 012FFH
 				XCHG
 				POP  PSW
 L1082:
 				MVI  B,003H
-				JMP  0123AH
+				JMP  hexToAsciiDisplayB20	; length in B, pad Space
 L1087:
 				PUSH D
 				PUSH B
@@ -2379,14 +2381,14 @@ L118A:
 L1191:
 				POP  H
 				POP  H
-				CALL 01238H
+				CALL hexToAsciiDisplay420	; length 4, pad Space
 				MVI  M,025H
 				INX  H
 				RET
 L119A:
 				LDA  01782H
 				ANI  01FH
-				CALL 01238H
+				CALL hexToAsciiDisplay420	; length 4, pad Space
 				MVI  M,020H
 				INX  H
 				XCHG
@@ -2456,7 +2458,7 @@ L11F2:
 				INX  H
 				RET
 L1208:
-				CALL 012CFH
+				CALL fillMemWith2Spaces
 				XCHG
 				LHLD 01786H
 				XCHG
@@ -2486,14 +2488,14 @@ L1227:
 				INX  H
 				RET
 				
-L1231:
+hexToAsciiDisplay520:			; length 5, pad Space
 				MVI  B,005H
 				MVI  C,020H
 				JMP  hexToAsciiDisplay2
 				
-L1238:
+hexToAsciiDisplay420:			; length 4, pad Space
 				MVI  B,004H
-L123A:
+hexToAsciiDisplayB20:			; length in B, pad Space
 				MVI  C,020H
 				JMP  hexToAsciiDisplay1
 				
@@ -2626,16 +2628,16 @@ add4BytesDEtoHL1:
 				JNZ  add4BytesDEtoHL1	; loop until done
 				RET
 				
-L12CF:
+fillMemWith2Spaces:
 				MVI  B,002H
-L12D1:
+fillMemWithSpaces:
 				MVI  C,020H
 ; Fill memory with (C) for (B) bytes	L12D3	
-FillMemWithC:
+fillMemWithC:
 				MOV  M,C
 				INX  H
 				DCR  B
-				JNZ  FillMemWithC
+				JNZ  fillMemWithC
 				RET
 ;				
 upperCaseAcc:							; L12DA:
@@ -2803,7 +2805,13 @@ mess3Dollar:
 				DB		DOLLAR
 				DB		DOLLAR
 				DB		'JanFebMarAprMayJunJulAugSepOctNovDec'
-				DB		'Unpacked Packed SqueezedCrunchedSquashedUnknown'
+methods:
+				DB		'Unpacked'
+				DB		'  Packed'
+				DB		'Squeezed'
+				DB		'Crunched'		; type = 08
+				DB		'Squashed'
+				DB		'Unknown'
 				DB		'!'
 txtName:		DB		'Name'
 				DB		'========  ='
@@ -2831,7 +2839,8 @@ OutBuffer1:
 appStack:
 fileCounter:						; file count ?????
 buffer1:		DS		2
-sumFileLength:	DS		6	
+sumFileLength:	DS		4
+fileSizeK:		DS		2	
 sumFileStored:	DS		6	
 L173C:			DS  1			
 flagOS:			DS	1			; 0 = MS-DOS , ~0 = CP/M |ARK = CP/M, ARC = MS-DOS
@@ -2864,7 +2873,7 @@ L1786:			DS		2
 fileLength:		DS		2
 ; header info placed here---------
 	
-L178A:			DS		2	
+fileLengthHI:	DS		2	
 	
 				
 				
