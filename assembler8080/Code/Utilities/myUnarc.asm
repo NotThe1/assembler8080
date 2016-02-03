@@ -309,7 +309,7 @@ L0545:
 				XCHG
 				LXI  H,0140BH
 				LXI  B,00000H
-				CALL 01255H
+				CALL hexToAsciiDisplay2
 				MVI  M,000H
 				LXI  D,messBadArchHeader			; 013D8H
 				CALL sendStringNL00NL				; 00F7FH
@@ -959,7 +959,7 @@ L0949:
 				LDA  0173EH
 				ORA  A
 				JNZ  0099BH
-				LXI  H,016ADH
+				LXI  H,OutBuffer1
 				LXI  B,04E2DH
 				CALL FillMemWithC
 				CALL 00F17H
@@ -1902,13 +1902,13 @@ L0EC4:
 				LXI		H,sumFileLength
 				CALL	add4BytesDEtoHL			; Add length to sumFileLength
 	;******* pick up here			
-				LXI  H,016ADH
+				LXI  H,OutBuffer1
 				LXI  D,wFileName				; 01750H
 				MVI  C,000H
-				CALL trimFullName				; put result in 16AD
+				CALL trimFullName				; put result in OutBuffer1
 				POP  D
 				PUSH D							; save and rember fileLength (see above)
-				CALL 0123FH
+				CALL hexToAsciiDisplay
 				CALL 01015H
 				CALL 01055H
 				POP  B
@@ -1926,17 +1926,17 @@ L0F0E:
 L0F14:
 				CALL 01208H
 L0F17:
-				LXI  D,016ADH
+				LXI  D,OutBuffer1
 				JMP  00F53H
 L0F1D:
-				LXI  H,016ADH
+				LXI  H,OutBuffer1
 				XCHG
 				LHLD buffer1				; 0172EH
 				XCHG
 				CALL 01231H
 				LXI  D,sumFileLength
 				PUSH D
-				CALL 0123FH
+				CALL hexToAsciiDisplay
 				XCHG
 				LHLD 01734H
 				XCHG
@@ -2168,7 +2168,7 @@ L1082:
 L1087:
 				PUSH D
 				PUSH B
-				CALL 0123FH
+				CALL hexToAsciiDisplay
 				POP  D
 				XTHL
 				PUSH D
@@ -2420,7 +2420,7 @@ L11B6:
 				ADI  050H
 L11CF:
 				LXI  B,00230H
-				JMP  01252H
+				JMP  hexToAsciiDisplay1
 L11D5:
 				XCHG
 				LHLD 01784H
@@ -2489,105 +2489,111 @@ L1227:
 L1231:
 				MVI  B,005H
 				MVI  C,020H
-				JMP  01255H
+				JMP  hexToAsciiDisplay2
 				
 L1238:
 				MVI  B,004H
 L123A:
 				MVI  C,020H
-				JMP  01252H
+				JMP  hexToAsciiDisplay1
 				
-L123F:
-				LXI  B,00920H
-				PUSH D						; save fileLength ie length
-				CALL swapAllRegisters
-				POP  H						; put fileLength into HL
+hexToAsciiDisplay:
+				LXI  B,00920H			; B = count, C = value to fill with
+				PUSH D					; save fileLength ie length
+				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
+				POP  H					; put fileLength into HL
 				MOV  E,M
 				INX  H
-				MOV  D,M					; put actual length in DE
+				MOV  D,M				; put actual length in DE
 				INX  H
-				MOV  A,M					; get next byte into A
+				MOV  A,M				; get next byte into A
 				INX  H
-				MOV  H,M					; get fourth byte into H
-				XCHG						; HL has actual length, 3rd byte in A , forth byte in D?
-				JMP  0125CH
+				MOV  H,M				; get fourth byte into H
+										; length + 0 => E
+										; length + 1 => D
+										; length + 2 => A
+										; length + 3 => H
+				XCHG					; HL has actual bytes 1(L) & 2(H), A has 3 , D has 4?
+				JMP  hexToAsciiDisplay3
 				
-L1252:
+hexToAsciiDisplay1:
 				MOV  E,A
 				MVI  D,000H
-L1255:
+hexToAsciiDisplay2:
 				PUSH D
 				CALL swapAllRegisters
 				POP  H
 				XRA  A
 				MOV  D,A
-L125C:
-				MOV  E,A				; HL has  length, DE has next two bytes
+hexToAsciiDisplay3:
+				MOV  E,A				; Lngth = DE & HL or HLDE
 				MVI  C,00AH				; are we converting the number to decimal ?
 				STC						; set the carry
 				PUSH PSW
-L1261:
-				CALL 0128FH
-				ORI  030H
-				CALL swapAllRegisters
-				DCR  B
-				JNZ  01274H
-L126D:
-				MOV  M,A
-				INX  H
-L126F:
-				POP  PSW
-				JNC  0126DH
+hexToAsciiDisplay4:
+				CALL hexToAsciiDisplay9	; get digit of Length in Decimal from least to most significant
+				ORI  030H				; set the ascii
+				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
+				DCR  B					; are we done (length = 9)
+				JNZ  hexToAsciiDisplay7
+				
+hexToAsciiDisplay5:
+				MOV  M,A				; get the ascii value into the buffer
+				INX  H					; point at next location
+hexToAsciiDisplay6:
+				POP  PSW				; is there any more ?
+				JNC  hexToAsciiDisplay5	; loop if yes
 				RET
-L1274:
-				PUSH PSW
-				CALL swapAllRegisters
+hexToAsciiDisplay7:
+				PUSH PSW					; save ASCII valuee
+				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
 				MOV  A,H
 				ORA  L
 				ORA  D
 				ORA  E
-				JNZ  01261H
-				CALL swapAllRegisters
-				ORA  C
-				JZ   0126FH
-L1286:
-				MOV  M,A
+				JNZ  hexToAsciiDisplay4
+				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
+				ORA  C					; put SPACE into Acc
+				JZ   hexToAsciiDisplay6	; if more loop else write remaing spaces
+hexToAsciiDisplay8:
+				MOV  M,A				; put vaue into buffer (SPACE)
 				INX  H
-				DCR  B
-				JNZ  01286H
-				JMP  0126FH
-L128F:
+				DCR  B					; do until length is complete
+				JNZ  hexToAsciiDisplay8
+				JMP  hexToAsciiDisplay6
+				
+hexToAsciiDisplay9:
 				MOV  A,D
 				ORA  E						; are D and E both Zeros ?
-				JZ   0129DH					; skip if yes
+				JZ   hexToAsciiDisplay11	; skip if yes
 				XRA  A
-				CALL 01298H
-L1298:
+				CALL hexToAsciiDisplay10
+hexToAsciiDisplay10:
 				XCHG
 				ORA  A
-				JNZ  012A3H
-L129D:
+				JNZ  hexToAsciiDisplay12
+hexToAsciiDisplay11:
 				MOV  A,H					; get H's value
 				CMP  C						; is it bigger than 10 decimal?
-				JC   012A8H					; jump if not
+				JC   hexToAsciiDisplay13	; jump if not
 				XRA  A						; else clear Acc
-L12A3:
+hexToAsciiDisplay12:
 				MVI  B,010H					; put Decimal 16 into B
-				JMP  012ADH					; and jump
-L12A8:
+				JMP  hexToAsciiDisplay14	; and jump
+hexToAsciiDisplay13:
 				MOV  H,L					; get loByte					
 				MVI  L,000H
 				MVI  B,008H					; stuff B with decimal 8
-L12AD:
+hexToAsciiDisplay14:
 				DAD  H						; multiply Lo byte by 2
 				RAL  D						; any carry ??  --Whats the D there for ??
 				CMP  C						; greater than decimal 10
-				JC   012B5H					; jump if not
+				JC   hexToAsciiDisplay15	; jump if not
 				SUB  C						; else take 10 away and
 				INR  L						;    carry 1 (decimal)
-L12B5:
+hexToAsciiDisplay15:
 				DCR  B						; keep count
-				JNZ  012ADH					; if not dome loop for more
+				JNZ  hexToAsciiDisplay14	; if not dome loop for more
 				RET
 				
 ; HL points at value to be loaded into registers B,C,D & E
@@ -2818,73 +2824,10 @@ txtName:		DB		'Name'
 				DB		LF
 				DB		'Total  '
 
-;     <New code fragment-----from 16AD to 1718 (1718 : 5912)>
+
 ;              ORG  016ADH
-
-; might not be code fragement ---------
-				MVI  C,vGetCurDisk
-				CALL BDOSE
-				MOV  B,A
-				ADI  041H
-				STA  01782H
-				LXI  D,0005CH
-				LDAX D
-				ORA  A
-				JNZ  016DCH
-				MOV  A,B
-				INR  A
-				STA  blockSizeInK			; 01743H
-				ADI  040H
-				STA  01765H
-				LXI  H,01733H
-				LXI  B,00037H
-				CALL 01723H
-; might not be code fragement ---------
-				LXI  D,00100H
-				LXI  H,0011AH
-				LXI  B,015ADH
-				CALL 01723H
-				STA  00103H
-				INR  A
-				STA  0010DH
-				MVI  A,024H
-				STA  0017EH
-				STA  0049AH
-				LXI  D,01790H
-; might not be code fragement ---------
-				CALL buffer1				; 0172EH
-				LXI  D,0014CH
-				CALL buffer1				; 0172EH
-				LXI  D,0046CH
-				CALL buffer1				; 0172EH
-				LXI  D,0176AH
-				CALL buffer1				; 0172EH
-				JMP  004BFH
-; might not be code fragement ---------
-				MOV  A,M
-				STAX D
-				INX  H
-				INX  D
-				DCX  B
-				MOV  A,B
-				ORA  C
-				JNZ  01723H
-				RET
-				MVI  C,vPrintString
-				JMP  BDOSE
-
-;     <New literal fragment-----from 1719 to 1734 (1734 : 5940)>
-;              ORG  01719H
-				DB		NULL
-;              ORG  0171AH
-				DB		'UNARC16 COM'
-				DB		NULL
-;              ORG  01726H
-				DB		NULL
-				DB		NULL
-				DB		NULL
-				DB		NULL
-				DB		'    '
+OutBuffer1:
+				DS 129
 appStack:
 fileCounter:						; file count ?????
 buffer1:		DS		2
@@ -2918,7 +2861,7 @@ fileStored:		DS		4
 ;L1780:			DS		2	
 L1782:			DS		4	
 L1786:			DS		2
-fileLength:		DS		4
+fileLength:		DS		2
 ; header info placed here---------
 	
 L178A:			DS		2	
