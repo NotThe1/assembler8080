@@ -16,7 +16,8 @@ EXCLAIM_POINT	EQU		21H			; Exclamtion Point
 DOLLAR			EQU		24H			; Dollar Sign
 PERCENT			EQU		25H			; Percent Sign
 PERIOD			EQU		2EH			; Period
-EQUAL_SIGN		EQU		3DH			; equal Sign
+COLON			EQU		3AH			; Colon
+EQUAL_SIGN		EQU		3DH			; Equal Sign
 QMARK			EQU		3FH			; Question Mark
 ASCII_A			EQU		'A'	
 ASCII_C			EQU		'C'	
@@ -24,6 +25,7 @@ ASCII_R			EQU		'R'
 ASCII_K			EQU		'K'
 ASCII_LO_A		EQU		'a'
 ASCII_LO_K		EQU		'K'
+ASCII_LO_P		EQU		'p'
 LEFT_CURLY		EQU		'{'			; Left curly Bracket	
 DEL				EQU		7FH			; Delete Key	
 
@@ -258,16 +260,16 @@ entryFound:
 				JZ   endOfArkFile					; jump if it is
 	; this must be the start of a file ie 1A 08
 processEntry:
-				CALL loadBuffHeader					;  else move 1C/18 bytes of data  into bufferHeader
+				CALL loadBuffHeader					;  else move 1C/18 bytes of data  into hdrBuffer
 				CALL setSubFileName					; move file name to 1750 
 				JNZ  pointAtNextEntry				; skip if header file name not matching target file name
-				CALL 00EC4H				; display file info????
+				CALL doFileInfo				; display file info????
 				CALL 0090CH
 				CALL 00900H
 				JNZ  cleanUp			; 00531H
 				
 pointAtNextEntry:
-				LXI		H,fileStored				; get number of bytes to the next entry
+				LXI		H,hdrStored				; get number of bytes to the next entry
 				CALL	dblWord2Regs				; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
 				CALL 0076BH
 				LXI  H,00000H
@@ -589,7 +591,7 @@ L0719:
 				PUSH B
 				PUSH D
 				PUSH H
-				LXI  H,fileStored
+				LXI  H,hdrStored
 				MVI  B,004H
 L0721:
 				MOV  A,M
@@ -703,10 +705,10 @@ L079B:
 				LXI  H,0007CH
 				INR  M
 				RET
-;		get data from buffer and put into bufferHeader.
+;		get data from buffer and put into hdrBuffer.
 ;       move 18H bytes if Acc= 1, else make it 1CH bytes
 loadBuffHeader:									; L07B9
-				LXI  D,bufferHeader
+				LXI  D,hdrBuffer
 				MVI  B,01CH						; put a counter in B ??
 				CPI  001H						; does Acc = 01?
 				PUSH PSW						; save the second byte 1A
@@ -722,14 +724,14 @@ loadBuffHeader2:								; L07CC
 				JNZ  loadBuffHeader1			; loop if not done
 				POP  PSW
 				RNZ
-				LXI  H,fileStored
+				LXI  H,hdrStored
 				MVI  C,004H
 				CALL moveHLtoDE		; 012FFH
 				RET
 ;		move file name to 1750 
 ; return with Zero flag set if file in header matches target file name
 setSubFileName:									; L07DD:
-				LXI  D,buffSubjectFileName		; point at 1771 data moved from rawBuffer
+				LXI  D,hdrFileName		; point at 1771 data moved from rawBuffer
 				LXI  H,wFileName				; load for later 1750
 				PUSH H
 				LXI  H,subjectFiles				; get address of target file name
@@ -930,7 +932,7 @@ L090C:
 				ORA  A
 				RZ
 				MOV  B,A
-				LDA  bufferHeader
+				LDA  hdrBuffer
 				CPI  00AH
 				LXI  D,messNeedNewerArch				; 014A2H
 				JNC  sendErrorMess		; 0059BH
@@ -994,7 +996,7 @@ L098D:
 				JZ  sendErrorMess						; 0059BH
 				STA  openSpecFile						; 006DEH
 L099B:
-				LDA  bufferHeader
+				LDA  hdrBuffer
 				CPI  004H
 				JNC  00A01H
 				CALL 00D90H
@@ -1034,7 +1036,7 @@ L09D9:
 				POP  H
 				LXI  D,messCRC							; 01593H
 				CNZ  00FC4H
-				LXI  H,fileLength
+				LXI  H,hdrFileLength
 				CALL dblWord2Regs				; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
 				MOV  A,B
 				ORA  C
@@ -1754,7 +1756,7 @@ L0DE8:
 				PUSH B
 				MOV  B,H
 				MOV  C,L
-				LHLD fileLength
+				LHLD hdrFileLength
 				PUSH PSW
 				MOV  A,L
 				SBB  C
@@ -1769,11 +1771,11 @@ L0E00:
 				XTHL
 				MOV  A,H
 				POP  H
-				SHLD fileLength
+				SHLD hdrFileLength
 				JNC  00E10H
-				LHLD fileLengthHI
+				LHLD hdrFileLengthHI
 				DCX  H
-				SHLD fileLengthHI
+				SHLD hdrFileLengthHI
 L0E10:
 				PUSH D
 				CALL 00E18H
@@ -1888,19 +1890,19 @@ L0EAF:
 				RET
 				
 ;   display file info????
-L0EC4:
+doFileInfo:
 				LHLD	fileCounter				; get the file count 
 				MOV		A,H						; test if value is 00
 				ORA		L
 				INX		H
 				SHLD	fileCounter				; increment and save the value
 				CZ		doFilesHeader			; call if it was zero need the heading
-				LXI		D,fileStored			; point at  the size of file as stored
+				LXI		D,hdrStored			; point at  the size of file as stored
 				PUSH	D
 				LXI		H,sumFileStored
 				CALL	add4BytesDEtoHL			;  add to sunning total of stored file.
-				LXI		D,fileLength			; point at the Length
-				PUSH	D						; save and rember fileLength (see below)
+				LXI		D,hdrFileLength			; point at the Length
+				PUSH	D						; save and rember hdrFileLength (see below)
 				LXI		H,sumFileLength
 				CALL	add4BytesDEtoHL			; Add length to sumFileLength
 				LXI		H,OutBuffer1			; start of output display byffer
@@ -1908,24 +1910,24 @@ L0EC4:
 				MVI		C,000H
 				CALL	trimFullName			; put result in OutBuffer1
 				POP		D
-				PUSH	D						; save and remember fileLength (see above)
+				PUSH	D						; save and remember hdrFileLength (see above)
 				CALL	hexToAsciiDisplay		; put decimal file length in OutBuffer1
 				CALL	doFileSizeK				; calculate and put file size in k into OutBuffer1
 				CALL	doMethod				; figure out method and set in outbuffer1
 				POP		B
 				POP		D
 	;******* pick up here			
-				CALL doSaved						; BC => Length, DE => Stored, HL=>outBuffer1
-				LDA  01782H
-				ORA  A
-				JNZ  00F0EH
-				MVI  B,012H
-				CALL fillMemWithSpaces				; count in B
-				JMP  00F14H
-L0F0E:
-				CALL 0119AH
-				CALL 011D5H
-L0F14:
+				CALL	doSaved					; BC => Length, DE => Stored, HL=>outBuffer1
+				LDA		hdrDate					; in header buffer
+				ORA		A						; is it empty
+				JNZ		doFileInfo1				; skip if not
+				MVI		B,012H					; else blank out buffer area
+				CALL	fillMemWithSpaces		; count in B
+				JMP		doFileInfo2				; skip
+doFileInfo1:
+				CALL	doDate					; put date info into outBuffer1
+				CALL	doTime					; put the time info into outBuffer1
+doFileInfo2:
 				CALL 01208H
 L0F17:
 				LXI  D,OutBuffer1
@@ -2094,8 +2096,8 @@ trimFullName3:
 		
 doFileSizeK:
 				PUSH	H				; save buffer Pointer
-				LHLD	fileLength		; point at file length
-				LDA		fileLengthHI	; get fileLength + 2
+				LHLD	hdrFileLength		; point at file length
+				LDA		hdrFileLengthHI	; get hdrFileLength + 2
 				LXI		D,003FFH
 				DAD		D				; add 1K-1 to it ( look for carry )
 				ACI		000H
@@ -2151,7 +2153,7 @@ doMethod:
 				CALL	fillMemWith2Spaces	; into outBuffer1
 				XCHG						; DE has pointer into OutBuff1
 				LXI		H,methods			; point at the methods
-				LDA		bufferHeader
+				LDA		hdrBuffer
 				PUSH	PSW					; save entry type
 				LXI		B,00008H			; method text size
 				CPI		003H				; is less  than 3 ?
@@ -2398,78 +2400,81 @@ calcPct3:
 				RET
 				
 				
-L119A:
-				LDA  01782H
-				ANI  01FH
-				CALL hexToAsciiDisplay420	; length 4, pad Space
-				MVI  M,020H
-				INX  H
-				XCHG
-				LHLD 01782H
-				PUSH H
-				DAD  H
-				DAD  H
-				DAD  H
-				MOV  A,H
-				ANI  00FH
-				CPI  00DH
-				JC   011B6H
-				XRA  A
-L11B6:
-				MOV  C,A
-				MVI  B,000H
-				LXI  H,mess3Dollar					; 015B0H
-				DAD  B
-				DAD  B
-				DAD  B
-				MVI  C,003H
-				CALL moveHLtoDE		; 012FFH
-				XCHG
-				MVI  M,020H
-				INX  H
-				POP  PSW
-				ORA  A
+doDate:
+				LDA		hdrDate			; in headerbuff, DOM
+				ANI		01FH			; strip bits to get day of the month
+				CALL	hexToAsciiDisplay420	; length 4, pad Space, Hl is where A is wht
+				MVI		M,SPACE			; put space in Buffer
+				INX		H				; adjust outbuffer1 pointer
+				XCHG					; save pointer in DE
+				LHLD	hdrDate			; get word into HL
+				PUSH	H				; save the word
+				DAD		H				; word * 2
+				DAD		H				; word * 4
+				DAD		H				; word * 8
+				MOV		A,H				; get msb
+				ANI		00FH			; bet ls nibble
+				CPI		00DH			; is it less than 13?
+				JC		doDate1			; its ok, so skip
+				XRA		A				; clear acc not valid month - give three dollars
+doDate1:
+				MOV		C,A				; save month index in C
+				MVI		B,000H			; clear high byte
+				LXI		H,mess3Dollar	; point at month table - 3
+				DAD		B				; Adding index 3 times is
+				DAD		B				;    like taking the index * 3
+				DAD		B				;    month table entry is 3 letters long
+				MVI		C,003H			; size of the entry
+				CALL	moveHLtoDE		; Move the month into the outBuffer1
+				XCHG					; restore outbuffer1 pointer to HL
+				MVI		M,SPACE			; put space in Buffer
+				INX		H				; adjust outbuffer1 pointer
+				POP		PSW				; get headerinfo - date byte 2 int acc
+				ORA		A				; reset carry bit
+				RAR						; divide by two
+				INR		A				
+				DCR		A				; clearing flags ??
+				ADI		050H			; add 80 to get the year
+doDate2:
+				LXI		B,00230H		;doDate2 two bytes Zero fill
+				JMP		hexToAsciiDisplay1
+				
+doTime:
+				XCHG					; put outBuffer1 pointer into DE
+				LHLD	hdrTime			; get the time value
+				MOV		A,H
 				RAR
-				INR  A
-				DCR  A
-				ADI  050H
-L11CF:
-				LXI  B,00230H
-				JMP  hexToAsciiDisplay1
-L11D5:
-				XCHG
-				LHLD 01784H
-				MOV  A,H
 				RAR
-				RAR
-				RAR
-				ANI  01FH
-				MVI  B,061H
-				JZ   011F0H
-				CPI  00CH
-				JC   011F2H
-				MVI  B,070H
-				SUI  00CH
-				JNZ  011F2H
-L11F0:
-				MVI  A,00CH
-L11F2:
-				PUSH B
-				DAD  H
-				DAD  H
-				DAD  H
-				PUSH H
-				XCHG
-				CALL ascii3HexDigits
-				MVI  M,03AH
-				INX  H
-				POP  PSW
-				ANI  03FH
-				CALL 011CFH
-				POP  PSW
-				MOV  M,A
-				INX  H
+				RAR						; divide time value by 8
+				ANI		01FH			; wanted origial bits 3-7
+				MVI		B,ASCII_LO_A	; assume it AM
+				JZ		doTime1			; skip if value is zero - midnight
+				CPI		00CH			; before noon ?
+				JC		doTime2			; then skip the pm adjustment
+				MVI		B,ASCII_LO_P	;Adjust to PM
+				SUI		00CH			; reduce by 12 to get the hour
+				JNZ		doTime2
+doTime1:
+				MVI		A,00CH			; for to 12
+doTime2:
+				PUSH	B				; save the AM/PM designator
+				DAD		H
+				DAD		H
+				DAD		H				; original value * 8
+				PUSH	H				; save new time value
+				XCHG					; put outBuffer1 pointer in HL, 
+				CALL	ascii3HexDigits	; place hour in outBuff1
+				MVI		M,COLON
+				INX		H				; adjust pointer
+				POP		PSW				; retreive the other part of the calculated time
+				ANI		03FH			; only want the 6 least signnificant bits
+				CALL	doDate2			; two bytes Zero fill hexToAscii output the minutes
+				POP		PSW				; get the AM/PM designator
+				MOV		M,A				; put in outbuff1
+				INX		H				; adjust the pointer
 				RET
+				
+				
 L1208:
 				CALL fillMemWith2Spaces
 				XCHG
@@ -2519,7 +2524,7 @@ hexToAsciiDisplay:
 				LXI  B,00920H			; B = count, C = value to fill with
 				PUSH D					; save value
 				CALL swapAllRegisters	; swap out the registers. DE point at file Len,DE display buffer 
-				POP  H					; put fileLength into HL
+				POP  H					; put hdrFileLength into HL
 				MOV  E,M
 				INX  H
 				MOV  D,M				; put actual length in DE
@@ -2879,17 +2884,19 @@ wFileName:		DS		11
 L175B:			DS		21
 
 ; header info placed here---------
-bufferHeader:		DS		1		; entry type 08 or 01		
-buffSubjectFileName:	DS		11	; L1771
+hdrBuffer:		DS		1		; entry type 08 or 01
+		
+hdrFileName:	DS		11	; 		File Name
 L177C:			DS		2
-fileStored:		DS		4	
+hdrStored:		DS		4	
 ;L1780:			DS		2	
-L1782:			DS		4	
+hdrDate:		DS		2
+hdrTime:		DS		2	
 L1786:			DS		2
-fileLength:		DS		2
+hdrFileLength:		DS		2
 ; header info placed here---------
 	
-fileLengthHI:	DS		2	
+hdrFileLengthHI:	DS		2	
 	
 								
 storeHL:		DS		2		; L178C
