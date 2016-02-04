@@ -14,6 +14,7 @@ CTRL_S			EQU		13H			; X-OFF
 SPACE			EQU		20H			; Space
 EXCLAIM_POINT	EQU		21H			; Exclamtion Point
 DOLLAR			EQU		24H			; Dollar Sign
+PERCENT			EQU		25H			; Percent Sign
 PERIOD			EQU		2EH			; Period
 EQUAL_SIGN		EQU		3DH			; equal Sign
 QMARK			EQU		3FH			; Question Mark
@@ -1034,7 +1035,7 @@ L09D9:
 				LXI  D,messCRC							; 01593H
 				CNZ  00FC4H
 				LXI  H,fileLength
-				CALL dblWord2Regs				; value pointed at by HL
+				CALL dblWord2Regs				; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
 				MOV  A,B
 				ORA  C
 				ORA  D
@@ -1914,7 +1915,7 @@ L0EC4:
 				POP		B
 				POP		D
 	;******* pick up here			
-				CALL 01087H
+				CALL doSaved						; BC => Length, DE => Stored, HL=>outBuffer1
 				LDA  01782H
 				ORA  A
 				JNZ  00F0EH
@@ -1946,7 +1947,7 @@ L0F1D:
 				CALL fillMemWithSpaces				; count in B
 				POP  B
 				LXI  D,sumFileStored
-				CALL 01087H
+				CALL doSaved
 				MVI  B,014H
 				CALL fillMemWithSpaces				; count in B
 				XCHG
@@ -2174,224 +2175,229 @@ ascii3HexDigits:
 				MVI		B,003H
 				JMP		hexToAsciiDisplayB20	; Display Version ie Type number
 				
-L1087:
+				
+;; BC => Length, DE => Stored, HL=>outBuffer1
+; first multiply stored by 100				
+doSaved:
 				PUSH	D				; save pointer to stored length
 				PUSH	B				; save pointer to file length
-				CALL	hexToAsciiDisplay	; move the stored value to the outbuffer1 
-				POP		D
-				XTHL
-				PUSH	D				; save pointer to length
-				CALL dblWord2Regs		; value pointed at by HL
-				MOV  H,B
-				MOV  L,C
-				PUSH D
-				XTHL
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  010AFH
-				INR  L
-				DCR  L
-L10AF:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  D
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  C
-				MOV  L,A
-				MOV  A,H
-				ADC  B
-				MOV  H,A
-				JNZ  010C7H
-				INR  L
-				DCR  L
-L10C7:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  010DFH
-				INR  L
-				DCR  L
-L10DF:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  010F7H
-				INR  L
-				DCR  L
-L10F7:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  0110FH
-				INR  L
-				DCR  L
-L110F:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  D
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  C
-				MOV  L,A
-				MOV  A,H
-				ADC  B
-				MOV  H,A
-				JNZ  01127H
-				INR  L
-				DCR  L
-L1127:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  0113FH
-				INR  L
-				DCR  L
-L113F:
-				XTHL
-				MOV  A,H
-				POP  H
-				PUSH H
-				LHLD ptrSubjectFile
-				DAD  H
-				SHLD ptrSubjectFile
-				POP  H
-				PUSH PSW
-				MOV  A,L
-				ADC  L
-				MOV  L,A
-				MOV  A,H
-				ADC  H
-				MOV  H,A
-				JNZ  01157H
-				INR  L
-				DCR  L
-L1157:
-				XTHL
-				MOV  A,H
-				POP  H
-				XTHL
-				CALL dblWord2Regs				; value pointed at by HL
-				PUSH H
-				LHLD ptrSubjectFile
-				XTHL
-				POP  H
-				MOV  A,B
-				ORA  C
-				ORA  D
-				ORA  E
-				JZ   01191H
-				MVI  A,065H
-L116D:
-				DCR  A
-				PUSH PSW
-				MOV  A,L
-				SBB  E
-				MOV  L,A
-				MOV  A,H
-				SBB  D
-				MOV  H,A
-				JNZ  0117AH
-				INR  L
-				DCR  L
-L117A:
-				XTHL
-				MOV  A,H
-				POP  H
-				XTHL
-				PUSH PSW
-				MOV  A,L
-				SBB  C
-				MOV  L,A
-				MOV  A,H
-				SBB  B
-				MOV  H,A
-				JNZ  0118AH
-				INR  L
-				DCR  L
-L118A:
-				XTHL
-				MOV  A,H
-				POP  H
-				XTHL
-				JNC  0116DH
-L1191:
-				POP  H
-				POP  H
-				CALL hexToAsciiDisplay420	; length 4, pad Space
-				MVI  M,025H
-				INX  H
+				CALL	hexToAsciiDisplay	; move the stored length(DE) to the outbuffer1(HL) 
+				POP		D				; get pointer to file length
+				XTHL					; save outbuffer1 pointer to stack,get Stored pointer to HL
+				PUSH	D				; save pointer to file length
+				CALL	dblWord2Regs	; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
+				MOV		H,B
+				MOV		L,C				; put hi bytes in HL
+				PUSH	D				; save the lo bytes
+				XTHL					; hi bytes are on stack, lo bytes are in HL & de
+				SHLD	ptrSubjectFile	; save lo bytes for later XX
+				POP		H				; retreive the hi bytes
+				PUSH	H				; put lo byte back on the stack
+				LHLD	ptrSubjectFile	; retreive the lo bytes from storage XX
+				DAD		H				; value * 2
+				SHLD	ptrSubjectFile	; save the doubled value XX
+				POP		H				; retrieve original hi byte
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add in caryy from DAD
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into a
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX3		; skip if last add was not Zero
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX3:
+				XTHL					; put hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 2 XX
+				DAD		D				; add original value
+				SHLD	ptrSubjectFile	; save the value * 3 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		C				; add original hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		B				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX6
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX6:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 3 XX
+				DAD		H
+				SHLD	ptrSubjectFile	; save the value * 6 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add  hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ 	storedX12
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX12:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 6 XX
+				DAD		H
+				SHLD	ptrSubjectFile	; save the value * 12 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add  hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX24
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX24:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 12 XX
+				DAD		H
+				SHLD	ptrSubjectFile	; save the value * 24 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add  hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX25
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX25:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 24 XX
+				DAD		D				; add original value
+				SHLD	ptrSubjectFile	; save the value * 25 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		C				; add  original hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		B				; add original with carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX50
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX50:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 25 XX
+				DAD		H
+				SHLD	ptrSubjectFile	; save the value * 50 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add  hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedX100
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedX100:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; retreive hi byte to HL
+				PUSH	H				; save Hi byte to Stack
+				LHLD	ptrSubjectFile	; get  the value * 25 XX
+				DAD		H
+				SHLD	ptrSubjectFile	; save the value * 100 XX
+				POP		H				; retreive hi byte to HL
+				PUSH	PSW				; save the flags Zero and CY
+				MOV		A,L				; get value
+				ADC		L				; add  hi byte value
+				MOV		L,A				; put back
+				MOV		A,H				; get highest byte into Acc
+				ADC		H				; add in carry from previous ADC
+				MOV		H,A				; put back highest byte
+				JNZ		storedXdone
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+storedXdone:
+				XTHL					; put modified hi byte on stack, get saved PSW
+				MOV		A,H				; put old Acc in Acc
+				POP		H				; get modified hi byte from stack,
+				XTHL					; HL=> file Length, top of stack has high value for stored * 100
+				CALL	dblWord2Regs	; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
+				PUSH	H				; save after the double word
+				LHLD	ptrSubjectFile	; get low word for Stored length	
+				XTHL					; put low word for stored length on stack
+				POP		H				; get low word for Stored length into HL
+				MOV		A,B				; get msb for file length 
+				ORA		C
+				ORA		D
+				ORA		E				; is the value 00?
+				JZ		calcPct3		; skip if it is Zero
+				MVI		A,065H			; thats 101 decimal
+calcPct:
+				DCR		A
+				PUSH	PSW				; save PSW - some counter
+				MOV		A,L				; get lsb of file length * 100
+				SBB		E				; subtract lsb of stored length 
+				MOV		L,A				; put remainder back into lsb
+				MOV		A,H				; get next highest byte
+				SBB		D				; subtract it
+				MOV		H,A				; put result back
+				JNZ		calcPct1
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+calcPct1:
+				XTHL					; save new low word for file length * 100, get old counter
+				MOV		A,H				; put counter back in Acc
+				POP		H				; restore working result for file length * 100
+				XTHL					; save low word to stack, and put hi word in HL
+				PUSH	PSW				; save count
+				MOV		A,L				; get low byte
+				SBB		C				; subtract length low byte
+				MOV		L,A				; put result back
+				MOV		A,H				; get high byte
+				SBB		B				; subtract length hi byte
+				MOV		H,A				; put result back
+				JNZ		calcPct2
+				INR		L
+				DCR		L				; some kind of flag adjustment ??
+calcPct2:
+				XTHL					; restore count, save file length * 100 most significant ward
+				MOV		A,H				; put counter back in Acc
+				POP		H				; restore working count 
+				XTHL					; save low word to stack, and put hi word in HL
+				JNC  calcPct			; loop until done, Acc has the percent saved
+calcPct3:
+				POP  H					; flush old data
+				POP  H					; get outbuffer1 pointer
+				CALL hexToAsciiDisplay420	; length 4, pad Space, value in Acc
+				MVI  M,PERCENT
+				INX  H					; adjust the outBuffer1 pointer for date
 				RET
+				
+				
 L119A:
 				LDA  01782H
 				ANI  01FH
