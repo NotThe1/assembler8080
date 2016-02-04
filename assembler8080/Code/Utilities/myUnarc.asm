@@ -709,7 +709,7 @@ loadBuffHeader:									; L07B9
 				LXI  D,bufferHeader
 				MVI  B,01CH						; put a counter in B ??
 				CPI  001H						; does Acc = 01?
-				PUSH PSW						; save the second byte 1A XX
+				PUSH PSW						; save the second byte 1A
 				JNZ  loadBuffHeader2						; skip if != 01
 				MVI  B,018H						; put a diferent counter in B ??
 				JMP  loadBuffHeader2
@@ -2190,12 +2190,12 @@ doSaved:
 				MOV		L,C				; put hi bytes in HL
 				PUSH	D				; save the lo bytes
 				XTHL					; hi bytes are on stack, lo bytes are in HL & de
-				SHLD	ptrSubjectFile	; save lo bytes for later XX
+				SHLD	storedSubTotal	; save lo bytes for later XX
 				POP		H				; retreive the hi bytes
 				PUSH	H				; put lo byte back on the stack
-				LHLD	ptrSubjectFile	; retreive the lo bytes from storage XX
+				LHLD	storedSubTotal	; retreive the lo bytes from storage XX
 				DAD		H				; value * 2
-				SHLD	ptrSubjectFile	; save the doubled value XX
+				SHLD	storedSubTotal	; save the doubled value XX
 				POP		H				; retrieve original hi byte
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2212,9 +2212,9 @@ storedX3:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 2 XX
+				LHLD	storedSubTotal	; get  the value * 2 XX
 				DAD		D				; add original value
-				SHLD	ptrSubjectFile	; save the value * 3 XX
+				SHLD	storedSubTotal	; save the value * 3 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2231,9 +2231,9 @@ storedX6:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 3 XX
+				LHLD	storedSubTotal	; get  the value * 3 XX
 				DAD		H
-				SHLD	ptrSubjectFile	; save the value * 6 XX
+				SHLD	storedSubTotal	; save the value * 6 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2250,9 +2250,9 @@ storedX12:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 6 XX
+				LHLD	storedSubTotal	; get  the value * 6 XX
 				DAD		H
-				SHLD	ptrSubjectFile	; save the value * 12 XX
+				SHLD	storedSubTotal	; save the value * 12 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2269,9 +2269,9 @@ storedX24:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 12 XX
+				LHLD	storedSubTotal	; get  the value * 12 XX
 				DAD		H
-				SHLD	ptrSubjectFile	; save the value * 24 XX
+				SHLD	storedSubTotal	; save the value * 24 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2288,9 +2288,9 @@ storedX25:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 24 XX
+				LHLD	storedSubTotal	; get  the value * 24 XX
 				DAD		D				; add original value
-				SHLD	ptrSubjectFile	; save the value * 25 XX
+				SHLD	storedSubTotal	; save the value * 25 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2307,9 +2307,9 @@ storedX50:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 25 XX
+				LHLD	storedSubTotal	; get  the value * 25 XX
 				DAD		H
-				SHLD	ptrSubjectFile	; save the value * 50 XX
+				SHLD	storedSubTotal	; save the value * 50 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2326,9 +2326,9 @@ storedX100:
 				MOV		A,H				; put old Acc in Acc
 				POP		H				; retreive hi byte to HL
 				PUSH	H				; save Hi byte to Stack
-				LHLD	ptrSubjectFile	; get  the value * 25 XX
+				LHLD	storedSubTotal	; get  the value * 25 XX
 				DAD		H
-				SHLD	ptrSubjectFile	; save the value * 100 XX
+				SHLD	storedSubTotal	; save the value * 100 XX
 				POP		H				; retreive hi byte to HL
 				PUSH	PSW				; save the flags Zero and CY
 				MOV		A,L				; get value
@@ -2347,7 +2347,7 @@ storedXdone:
 				XTHL					; HL=> file Length, top of stack has high value for stored * 100
 				CALL	dblWord2Regs	; HL+0 =>E, HL+1 =>D, HL+2 =>C, HL+3=>B
 				PUSH	H				; save after the double word
-				LHLD	ptrSubjectFile	; get low word for Stored length	
+				LHLD	storedSubTotal	; get low word for Stored length	
 				XTHL					; put low word for stored length on stack
 				POP		H				; get low word for Stored length into HL
 				MOV		A,B				; get msb for file length 
@@ -2891,12 +2891,12 @@ fileLength:		DS		2
 	
 fileLengthHI:	DS		2	
 	
-				
-				
+								
 storeHL:		DS		2		; L178C
 storeDE:		DS		2		; L178E
 storeBC:		DS		2		; L1790
-L1792:			DS		2				
+L1792:			DS		2
+storedSubTotal:				
 ptrSubjectFile:	DS		2		; L1794:
 L1796:			DS		2
 L1798:
