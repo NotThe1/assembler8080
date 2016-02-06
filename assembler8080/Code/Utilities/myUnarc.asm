@@ -10,6 +10,7 @@ CTRL_C			EQU		03H			; ETX
 BELL			EQU		07H			; Bell
 LF				EQU		0AH			; Line Feed
 CTRL_K			EQU		0BH			; VT - Vertical tab
+CTRL_L			EQU		0CH			; FF - Form feed
 CR				EQU		0DH			; Carriage Return
 CTRL_S			EQU		13H			; X-OFF
 SPACE			EQU		20H			; Space
@@ -40,6 +41,8 @@ ARC_SOE			EQU		01AH		; Start of File
 ARC_TYPE_TOO_BIG	EQU	0AH			; types need to be smaller than this
 ARC_TYPE_3		EQU		03H			; type 3
 ARC_TYPE_4		EQU		04H			; type 4
+ARC_TYPE_6		EQU		06H			; type 6
+ARC_TYPE_8		EQU		08H			; type 8
 ARC_TYPE_9		EQU		039			; type 9
 
 vGetConInput	EQU		01H			; A <- ASCII char
@@ -592,50 +595,55 @@ checkConsoleIn:								; L06F4
 				RNZ
 L0713:
 				JMP  sendAbortMess			; 0059EH
+;
+; Keeps track of how many bytes remain in the file to be read
+;				
 				
-				
-L0716:
+getByte:						; returned in Acc
 				CALL swapAllRegisters
-L0719:
-				PUSH B
-				PUSH D
-				PUSH H
-				LXI  H,hdrStored
-				MVI  B,004H
-L0721:
-				MOV  A,M
-				DCR  M
-				ORA  A
-				JNZ  getNextRawValue1
-				INX  H
-				DCR  B
-				JNZ  00721H
-				MVI  B,004H
-L072E:
-				DCX  H
-				MOV  M,A
-				DCR  B
-				JNZ  0072EH
-				STC
-				JMP  restoreRegsBCDEHL
+getByte1:						; returned in Acc
+				PUSH	B
+				PUSH	D
+				PUSH	H			; save the enviornment
+				LXI		H,hdrStored	; point at stored value
+				MVI		B,004H		; put 4 into B
+getByte2:
+				MOV		A,M			; get LSB/-/MSB of stored into acc
+				DCR		M			; adjust the value down (bytes remaining)
+				ORA		A			; is it 00
+				JNZ		getNextRawValue1	; there is a byte to be had, get it and exit
+				
+				INX		H			; increment the pointer
+				DCR		B			; decrement the count
+				JNZ		getByte2	; loop if not done
+				MVI		B,004H		; else reload the counter
+getByte3:
+				DCX		H
+				MOV		M,A
+				DCR		B
+				JNZ		getByte3
+				STC					; signal end of data 
+				JMP		restoreRegsBCDEHL	; we are done with this file !
+;
+; Keeps track of where we are in the read buffer
 ;
 ; Return the next byte from the read buffer in the Acc.
 ;  read the next sector if necessary.
 ;
-getNextRawValue:								; L0738:
+getNextRawValue:
 				PUSH B
 				PUSH D
 				PUSH H
-getNextRawValue1:						; L073B
-				LHLD bufferPointer		; L1740
-				INR  L
-				CZ   readSeq			; call read seq if 1740 was -1 (initialized -1)
-				SHLD bufferPointer		; save buffer pointer in 01740H
+getNextRawValue1:
+				LHLD bufferPointer		; point at last read byte from disk buffer
+				INR  L					; we want the next byte
+				CZ   readSeq			; call read seq if at the end of the disk buffer 00FF
+				SHLD bufferPointer		; save( or reset) the buffer pointer
 				MOV  A,M				; get the first byte from buffer
-restoreRegsBCDEHL:						; L0746:
+restoreRegsBCDEHL:
 				POP  H
 				POP  D
-				POP  B
+				POP  B					; restore the enviornment, byte read in Acc
 				RET
 ;---------------
 readSeq:								; L074A
@@ -989,7 +997,7 @@ L095F:
 				LXI  D,01A00H
 				CALL setDMA				; 006EFH
 				MVI  C,vSearchForFirst
-				CALL sysCall0						; 006E7H
+				CALL sysCall0				; close file
 				JZ   0098DH
 				LXI  D,messReplaceQues				; 014D5H
 				CALL sendString00						; 00FBAH
@@ -1018,14 +1026,14 @@ L099B:
 				CPI  ARC_TYPE_3
 				JZ   009BAH
 L09AB:
-				CALL 00719H
+				CALL getByte1			; returned in Acc
 				JC   009C0H
 				CALL 00DC3H
 				JMP  009ABH
 L09B7:
-				CALL 00DA3H
+				CALL L0DA3
 L09BA:
-				CALL 00719H
+				CALL getByte1			; returned in Acc
 				JNC  009B7H
 L09C0:
 				CALL 00DD5H
@@ -1070,9 +1078,9 @@ L0A01:
 ; Type 4
 				LXI  B,003FFH
 				CALL 00A6EH
-				CALL 00719H
+				CALL getByte1			; returned in Acc
 				MOV  C,A
-				CALL 00719H
+				CALL getByte1			; returned in Acc
 				ORA  C
 				JZ   00A28H
 L0A15:
@@ -1081,7 +1089,7 @@ L0A15:
 				SUB  B
 				MOV  D,A
 L0A1A:
-				CALL 00719H
+				CALL getByte1			; returned in Acc
 				STAX D
 				INR  D
 				DCR  B
@@ -1104,7 +1112,7 @@ L0A30:
 				DCR  A
 				JNZ  00A46H
 				PUSH H
-				CALL 00716H
+				CALL getByte				; in Acc
 				CALL swapAllRegisters
 				JC   00A67H
 				POP  H
@@ -1124,7 +1132,7 @@ L0A4E:
 				JNZ  00A5FH
 				CMA
 				CALL swapAllRegisters
-				CALL 00DA3H
+				CALL L0DA3
 				JMP  00A2CH
 L0A5F:
 				DCR  B
@@ -1136,7 +1144,7 @@ L0A67:
 L0A68:
 				CALL swapAllRegisters
 				JMP  009C0H
-L0A6E:
+L0A6E:								; clear 1a00 for BC bytes
 				LXI  H,01A00H
 				MOV  M,L
 				MOV  D,H
@@ -1149,77 +1157,80 @@ L0A6E:
 L0A79:
 				LXI		H,00B85H
 				MVI		M,010H			; modify code - ANI XXX
-				CPI  008H
-				JNC  00A9CH
-				LXI  D,00D1FH
-				LXI  B,04FFFH
-				LXI  H,00C74H
-				CPI  006H
+				CPI		ARC_TYPE_8
+				JNC		00A9CH			; skip if type < 8
+				LXI D,Label1A		; an unlabeled location
+				LXI	B,04FFFH		; 20,478
+				LXI	H,00C74H
+				CPI	ARC_TYPE_6
 				MVI  A,055H
 				JZ   00ADBH
 				JC   00AD0H
 				LXI  H,00CCDH
 				JMP  00ADBH
 L0A9C:
-				JZ   00AA9H
+				JZ		00AA9H		; skip if type 8
 				MVI  M,020H
 				LXI  B,05FFFH
-				MVI  A,020H
+				MVI  A,020H			; move data inti Acc for code modification
 				JMP  00ABCH
+; type 8
 L0AA9:
-				CALL 00719H
-				JC   00AB7H
-				CPI  00CH
-				LXI  D,messInCompatibleCruch					; 0152DH
-				JNZ  sendErrorMess							; 0059BH
+				CALL	getByte1			; returned next byte in Acc
+				JC		00AB7H				; skip if we have processed all the bytes
+				CPI		CTRL_L				; do we have a Form Feed as first byte?
+				LXI		D,messInCompatibleCruch
+				JNZ		sendErrorMess		; error exit if not
 L0AB7:
-				LXI  B,02FFFH
-				MVI  A,010H
+				LXI		B,02FFFH			; Load a buffer size
+				MVI		A,010H				; load Acc for code modification
 L0ABC:
-				STA  00BB0H
-				LXI  H,00000H
-				SHLD 01798H
-				LXI  D,00BC7H
-				LXI  H,00BA1H
-				MVI  A,009H
-				JZ   00ADBH
+				STA		00BB0H				; modifying code CPI XX at 0BB0 (does not change)
+				LXI		H,00000H			; reset HL
+				SHLD	01798H				; reset this location
+				LXI		D,L0BC7H			; get pointer 2
+				LXI		H,L0BA1
+				MVI		A,009H
+				JZ		00ADBH				; first pass it is zero or we would have exited
 L0AD0:
 				PUSH H
-				LXI  H,00DC3H
+				LXI  H,00DC3H				; get pointer ??
 				SHLD ptrSubjectFile
 				POP  H
 				JMP  00AE3H
 L0ADB:
-				PUSH H
-				LXI  H,00DA3H
-				SHLD ptrSubjectFile
-				POP  H
+				PUSH	H				; save pointer2  to code
+				LXI		H,L0DA3			; get  pointer3 to code
+				SHLD	ptrSubjectFile	; save it in memory
+				POP		H				; get  pointer 2
 L0AE3:
-				PUSH H
-				LHLD ptrSubjectFile
-				SHLD 00D8EH
-				POP  H
-				SHLD 00B91H
+				PUSH	H				;save 1st pointer to code on stack
+				LHLD	ptrSubjectFile	; get pointer2 into HL
+				SHLD	00D8EH			; modify code 0D8A with  pointer 3 ***
+				POP		H				; get pointer 1
+				SHLD	00B91H			; modify code 0B91 with  pointer 3 ***			
+				XCHG					; move pointer 0 to HL
+				SHLD	00B1BH			; modify code 0B91 with  pointer 0 ***	
 				XCHG
-				SHLD 00B1BH
-				XCHG
-				STA  0179AH
-				MOV  A,B
-				SUI  003H
-				STA  00C3AH
-				CALL 00A6EH
-				PUSH H
-				MOV  H,B
-				MOV  L,C
-				SHLD 0179BH
-				POP  H
-				DCX  B
-				PUSH B
-				XRA  A
+				STA		0179AH			; save byte (09)
+				MOV		A,B				; move page count to Acc
+				SUI		003H			; subtract 3 pages ???
+				STA		00C3AH			; ** modify code ( no change)
+				CALL	00A6EH			; clear 1a00 for BC bytes (original 2FFF)
+				PUSH	H				; save end of cleaered area
+				MOV		H,B
+				MOV		L,C
+				SHLD	0179BH			; save Zeros here(counterX), reseting count ???
+				POP		H				; retreive last mem location cleared
+				DCX		B				; decrement counterX ??
+				PUSH	B				; save counterX
+				XRA		A				; clear the Acc
+				
+; after all the code mods for types				
 L0B09:
-				POP  B
-				PUSH B
-				PUSH PSW
+				POP		B				; get counterX
+				PUSH	B				; save counterX
+				PUSH	PSW				; save Acc
 				CALL 00B7FH
 				POP  PSW
 				INR  A
@@ -1228,7 +1239,7 @@ L0B09:
 L0B17:
 				CALL swapAllRegisters
 L0B1A:
-				CALL 00000H
+				CALL 00000H			; ** code is modified by 0AEF (CALL 0BC7 type 8)
 				POP  B
 				JC   00A68H
 				PUSH H
@@ -1300,20 +1311,23 @@ L0B78:
 				POP  PSW
 				JNZ  00B1AH
 				JMP  00B2BH
+; came here after modifying the code based on type. entered with CounterX containing 0000				
 L0B7F:
-				LHLD 0179BH
-				PUSH PSW
-				MOV  A,H
-				ANI  010H		; Immediate is modified see 0A79
-				XTHL
-				MOV  A,H
-				POP  H
-				RNZ
-				INX  H
-				SHLD 0179BH
+				LHLD	0179BH			; point at CounterX
+				PUSH	PSW				; save Acc
+				MOV		A,H
+				ANI  010H				; ** code is modified by 0A79 (ANI  010H for type 8)
+										; checking bit 4 
+				XTHL					; get original value into H
+				MOV		A,H				; restore it, but ANI's flags are still there	
+				POP		H				; restore HL
+				RNZ						; return if bit 4 was set
+				
+				INX		H				; increment CounterX
+				SHLD	0179BH			; and put back 
 				PUSH PSW
 				PUSH B
-				CALL 00000H
+				CALL 00000H		; ** code is modified by 0AEB (CALL 0BA1 type 8)
 				XTHL
 				CALL 00BBEH
 				XCHG
@@ -1327,6 +1341,7 @@ L0B7F:
 				MOV  M,A
 				RET
 ;---------------
+L0BA1:
 				MOV  A,L
 				DCR  L
 				ORA  A
@@ -1335,7 +1350,7 @@ L0B7F:
 				DCR  H
 				LXI  D,0179BH
 				JZ   00BBBH
-				CPI  010H
+				CPI  010H			; ** code is modified by 0ABC (10 for type 8)
 				JZ   00BBEH
 				ANA  H
 				JNZ  00BBEH
@@ -1352,6 +1367,7 @@ L0BBE:
 				DAD  D
 				RET
 ;---------------
+L0BC7H:
 				LXI  H,01798H
 				DCR  M
 				INX  H
@@ -1430,13 +1446,13 @@ L0BBE:
 				ANI  00FH
 				MOV  B,A
 				PUSH B
-				CALL 00716H
+				CALL getByte				; in Acc
 				CALL swapAllRegisters
 				POP  B
 				DCR  B
 				JNZ  00C29H
 				LXI  H,01D00H
-				LXI  B,02CFFH
+				LXI  B,02CFFH				; ** code is modified by 0AF9 (LXI  B,02CFFH)
 				CALL 00A71H
 				LXI  H,00101H
 				SHLD 0179BH
@@ -1448,7 +1464,7 @@ L0BBE:
 				JMP  00BC7H
 				PUSH B
 				PUSH H
-				CALL 00716H
+				CALL getByte				; in Acc
 				CALL swapAllRegisters
 				POP  H
 				POP  B
@@ -1612,7 +1628,8 @@ L0BBE:
 				POP  H
 				RET
 ;---------------
-				CALL 00716H
+Label1A:
+				CALL getByte				; in Acc
 				CALL swapAllRegisters
 				RC
 				MOV  E,A
@@ -1635,7 +1652,7 @@ L0BBE:
 				RET
 ;---------------
 				PUSH D
-				CALL 00716H
+				CALL getByte				; in Acc
 				CALL swapAllRegisters
 				POP  H
 				RC
@@ -1699,7 +1716,7 @@ L0BBE:
 ;---------------
 L0D8A:
 				CALL swapAllRegisters
-				JMP  00000H
+				JMP  00000H						; ** code is modified by 0AE7 (JMP 0DA3 for type 8)
 L0D90:
 				LHLD 01795H
 				MVI  L,000H
@@ -2944,7 +2961,7 @@ ptrSubjectFile:	DS		2		; L1794:
 memReqType:		DS		1
 memAvailable:	DS		1
 L1798:
-	
+;;** 179B   initalized after clearing work area?	
 
 
 
