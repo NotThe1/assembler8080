@@ -984,17 +984,17 @@ L090C:
 L0949:
 				LDA		printFlag
 				ORA		A
-				JNZ		0099BH			; skip if it is to be printed
+				JNZ		typeSetup		; skip if it is to be printed
 				LXI		H,OutBuffer1	
-				LXI		B,04E2DH
+				LXI		B,04E2DH		; B has number of bytes to fill, C has value to fill
 				CALL	fillMemWithC	; fill the outBuff1 with Dashes
 				CALL	doFileInfo3		; send them to the screen
-				JMP		0099BH
+				JMP		typeSetup
 ; working with a target drive
 L095F:
 				INR  B
-				JZ   0099BH
-				LXI  D,01A00H
+				JZ   typeSetup
+				LXI  D,Table1
 				CALL setDMA				; 006EFH
 				MVI  C,vSearchForFirst
 				CALL sysCall0				; close file
@@ -1018,21 +1018,25 @@ L098D:
 				LXI  D,messDirFull					; 01505H
 				JZ  sendErrorMess						; 0059BH
 				STA  openSpecFile						; 006DEH
-L099B:
+				
+				
+typeSetup:
 				LDA		hdrType
 				CPI		ARC_TYPE_4
-				JNC		00A01H				; skip if type > 4
+				JNC		typeGE4				; skip if type >= 4
 				CALL 00D90H
 				CPI  ARC_TYPE_3
-				JZ   009BAH
-L09AB:
+				JZ   typeEQ3
+; types 1 & 2 , unpacked
+typeEQ1and2:
 				CALL getByte1			; returned in Acc
 				JC   009C0H
 				CALL 00DC3H
-				JMP  009ABH
+				JMP  typeEQ1and2
+				
 L09B7:
 				CALL L0DA3
-L09BA:
+typeEQ3:
 				CALL getByte1			; returned in Acc
 				JNC  009B7H
 L09C0:
@@ -1073,11 +1077,11 @@ L09D9:
 				RNZ
 				LXI  D,messCanNotCloseOut					; 01514H
 				JMP  sendErrorMess						; 0059BH
-L0A01:
-				JNZ		00A79H				; skip if not type 4
-; Type 4
+typeGE4:
+				JNZ		typeGT4				; skip if not type 4
+; Type = 4
 				LXI  B,003FFH
-				CALL 00A6EH
+				CALL clearTable1ForBCbytes
 				CALL getByte1			; returned in Acc
 				MOV  C,A
 				CALL getByte1			; returned in Acc
@@ -1144,21 +1148,22 @@ L0A67:
 L0A68:
 				CALL swapAllRegisters
 				JMP  009C0H
-L0A6E:								; clear 1a00 for BC bytes
-				LXI  H,01A00H
-				MOV  M,L
-				MOV  D,H
-				MOV  E,L
-				INX  D
-				CALL moveHLtoDE		; 012FFH
+				
+clearTable1ForBCbytes:								; clear 1A00 for BC bytes
+				LXI		H,Table1
+				MOV		M,L
+				MOV		D,H
+				MOV		E,L
+				INX		D
+				CALL	moveHLtoDE
 				RET
 ;---------------
 ; types 5-9
-L0A79:
+typeGT4:
 				LXI		H,00B85H
 				MVI		M,010H			; modify code - ANI XXX
 				CPI		ARC_TYPE_8
-				JNC		00A9CH			; skip if type < 8
+				JNC		00A9CH			; skip if type 9
 				LXI D,Label1A		; an unlabeled location
 				LXI	B,04FFFH		; 20,478
 				LXI	H,00C74H
@@ -1169,10 +1174,10 @@ L0A79:
 				LXI  H,00CCDH
 				JMP  00ADBH
 L0A9C:
-				JZ		00AA9H		; skip if type 8
-				MVI  M,020H
-				LXI  B,05FFFH
-				MVI  A,020H			; move data inti Acc for code modification
+				JZ		00AA9H		; skip if type 8, it must be type 9
+				MVI		M,020H			; modify code - ANI XXX at loc 0B85		
+				LXI		B,05FFFH
+				MVI		A,020H			; move data inti Acc for code modification
 				JMP  00ABCH
 ; type 8
 L0AA9:
@@ -1212,29 +1217,30 @@ L0AE3:
 				XCHG					; move pointer 0 to HL
 				SHLD	00B1BH			; modify code 0B91 with  pointer 0 ***	
 				XCHG
-				STA		0179AH			; save byte (09)
+				STA		typeControl1	; save byte (09)
 				MOV		A,B				; move page count to Acc
 				SUI		003H			; subtract 3 pages ???
 				STA		00C3AH			; ** modify code ( no change)
-				CALL	00A6EH			; clear 1a00 for BC bytes (original 2FFF)
-				PUSH	H				; save end of cleaered area
+				CALL	clearTable1ForBCbytes	; clear 1a00 for BC bytes (original 2FFF) BC returns 00
+				PUSH	H				; save end of Table1 area
 				MOV		H,B
-				MOV		L,C
-				SHLD	0179BH			; save Zeros here(counterX), reseting count ???
+				MOV		L,C				; put 00 00 in HL
+				SHLD	CounterX		; save Zeros here(counterX), reseting count ???
 				POP		H				; retreive last mem location cleared
 				DCX		B				; decrement counterX ??
-				PUSH	B				; save counterX
+				PUSH	B				; save counterX -1
 				XRA		A				; clear the Acc
 				
-; after all the code mods for types				
-L0B09:
-				POP		B				; get counterX
-				PUSH	B				; save counterX
-				PUSH	PSW				; save Acc
-				CALL 00B7FH
-				POP  PSW
-				INR  A
-				JNZ  00B09H
+; after all the code mods for types Acc is index counter starts ends at 00				
+makeTable1:
+				POP		B				; get counterX -1
+				PUSH	B				; save counterX -1
+				PUSH	PSW				; save index counter
+				CALL addTable1Entry
+				POP		PSW
+				INR		A				; Increment the index counter
+				JNZ		makeTable1		; loop until Index counte = 00 (000 thru 0FFH)
+				
 				CALL 00D90H
 L0B17:
 				CALL swapAllRegisters
@@ -1243,7 +1249,7 @@ L0B1A:
 				POP  B
 				JC   00A68H
 				PUSH H
-				CALL 00BBEH
+				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
 				INR  B
 				JNZ  00B31H
 				INX  H
@@ -1259,7 +1265,7 @@ L0B31:
 				JNZ  00B3DH
 				MOV  H,B
 				MOV  L,C
-				CALL 00BBEH
+				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
 L0B3D:
 				MVI  D,001H
 L0B3F:
@@ -1283,7 +1289,7 @@ L0B50:
 				DCX  H
 				PUSH D
 				PUSH H
-				CALL 00B7FH
+				CALL addTable1Entry
 				POP  H
 L0B5B:
 				INX  H
@@ -1312,58 +1318,66 @@ L0B78:
 				JNZ  00B1AH
 				JMP  00B2BH
 ; came here after modifying the code based on type. entered with CounterX containing 0000				
-L0B7F:
-				LHLD	0179BH			; point at CounterX
-				PUSH	PSW				; save Acc
-				MOV		A,H
-				ANI  010H				; ** code is modified by 0A79 (ANI  010H for type 8)
+addTable1Entry:
+				LHLD	CounterX		; get CounterX value
+				PUSH	PSW				; save Counter in Acc
+				MOV		A,H				; get MSB of CounterX
+				ANI		010H			; ** code is modified by 0A7C (ANI  010H for type 8)
+										; ** code is modified by 0A9F (ANI  020H for type 9)
 										; checking bit 4 
 				XTHL					; get original value into H
 				MOV		A,H				; restore it, but ANI's flags are still there	
 				POP		H				; restore HL
 				RNZ						; return if bit 4 was set
 				
-				INX		H				; increment CounterX
-				SHLD	0179BH			; and put back 
-				PUSH PSW
-				PUSH B
-				CALL 00000H		; ** code is modified by 0AEB (CALL 0BA1 type 8)
-				XTHL
-				CALL 00BBEH
-				XCHG
-				POP  H
-				DCX  H
-				MOV  M,E
-				INX  H
-				MOV  M,D
-				INX  H
-				POP  PSW
-				MOV  M,A
+				INX		H				; increment CounterX value 
+				SHLD	CounterX		; and put back 
+				PUSH	PSW				; save original MSB of CounterX
+				PUSH	B				; save modified CounteX
+				CALL	00000H			; ** code is modified by 0AEB (CALL 0BA1 type 8)
+										; returns with HL pointing at position in Table1 work area
+				XTHL					; swap returned value & Modified CounterX (FFFF)??
+				CALL	table1And3DE	;Returns with HL =((DE) *3) + Table1+1
+				XCHG					; HL has Table1 constants ( DE the offset)
+										 
+				POP		H				; get the pointer (to Table1) +1
+				DCX		H				; adjust the saved pointer down 1
+				MOV		M,E
+				INX		H
+				MOV		M,D
+				INX		H
+				POP		PSW
+				MOV		M,A				; populate Table1
 				RET
 ;---------------
 L0BA1:
-				MOV  A,L
-				DCR  L
-				ORA  A
-				JNZ  00BBEH
+				MOV		A,L				; get LSB of counter ??
+				DCR		L
+				ORA		A				; was orignal value Zero ?
+				JNZ		table1And3DE	;skip if not else Returns with HL =((DE) *3) + Table1+1		; 	
 				MOV  A,H
 				DCR  H
-				LXI  D,0179BH
+				LXI  D,CounterX
 				JZ   00BBBH
-				CPI  010H			; ** code is modified by 0ABC (10 for type 8)
-				JZ   00BBEH
+				CPI  010H					; ** code is modified by 0ABC (10 for type 8)
+				JZ   table1And3DE			;Returns with HL =((DE) *3) + Table1+1
 				ANA  H
-				JNZ  00BBEH
-				LXI  D,0179AH
+				JNZ  table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				LXI  D,typeControl1
 				XCHG
 				INR  M
 				XCHG
-L0BBE:
-				MOV  D,H
-				MOV  E,L
-				DAD  H
-				DAD  D
-				LXI  D,01A01H
+;
+;  Table1 is a 3 byte table.
+;  Returns with ((DE) *3) + Table1+1
+;				
+table1And3DE:
+
+				MOV		D,H			; move HL into DE
+				MOV		E,L
+				DAD		H			; HL * 2
+				DAD		D			; HL * 3
+				LXI		D,Table1 + 1	; Add woking base
 				DAD  D
 				RET
 ;---------------
@@ -1425,7 +1439,7 @@ L0BC7H:
 				DCR  A
 				ORA  L
 				RNZ
-				LXI  H,0179AH
+				LXI  H,typeControl1
 				MOV  C,M
 				MVI  M,009H
 				DCX  H
@@ -1453,9 +1467,10 @@ L0BC7H:
 				JNZ  00C29H
 				LXI  H,01D00H
 				LXI  B,02CFFH				; ** code is modified by 0AF9 (LXI  B,02CFFH)
+											; the size of Table1 - 3 pages
 				CALL 00A71H
 				LXI  H,00101H
-				SHLD 0179BH
+				SHLD CounterX
 				POP  H
 				XTHL
 				LXI  H,0FFFFH
@@ -1586,7 +1601,7 @@ L0BC7H:
 				ANI  00FH
 				MOV  H,A
 				PUSH H
-				CALL 00BBEH
+				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
 				POP  D
 				MOV  A,M
 				ORA  A
@@ -1613,7 +1628,7 @@ L0BC7H:
 				MOV  H,A
 				POP  PSW
 				PUSH H
-				CALL 00BBEH
+				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
 				POP  D
 				MOV  A,M
 				ORA  A
@@ -1633,7 +1648,7 @@ Label1A:
 				CALL swapAllRegisters
 				RC
 				MOV  E,A
-				LXI  H,0179AH
+				LXI  H,typeControl1
 				PUSH PSW
 				MOV  A,M
 				RRC
@@ -1760,13 +1775,13 @@ L0DBC:
 				JZ   00DBAH
 				MOV  C,A
 L0DC3:
-				STAX D
-				XRA  L
-				MOV  L,A
-				MOV  A,H
-				MVI  H,018H
-				XRA  M
-				INR  H
+				STAX	D			; put character in memory
+				XRA		L
+				MOV		L,A			; move byte to L
+				MOV		A,H			; get H		
+				MVI		H,018H		
+				XRA		M
+				INR		H
 				MOV  H,M
 				MOV  L,A
 				INR  E
@@ -2960,8 +2975,13 @@ storedSubTotal:
 ptrSubjectFile:	DS		2		; L1794:
 memReqType:		DS		1
 memAvailable:	DS		1
-L1798:
-;;** 179B   initalized after clearing work area?	
+L1798:			DS		2
+typeControl1:	DS		1		; orginally set to 9 for type 8
+CounterX:		DS		2
+X179D:
+
+
+Table1	equ		CodeStart + 01900H		; table 1 (19 FE XX)	
 
 
 
