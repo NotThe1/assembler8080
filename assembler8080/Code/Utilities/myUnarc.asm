@@ -1179,60 +1179,68 @@ typeGT4:
 				LXI		H,00B85H
 				MVI		M,010H			; modify code - ANI XXX
 				CPI		ARC_TYPE_8
-				JNC		00A9CH			; skip if type 9
+				JNC		typeGE8			; skip if type GT 8
 				LXI D,Label1A		; an unlabeled location
 				LXI	B,04FFFH		; 20,478
 				LXI	H,00C74H
 				CPI	ARC_TYPE_6
 				MVI  A,055H
-				JZ   00ADBH
-				JC   00AD0H
+				JZ   crunch3
+				JC   crunch2
 									; type 7
 				LXI  H,00CCDH
-				JMP  00ADBH
-L0A9C:
-				JZ		00AA9H		; skip if type 8, it must be type 9
+				JMP  crunch3
+				
+; get here for types 8, 9
+typeGE8:
+				JZ		typeEQ8		; skip if type 8, it must be type 9
+; get here only fror type 9
 				MVI		M,020H			; modify code - ANI XXX at loc 0B85		
-				LXI		B,05FFFH
+				LXI		B,05FFFH		; buffer size - for table1A
 				MVI		A,020H			; move data inti Acc for code modification
-				JMP  00ABCH
+				JMP		crunch1
 ; type 8
-L0AA9:
+typeEQ8:
 				CALL	getByte1			; returned next byte in Acc
-				JC		00AB7H				; skip if we have processed all the bytes
+				JC		crunch0				; skip if we have processed all the bytes
 				CPI		CTRL_L				; do we have a Form Feed as first byte?
 				LXI		D,messInCompatibleCruch
 				JNZ		sendErrorMess		; error exit if not
-L0AB7:
-				LXI		B,02FFFH			; Load a buffer size
+				
+crunch0:
+				LXI		B,02FFFH			;  buffer size - for table1A
 				MVI		A,010H				; load Acc for code modification
-L0ABC:
+crunch1:
 				STA		00BB0H				; modifying code CPI XX at 0BB0 (does not change)
 				LXI		H,00000H			; reset HL
-				SHLD	01798H				; reset this location
-				LXI		D,L0BC7H			; get pointer 2
-				LXI		H,L0BA1
-				MVI		A,009H
-				JZ		00ADBH				; first pass it is zero or we would have exited
-L0AD0:
+				SHLD	CounterY			; reset this location
+				LXI		D,L0BC7H			; get pointerA
+				LXI		H,L0BA1				; get pointerB
+				MVI		A,009H				; load Acc
+				JZ		crunch3				; first pass it is zero or we would have exited
+; get her for types 5 and fall thru for type 9
+crunch2:
 				PUSH H
 				LXI  H,00DC3H				; get pointer ??
 				SHLD ptrSubjectFile
 				POP  H
-				JMP  00AE3H
-L0ADB:
-				PUSH	H				; save pointer2  to code
-				LXI		H,L0DA3			; get  pointer3 to code
+				JMP  crunch4
+				
+; get here for types 6 & 7				
+crunch3:
+				PUSH	H				; save pointerB  to Stack
+				LXI		H,L0DA3			; get  pointerC to code
 				SHLD	ptrSubjectFile	; save it in memory
-				POP		H				; get  pointer 2
-L0AE3:
-				PUSH	H				;save 1st pointer to code on stack
-				LHLD	ptrSubjectFile	; get pointer2 into HL
-				SHLD	00D8EH			; modify code 0D8A with  pointer 3 ***
-				POP		H				; get pointer 1
-				SHLD	00B91H			; modify code 0B91 with  pointer 3 ***			
-				XCHG					; move pointer 0 to HL
-				SHLD	00B1BH			; modify code 0B91 with  pointer 0 ***	
+				POP		H				; get  pointerB
+; get here for types 5,6,7
+crunch4:
+				PUSH	H				; save pointerB
+				LHLD	ptrSubjectFile	; get pointerB into HL
+				SHLD	00D8EH			; modify code 0D8A with   pointerB ***
+				POP		H				; get pointerB into HL
+				SHLD	00B91H			; modify code 0B91 with  pointerB ***			
+				XCHG					; move pointerC to HL
+				SHLD	00B1BH			; modify code 0B91 with  pointerC ***	
 				XCHG
 				STA		typeControl1	; save byte (09)
 				MOV		A,B				; move page count to Acc
@@ -1253,14 +1261,15 @@ makeTable1A:
 				POP		B				; get counterX -1
 				PUSH	B				; save counterX -1
 				PUSH	PSW				; save index counter
-				CALL addTable1AEntry
+				CALL	addTable1AEntry
 				POP		PSW
 				INR		A				; Increment the index counter
-				JNZ		makeTable1A		; loop until Index counte = 00 (000 thru 0FFH)
+				JNZ		makeTable1A		; loop until Index counte = 00 (00 thru 0FFH)
+										; Table1 has 256 3 byte entries
 				
-				CALL 00D90H
+				CALL 00D90H				; return 00, 00 FF, 4A 00, 0000
 L0B17:
-				CALL swapAllRegisters
+				CALL swapAllRegisters	; save the registers for later
 L0B1A:
 				CALL 00000H			; ** code is modified by 0AEF (CALL 0BC7 type 8)
 				POP  B
@@ -1376,7 +1385,7 @@ L0BA1:
 				DCR  H
 				LXI  D,CounterX
 				JZ   00BBBH
-				CPI  010H					; ** code is modified by 0ABC (10 for type 8)
+				CPI  010H					; ** code is modified by 0ABC (10 for type 8 & 9)
 				JZ   table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				ANA  H
 				JNZ  table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
@@ -1399,7 +1408,7 @@ table1Aand3DE:
 				RET
 ;---------------
 L0BC7H:
-				LXI  H,01798H
+				LXI  H,CounterY
 				DCR  M
 				INX  H
 				MOV  A,M
@@ -2994,7 +3003,7 @@ storedSubTotal:
 ptrSubjectFile:	DS		2		; L1794:
 memReqType:		DS		1
 memAvailable:	DS		1
-L1798:			DS		2
+CounterY:		DS		2
 typeControl1:	DS		1		; orginally set to 9 for type 8
 CounterX:		DS		2
 X179D:
