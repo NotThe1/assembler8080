@@ -112,7 +112,7 @@ CodeStart:
 pageOverhead:	DB		008H		; read Only - checked to see if there is enough memory to do this
 control1:		DB		000H		; read Only
 maxDrive:		DB		010H		; read Only - L0105
-control2:		DB		010H		; read Only		used to check max drive in 0833
+control2:		DB		010H		; read Only		used to check max drive in setTarget
 control3:		DB		0FFH		; read Only
 control4:		DB		000H		; read Only
 control5:		DB		000H		; read Only
@@ -248,7 +248,7 @@ BEGIN:
 				LXI		B,01200H					; Fill 00 for 12H bytes
 				CALL	fillMemWithC
 				CALL	parseComTail
-				CALL	00833H						; came back with QMARKS is Subject file name;
+				CALL	setTarget					; expands tail info for target drive and file(s)
 				LXI		H,00003H					; load b with a limit count
 				MOV		B,L
 findEntryStart:
@@ -273,7 +273,7 @@ processEntry:
 				JNZ		pointAtNextEntry		; skip if header file name not matching target file name
 				CALL	doFileInfo				; display file info
 				CALL 0090CH
-				CALL 00900H
+				CALL anyQMarksTarget
 				JNZ  cleanUp			; 00531H
 				
 pointAtNextEntry:
@@ -337,7 +337,7 @@ L056A:
 ;				
 checkENV:
 				XRA		A    			; clear Acc
-				STA		openSource			; 006D6H
+				STA		openSource		; 006D6H
 				STA		openSpecFile			; 006DEH
 				STA		pauseFlag		; clear the pause Flag (no-Pause);
 				MVI		C,vGetVersion
@@ -348,14 +348,14 @@ checkENV:
 				LDA		TopRam  		; get page number of start of DBOS
 				LXI		H,pageOverhead	; point at stored value (08) - 00103H 		
 				SUB		M  				; subtract fom BDOS page start
-				STA		workingMemory	;  result = 0xE0H, put it away
+				STA		workingMemory	;  ** modifies code - result = 0xE0H, put it away
 				MVI		A,017H			; minimum number of pages needed to run
 enoughMemory:
 							; check to see if we have enough memory to do the task
-							; number of pages in Acc
+							; number of pages in Acc, available memory pages in instruction CPI
 ; modified code *****
-				DB		CODE_CPI		; CPI
-workingMemory:	DB		00H				;  check against need memory
+				DB		CODE_CPI		; CPI  check Acc against available memory
+workingMemory:	DB		00H				; set by 058F 
 
 				RC             			; return if there is enough Memory
 				
@@ -375,119 +375,126 @@ sendStringNL00NL:
 ;
 				
 parseComTail:
-				LXI  H,ComTailCount
-				MOV  E,M       			; get number of bytes in the buffer
-				MVI  D,000H 			; set hibyte to zero
-				DAD  D 					; point at the end of the buffer
-				DCX  H 					; is the next
-				MOV  A,M       			;   to last character
-				CPI  SPACE 				;    a Space ?
-				JNZ  parseComTail2		; skip if no	
-				INX  H 					; else look at last char, its a flag
-				MOV  A,M       			; get the flag
-				CPI  flagNoPause		; is there a No-Pause flag ?
-				JZ   parseComTail3		; skip if yes
-				CPI  flagPrint			; else - is there a Print flag
-				JNZ  parseComTail1		; skip if no		
-				STA  printFlag			; else store P in the print flag
+				LXI		H,ComTailCount
+				MOV		E,M       			; get number of bytes in the buffer
+				MVI		D,000H 				; set hibyte to zero
+				DAD		D 					; point at the end of the buffer
+				DCX		H 					; is the next
+				MOV		A,M       			;   to last character
+				CPI		SPACE 				;    a Space ?
+				JNZ		parseComTail2		; skip if no	
+				INX		H 					; else look at last char, its a flag
+				MOV		A,M       			; get the flag
+				CPI		flagNoPause			; is there a No-Pause flag ?
+				JZ		parseComTail3		; skip if yes
+				CPI		flagPrint			; else - is there a Print flag
+				JNZ		parseComTail1		; skip if no		
+				STA		printFlag			; else store P in the print flag
 parseComTail1:
-				CPI  flagCheckValidity	; Is it a Check Valitity flag ?
-				JNZ  parseComTail2		; skip if no - 005CFH
-				STA  checkValidFlag		; else store if checkValidFlag 
+				CPI		flagCheckValidity	; Is it a Check Valitity flag ?
+				JNZ		parseComTail2		; skip if no - 005CFH
+				STA		checkValidFlag		; else store if checkValidFlag 
 parseComTail2:
-				LDA  pauseLimit			; get the number of lines to show before pausing
-				STA  pauseFlag			; set flag non zero (pauseLimit) else empty for no-pause option
-				STA  pauseCount			; set up count down to pause 
+				LDA		pauseLimit			; get the number of lines to show before pausing
+				STA		pauseFlag			; set flag non zero (pauseLimit) else empty for no-pause option
+				STA		pauseCount			; set up count down to pause 
 ; past the cmd line flags [N|P|C]
 parseComTail3:
-				MVI  A,SPACE
-				LXI  H,FCB2				; cmd arg 2 expanded FCB 
-				LXI  D,targetDrive	
-				PUSH PSW
-				MOV  A,M				; a<- (M)
-				STAX D 					; in targetDrive NULL means no writing of extracted files
-				INX  H
-				INX  D
-				DCX  B  				; ????????
-				POP  PSW       			; get the space back into Acc	
-				LXI  D,subjectFiles
-				LXI  B,FullNameSize		; filename and ext length 8 + 3 = 11 - 0000BH
-				CMP  M 					; does FCB2 contain a SPACE ?
-				JNZ  parseComTail4		; skip if not -  005F7H 				
-				MOV  H,D 				; place memory pointer
-				MOV  L,E       			;    into from DE to HL
-				MVI  M,QMARK			; put QMARK into memory - (1744)
-				INX  D  				; set up fill Target files with QMARKS
-				DCX  B 
+				MVI		A,SPACE
+				LXI		H,FCB2				; cmd arg 2 expanded FCB 
+				LXI		D,targetDrive	
+				PUSH	PSW					; save the space
+				MOV		A,M					; Move target Drive to Acc
+				STAX	D 					; Place in targetDrive (00 = No drive, 1 = A, 2=B...)
+				INX		H
+				INX		D
+				DCX		B  					; ????????
+				POP		PSW       			; get the space back into Acc	
+				LXI		D,targetFiles
+				LXI		B,FullNameSize		; filename and ext length 8 + 3 = 11 - 0000BH
+				CMP		M 					; does FCB2 contain a file designator ?
+				JNZ		parseComTail4		; skip if designator 				
+				MOV		H,D 				; place memory pointer
+				MOV		L,E       			;    into from DE to HL
+				MVI		M,QMARK				; put QMARK into memory - (1744)
+				INX		D  					; set up fill Target files with QMARKS for All files
+				DCX		B 					; account for the QMARK
 ; put in ext if its not there				
 parseComTail4:
-				CALL moveHLtoDE			; put the target file FCB into Target Files
-				LXI  H,FCB1 + 9			; point at ext for FCB1
-				CMP  M					; if SPACE for ARK extension
-				JNZ  parseComTail5		; skip , else force to ARK
-				MVI  M,ASCII_A
-				INX  H
-				MVI  M,ASCII_R
-				INX  H
-				MVI  M,ASCII_K
-				STA  flagOS				; 0173DH
-parseComTail5:							; L060C:
-				LXI  H,FCB1 +1
-				CMP  M 					; file name start with a SPACE ?
-				JZ   noComTail 			; skip if Yes - display usage and go back to CCP
-				PUSH H 					; save fcb1 pointer
-				CALL anyQMarks			; Does FCB1 have any QMARKS? (Zero flag set if yes)
-				LXI  D,messAmbigFile	; we dont want any. Only one Archive file!
+				CALL	moveHLtoDE			; put the target file FCB into Target Files
+				LXI		H,FCB1 + 9			; point at ext for FCB1
+				CMP		M					; if SPACE for ARK extension
+				JNZ		parseComTail5		; skip , else force to ARK
+				MVI		M,ASCII_A
+				INX		H
+				MVI		M,ASCII_R
+				INX		H
+				MVI		M,ASCII_K
+				STA		flagOS
+; check if ARK file is specified
+parseComTail5:
+				LXI		H,FCB1 +1
+				CMP		M 					; ARK file name start with a SPACE ?
+				JZ		noComTail 			; skip if Yes - display usage and go back to CCP - need ARK file
+; is the ARK file unambiuously named?				
+				PUSH	H 					; save fcb1 pointer (ARK file name)
+				CALL	anyQMarks			; Does FCB1 have any QMARKS? (Zero flag set if yes)
+				LXI		D,messAmbigFile		; we dont want any. Only one Archive file!
 parseComTail6:	
-				JZ   sendErrorMess		;  get outta here if FCB1 is Ambiguous
-				POP  D         			; put the Arc file's into DE - FCB1 
-				LXI  H,messArcFileName	; put Archive file's FCB into HL for cleanup
-				MVI  C,SPACE			; remove spaces and insert Period
-				CALL trimFullName		;    and put into location pointed at by HL
-				XRA  A					; set Acc = 0
-				MOV  M,A				;   terminate the string -messArcFileName- with NULL
-				DCR  A
-				STA  bufferPointer		; Store -1  as flag to read 
-				LXI  H,FCB1				; points at the disk (0= current, 1 = A, 2= B)
-				LDA  maxDrive			; 00105H - L0105
-				CMP  M					; is it a good drive number ?
-				LXI  D,messBadArchFileDrive		; load message if not
-				JC   sendErrorMess		; Jump to send error message if drive not valid
-				XCHG					; load DE with FCB1, the archive file
-				MVI  C,vOpenfile
-				CALL sysCall			; open it
-				JNZ  haveArcFile		; returns 0 (FF inc 1), if failed. jump if sucsessful open - 00656H				
-				LXI  H,flagOS			;   else not valid open
-				ORA  M					; 	is it an MS-DOS File ?
-				LXI  D,messMissingArchiveFile
-				JZ   parseComTail6		; if Yes do a clean exit out.
-				MVI  M,000H				;    else force osFlag to MS-DOS
-				LXI  H,FCB1 + 11		; point at last char of ext - 00067H
-				MVI  M,ASCII_C			; force type to be ARC
-				JMP  parseComTail5		; retry with file ext of ARC
+				JZ		sendErrorMess		;  get outta here if FCB1 is Ambiguous/ARK file missing
 				
-haveArcFile:							; L0656:
-				STA  openSource			; save the return code for late testing - 006D6H
-				LXI  D,messArchFileEqual
-				CALL sendStringNL00NL	; Display - Archive File = .....
-				LDA  control1			; this is the only reference to 104
-				ORA  A					; if 104 is Zero then
-				CZ   inControl2Not
-				JNZ  setBlockSize		; SKIP if 106 was zero  and set blockSizeInK to 1
+				POP		D         			; put the ARK file's into DE - FCB1 
+				LXI		H,messArcFileName	; put Archive file's FCB into HL for cleanup
+				MVI		C,SPACE				; remove spaces and insert Period
+				CALL	trimFullName		;    and put into location pointed at by HL
+				XRA		A					; set Acc = 0
+				MOV		M,A					;   terminate the string -messArcFileName- with NULL
+				DCR		A
+				STA		bufferPointer		; Store -1  used as a flag to read
+; is it a good target drive?
+				LXI		H,FCB1				; points at the disk (0= current, 1 = A, 2= B)
+				LDA		maxDrive			; 00105H - L0105
+				CMP		M					; is it a good drive number ?
+				LXI		D,messBadArchFileDrive		; load message if not
+				JC		sendErrorMess		; Jump to send error message if drive not valid
+; open the ARK file				
+				XCHG					; load DE with FCB1, the archive file
+				MVI		C,vOpenfile
+				CALL	sysCall			; open it
+				JNZ		haveArcFile		; returns 0 (FF inc 1), if failed. jump if sucsessful open - 00656H				
+
+				; if not found force to ARK file if it was ARC and retry, else exit out
+				LXI		H,flagOS			;   else not valid open
+				ORA		M					; 	is it an MS-DOS File ?
+				LXI		D,messMissingArchiveFile
+				JZ		parseComTail6		; if Yes do a clean exit out.
+				MVI		M,000H				;    else force osFlag to MS-DOS
+				LXI		H,FCB1 + 11			; point at last char of ext - 00067H
+				MVI		M,ASCII_C			; force type to be ARC
+				JMP		parseComTail5		; retry with file ext of ARC
+				
+haveArcFile:						
+				STA		openSource			; save the return code for late testing - 006D6H
+				LXI		D,messArchFileEqual
+				CALL	sendStringNL00NL	; Display - Archive File = .....
+				LDA		control1			; this is the only reference to 104
+				ORA		A					; if 104 is Zero then
+				CZ		inControl2Not
+				JNZ		setBlockSize		; SKIP if 106 was zero  and set blockSizeInK to 1
 calcBlockSize:							; L0669
-				LDA  controlW			; else, check if 10D is Zero
-				ORA  A
-				JNZ  setBlockSize		; set blockSizeInK to (10D) if it is not empty
-				MVI  C,vGetDPB			; else get BLM from Disk Parameter Block and Calc
-				CALL BDOSE				; HL points to the Disk Parameter BlocK
-				INX  H
-				INX  H					; at BSH (Block Shift)
-				INX  H					; at Block Mask
-				MOV  A,M				; get the Block Mask
-				INR  A
+				LDA		controlW			; else, check if 10D is Zero
+				ORA		A
+				JNZ		setBlockSize		; set blockSizeInK to (10D) if it is not empty
+				MVI		C,vGetDPB			; else get BLM from Disk Parameter Block and Calc
+				CALL	BDOSE				; HL points to the Disk Parameter BlocK
+				INX		H
+				INX		H					; at BSH (Block Shift)
+				INX		H					; at Block Mask
+				MOV		A,M				; get the Block Mask
+				INR		A
 				RRC
 				RRC
-				RRC
+				RRC							; you have the calculated block size from the BDOS
 setBlockSize:								; L067D
 				STA  blockSizeInK
 				RET
@@ -550,6 +557,7 @@ closeFiles:								; L06D2:
 ; modified code *****
 				DB	CODE_MVI			; MVI
 openSource:		DB	00H					; return from OpenFile +1 : 0= file not open , we have a 4?
+										; does not seem to be accessed after it is set
 
 				CALL closeOneFile		; 006DFH
 closeSubjectFile:						; L06DA
@@ -596,6 +604,8 @@ checkConsoleIn:								; L06F4
 L0713:
 				JMP  sendAbortMess			; 0059EH
 ;
+; Returns the byte from the ARK file in Acc.
+; Sets the CY flag when end-of-data
 ; Keeps track of how many bytes remain in the file to be read
 ;				
 				
@@ -754,7 +764,7 @@ setSubFileName:									; L07DD:
 				LXI  D,hdrFileName		; point at 1771 data moved from rawBuffer
 				LXI  H,wFileName				; load for later 1750
 				PUSH H
-				LXI  H,subjectFiles				; get address of target file name
+				LXI  H,targetFiles				; get address of target file name
 				SHLD ptrSubjectFile				; save it for later
 				POP  H
 				MVI  B,00BH
@@ -803,47 +813,51 @@ setSubFileName6:
 				LXI  B,01500H
 				JMP  fillMemWithC
 ;---------------				
-L0833:
+setTarget:
 				LDA		control2			; get Flag1
 				MOV		B,A					; put it into B
 				LXI		H,checkValidFlag
-				CALL	inControl2Not			; 016 has 10 in it so return with Acc =0
+				CALL	inControl2Not		; 016 has 10 in it so return with Acc =0
 				DCR		A
-				JNZ		00849H				; ***skip if Acc was 00 ie 106 was NOT 00
+				JNZ		setTarget1			; ***skip if Acc was 00 ie 106 was NOT 00
 				MOV		B,A					;  else put 00 into B
-				MOV		M,A					;  clear checkValidFlag or Buffer Pointer ?
+				MOV		M,A					;  clear checkValidFlag/Buffer Pointer ?
 				STA		printFlag			; and clear the print flag
 				LDA		control3			; and retrieve the value in 107 (FF)
-L0849:	; **
+setTarget1:
 				MOV		C,A					; put contents of A(FF) or control3(FF) in C
 				LDA		targetDrive			; is there a target drive specified?
 				ORA		A
-				JNZ		00863H				; Skip if yes - there is writing of extracted file on disk
+				JNZ		setTarget2			; Skip if yes - there is writing of extracted file on disk
 				ORA		M					; or with check Valid Flag
-				JZ		008D2H				; ***skip if check Valid Flag not set
+				JZ		setTarget3			; ***skip if check Valid Flag not set ( & no target Drive)
 ; this is for , no target drive and validate				
 				LXI		D,messCheckingArch	; Point at the message
 				CALL	sendStringNL00		; send it
 				MVI		A,0FEH
-				STA		targetDrive			; set target drive to -1
-				JMP  0088FH					; no target drive and validate
+				STA		targetDrive			; set target drive to -2
+				JMP		makeTable1819		; no target drive and no validate
 ; target drive indicated
-L0863:
+setTarget2:
+; is drive valid ?
 				DCR		A
 				CMP		B					; is drive valid 
 				LXI		D,messBadOutputDrive	; set up bad drive message
 				JNC		sendErrorMess		; send it if drive invalid
+; display dirve = messge				
 				MOV		E,A					; move drive index to E
 				PUSH	D					; save on the stack
 				ADI		ASCII_A				; make the ascci code for the drive
 				STA		outDrive			; put drive in output message
 				LXI		D,messOutDriveEquals
 				CALL	sendStringNL00		; send the message
+				
+; set target drive's blockSizeInK
 				MVI		C,vGetCurDisk
 				CALL	BDOSE				; what drive is active its in Acc 0=A,1=B,2=C...
-				POP		D					; get the target drive
+				POP		D					; get the target drive into E
 				CMP		E					; is it target drive the active drive ?
-				PUSH	PSW					; save current drive
+				PUSH	PSW					; save current drive and z flag (set = target drive = source)
 				MVI		C,vSelectDisk		; get ready for call to select the target drive
 				CNZ		BDOSE				; select another drive if needed
 				CALL	calcBlockSize		; get block size and put in blockSizeInK
@@ -851,15 +865,16 @@ L0863:
 				MOV		E,A					; get current drive into e for sys call
 				MVI		C,vSelectDisk
 				CNZ		BDOSE				; select orignal drive if needed
-L088F:
-				LXI		H,01900H			; need at lease a page and a half beyond program space
+				
+makeTable1819:
+				LXI		H,Table19			; need at lease a page and a half beyond program space
 				MOV		A,H					; set min requirement in Acc
 				CALL	enoughMemory		;check to make sure we have enough
 				LXI		D,0A001H
-L0899:
+makeTable1819A:
 				MOV		A,L					; get ???
 				LXI		B,00800H			; load BC with 2K call it COUNT (B is 08,C is 00)
-L089D:
+makeTable1819B:
 				ORA		A					; reset carry
 				PUSH	PSW					; save PSW
 				MOV		A,C					; get COUNT lsb
@@ -871,7 +886,7 @@ L089D:
 				MOV		A,H					;     into Acc
 				POP		H					; restore COUNT into HL
 				RAR
-				JNC		008C5H				; jump if LSB was not set
+				JNC		makeTable1819C		; jump if LSB was not set
 				PUSH	H			 		; save new pointer
 				PUSH	PSW					; save PSW
 				LHLD	01792H				; point at JUNK (808A)
@@ -890,54 +905,54 @@ L089D:
 				POP  PSW
 				POP  H
 				XRA  E
-L08C5: ;****
+makeTable1819C: 
 				DCR		B				; decrement MSB of COUNT
-				JNZ		0089DH			; loop until done 
+				JNZ		makeTable1819B	; loop until done 
 				MOV		M,C				; stuff ?? into Mem limit
 				DCR		H
 				MOV		M,A				; stuff ?? into  lower page
 				INR		H
 				INR		L
-				JNZ		00899H
+				JNZ		makeTable1819A
 				RET
 ;---------------				
-L08D2:	; ***
+setTarget3:
 				ORA  C				; Acc has target drive
-				CNZ  00900H			; Call if no target drive specified and C was 00??
+				CNZ  anyQMarksTarget	; Call if no target drive specified and C was 00??
 				RZ					; return if there are any QMARKS in Subject files
 ;
 ; Subject file is has no QMARKS in it
 ;
 				LXI  D,0010FH
-L08DA:
+setTarget4:
 				LXI  H,0174CH		; popint at subject files wxr	
 				MVI  B,003H
-L08DF:
+setTarget5:
 				LDAX D				; get character
 				ORA  A
-				JZ   008FBH			; skip if its a NULL
+				JZ   setTarget8			; skip if its a NULL
 				CPI  QMARK			; is it a QMARK
-				JZ   008EAH			; skip if yes
+				JZ   setTarget6			; skip if yes
 				CMP  M
-L08EA:
+setTarget6:
 				INX  D
-				JZ   008F5H
+				JZ   setTarget7
 				DCR  B
-				JNZ  008EAH
-				JMP  008DAH
-L08F5:
+				JNZ  setTarget6
+				JMP  setTarget4
+setTarget7:
 				INX  H
 				DCR  B
-				JNZ  008DFH
+				JNZ  setTarget5
 				RET
 ;---------------
-L08FB:
+setTarget8:
 				DCR  A
 				STA  targetDrive		; 0174FH
 				RET
 ;---------------
-L0900:
-				LXI  H,subjectFiles
+anyQMarksTarget:
+				LXI  H,targetFiles
 ;
 ;   Are there any QMARKS if the FCB pointed at by HL
 ;	Return with Zero flag Set if yese
@@ -947,10 +962,11 @@ anyQMarks:
 				MVI  A,QMARK
 				CALL haveValue
 				RET					; return with Zero Flag set if QMARK found
-;---------------				
+;---------------
+				
 L090C:
-				LDA  targetDrive		; get target drive
-				ORA  A
+				LDA		targetDrive		; get target drive
+				ORA		A
 				RZ						; return if there is one
 				
 				MOV		B,A				; move targetDrive value to B
@@ -994,7 +1010,7 @@ L0949:
 L095F:
 				INR  B
 				JZ   typeSetup
-				LXI  D,Table1
+				LXI  D,Table1A
 				CALL setDMA				; 006EFH
 				MVI  C,vSearchForFirst
 				CALL sysCall0				; close file
@@ -1024,21 +1040,21 @@ typeSetup:
 				LDA		hdrType
 				CPI		ARC_TYPE_4
 				JNC		typeGE4				; skip if type >= 4
-				CALL 00D90H
-				CPI  ARC_TYPE_3
-				JZ   typeEQ3
+				CALL 00D90H				; returns with Acc and C unchanged, B,D,E,H.L all = 00
+				CPI		ARC_TYPE_3
+				JZ		typeEQ3			; skip if type 3 (crunched)
 ; types 1 & 2 , unpacked
 typeEQ1and2:
 				CALL getByte1			; returned in Acc
-				JC   009C0H
+				JC   009C0H				; exit if No more data
 				CALL 00DC3H
-				JMP  typeEQ1and2
+				JMP  typeEQ1and2		; loop until done
 				
 L09B7:
 				CALL L0DA3
 typeEQ3:
 				CALL getByte1			; returned in Acc
-				JNC  009B7H
+				JNC  009B7H				; loop thru the data 
 L09C0:
 				CALL 00DD5H
 				LDA  targetDrive		; 0174FH
@@ -1079,9 +1095,9 @@ L09D9:
 				JMP  sendErrorMess						; 0059BH
 typeGE4:
 				JNZ		typeGT4				; skip if not type 4
-; Type = 4
+; Type = 4 Squeezed
 				LXI  B,003FFH
-				CALL clearTable1ForBCbytes
+				CALL clearTable1AForBCbytes
 				CALL getByte1			; returned in Acc
 				MOV  C,A
 				CALL getByte1			; returned in Acc
@@ -1149,8 +1165,8 @@ L0A68:
 				CALL swapAllRegisters
 				JMP  009C0H
 				
-clearTable1ForBCbytes:								; clear 1A00 for BC bytes
-				LXI		H,Table1
+clearTable1AForBCbytes:								; clear 1A00 for BC bytes
+				LXI		H,Table1A
 				MOV		M,L
 				MOV		D,H
 				MOV		E,L
@@ -1171,6 +1187,7 @@ typeGT4:
 				MVI  A,055H
 				JZ   00ADBH
 				JC   00AD0H
+									; type 7
 				LXI  H,00CCDH
 				JMP  00ADBH
 L0A9C:
@@ -1221,8 +1238,8 @@ L0AE3:
 				MOV		A,B				; move page count to Acc
 				SUI		003H			; subtract 3 pages ???
 				STA		00C3AH			; ** modify code ( no change)
-				CALL	clearTable1ForBCbytes	; clear 1a00 for BC bytes (original 2FFF) BC returns 00
-				PUSH	H				; save end of Table1 area
+				CALL	clearTable1AForBCbytes	; clear 1a00 for BC bytes (original 2FFF) BC returns 00
+				PUSH	H				; save end of Table1A area
 				MOV		H,B
 				MOV		L,C				; put 00 00 in HL
 				SHLD	CounterX		; save Zeros here(counterX), reseting count ???
@@ -1232,14 +1249,14 @@ L0AE3:
 				XRA		A				; clear the Acc
 				
 ; after all the code mods for types Acc is index counter starts ends at 00				
-makeTable1:
+makeTable1A:
 				POP		B				; get counterX -1
 				PUSH	B				; save counterX -1
 				PUSH	PSW				; save index counter
-				CALL addTable1Entry
+				CALL addTable1AEntry
 				POP		PSW
 				INR		A				; Increment the index counter
-				JNZ		makeTable1		; loop until Index counte = 00 (000 thru 0FFH)
+				JNZ		makeTable1A		; loop until Index counte = 00 (000 thru 0FFH)
 				
 				CALL 00D90H
 L0B17:
@@ -1249,7 +1266,7 @@ L0B1A:
 				POP  B
 				JC   00A68H
 				PUSH H
-				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				CALL table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				INR  B
 				JNZ  00B31H
 				INX  H
@@ -1265,7 +1282,7 @@ L0B31:
 				JNZ  00B3DH
 				MOV  H,B
 				MOV  L,C
-				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				CALL table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 L0B3D:
 				MVI  D,001H
 L0B3F:
@@ -1289,7 +1306,7 @@ L0B50:
 				DCX  H
 				PUSH D
 				PUSH H
-				CALL addTable1Entry
+				CALL addTable1AEntry
 				POP  H
 L0B5B:
 				INX  H
@@ -1318,7 +1335,7 @@ L0B78:
 				JNZ  00B1AH
 				JMP  00B2BH
 ; came here after modifying the code based on type. entered with CounterX containing 0000				
-addTable1Entry:
+addTable1AEntry:
 				LHLD	CounterX		; get CounterX value
 				PUSH	PSW				; save Counter in Acc
 				MOV		A,H				; get MSB of CounterX
@@ -1335,49 +1352,49 @@ addTable1Entry:
 				PUSH	PSW				; save original MSB of CounterX
 				PUSH	B				; save modified CounteX
 				CALL	00000H			; ** code is modified by 0AEB (CALL 0BA1 type 8)
-										; returns with HL pointing at position in Table1 work area
+										; returns with HL pointing at position in Table1A work area
 				XTHL					; swap returned value & Modified CounterX (FFFF)??
-				CALL	table1And3DE	;Returns with HL =((DE) *3) + Table1+1
-				XCHG					; HL has Table1 constants ( DE the offset)
+				CALL	table1Aand3DE	;Returns with HL =((DE) *3) + Table1A+1
+				XCHG					; HL has Table1A constants ( DE the offset)
 										 
-				POP		H				; get the pointer (to Table1) +1
+				POP		H				; get the pointer (to Table1A) +1
 				DCX		H				; adjust the saved pointer down 1
 				MOV		M,E
 				INX		H
 				MOV		M,D
 				INX		H
 				POP		PSW
-				MOV		M,A				; populate Table1
+				MOV		M,A				; populate Table1A
 				RET
 ;---------------
 L0BA1:
 				MOV		A,L				; get LSB of counter ??
 				DCR		L
 				ORA		A				; was orignal value Zero ?
-				JNZ		table1And3DE	;skip if not else Returns with HL =((DE) *3) + Table1+1		; 	
+				JNZ		table1Aand3DE	;skip if not else Returns with HL =((DE) *3) + Table1A+1		; 	
 				MOV  A,H
 				DCR  H
 				LXI  D,CounterX
 				JZ   00BBBH
 				CPI  010H					; ** code is modified by 0ABC (10 for type 8)
-				JZ   table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				JZ   table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				ANA  H
-				JNZ  table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				JNZ  table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				LXI  D,typeControl1
 				XCHG
 				INR  M
 				XCHG
 ;
-;  Table1 is a 3 byte table.
-;  Returns with ((DE) *3) + Table1+1
+;  Table1A is a 3 byte table.
+;  Returns with ((DE) *3) + Table1A+1
 ;				
-table1And3DE:
+table1Aand3DE:
 
 				MOV		D,H			; move HL into DE
 				MOV		E,L
 				DAD		H			; HL * 2
 				DAD		D			; HL * 3
-				LXI		D,Table1 + 1	; Add woking base
+				LXI		D,Table1A + 1	; Add woking base
 				DAD  D
 				RET
 ;---------------
@@ -1467,7 +1484,7 @@ L0BC7H:
 				JNZ  00C29H
 				LXI  H,01D00H
 				LXI  B,02CFFH				; ** code is modified by 0AF9 (LXI  B,02CFFH)
-											; the size of Table1 - 3 pages
+											; the size of Table1A - 3 pages
 				CALL 00A71H
 				LXI  H,00101H
 				SHLD CounterX
@@ -1601,7 +1618,7 @@ L0BC7H:
 				ANI  00FH
 				MOV  H,A
 				PUSH H
-				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				CALL table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				POP  D
 				MOV  A,M
 				ORA  A
@@ -1628,7 +1645,7 @@ L0BC7H:
 				MOV  H,A
 				POP  PSW
 				PUSH H
-				CALL table1And3DE			;Returns with HL =((DE) *3) + Table1+1
+				CALL table1Aand3DE			;Returns with HL =((DE) *3) + Table1A+1
 				POP  D
 				MOV  A,M
 				ORA  A
@@ -1749,6 +1766,8 @@ tblMemNeeded:
 
 ;     <New code fragment-----from 0DA3 to 1318 (1318 : 4888)>
 ;              ORG  00DA3H
+; Acc has byte to be processed ( for type 3 raw byte from file)
+
 L0DA3:
 				DCR  B
 				JNZ  00DBCH
@@ -2942,7 +2961,7 @@ L1741:			DS	1
 pauseCount:		DS	1			; L1742	
 blockSizeInK:	DS	1			; works out to 2 for us. - L1743		
 
-subjectFiles:	DS 11			; file name with QMARKS and no PERIOD
+targetFiles:	DS 11			; file name with QMARKS and no PERIOD 
 
 targetDrive:	DB		NULL	; Target file drive, 0= No write to disk ; 1=A, 2=B, ...
 
@@ -2980,8 +2999,9 @@ typeControl1:	DS		1		; orginally set to 9 for type 8
 CounterX:		DS		2
 X179D:
 
-
-Table1	equ		CodeStart + 01900H		; table 1 (19 FE XX)	
+Table18			EQU		CodeStart + 01700H		; table 1 (19 FE XX)	
+Table19			EQU		CodeStart + 01800H		; table 1 (19 FE XX)	
+Table1A			EQU		CodeStart + 01900H		; table 1 (19 FE XX)	
 
 
 
