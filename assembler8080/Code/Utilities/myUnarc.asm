@@ -1408,18 +1408,18 @@ table1Aand3DE:
 				RET
 ;---------------
 L0BC7H:
-				LXI  H,CounterY
-				DCR  M
-				INX  H
-				MOV  A,M
-				INX  H
-				MOV  B,M
-				LXI  H,07FFFH
-				ORA  A
-				RAR
-				INR  A
-				DCR  A
-				JZ   00C4EH
+				LXI		H,CounterY		; starts with 00 in CounterY
+				DCR		M				; decrement LSB
+				INX		H
+				MOV		A,M				; get MSB
+				INX		H				; point at typeControl1 (set to 9 for type 8)
+				MOV		B,M				; typeControl1 in B			
+				LXI		H,07FFFH
+				ORA		A				; reset carry bit
+				RAR						; divide MSB by 2
+				INR		A
+				DCR		A				; messing with flags ???
+				JZ   L0C4E
 				PUSH PSW
 				MOV  A,H
 				RAR
@@ -1503,30 +1503,33 @@ L0BC7H:
 				XTHL
 				PUSH H
 				JMP  00BC7H
-				PUSH B
-				PUSH H
-				CALL getByte				; in Acc
-				CALL swapAllRegisters
-				POP  H
-				POP  B
-				RC
-				PUSH PSW
-				MOV  A,B
-				ANI  008H
+L0C4E:
+				PUSH	B
+				PUSH	H
+				CALL	getByte				; in Acc
+				CALL	swapAllRegisters
+				POP		H
+				POP		B					; B has typeControl1 ( 9 for typr 8)
+				RC							; return if end-of-data
+				PUSH	PSW					; save byte read
+				MOV		A,B
+				ANI		008H				; typeControl1 bit 3 set ?
 				XTHL
-				MOV  A,H
-				POP  H
-				JNZ  00C68H
-				STC
-				RAR
+				MOV		A,H
+				POP		H					; Acc has Byte, B has typeControl1, HL has ??
+				JNZ		L0C68				; skip if bit 3 of 	typeControl1 set		
+				STC							; else set the carry bit
+				RAR							
 				JMP  00BD9H
-				MOV  L,H
-				MOV  H,A
-				MOV  A,B
-				SUI  008H
-				MOV  B,A
-				JNZ  00C4EH
+L0C68:				
+				MOV		L,H					; put counter MSB into L
+				MOV		H,A					; put byte into H
+				MOV		A,B					; put typeControl1 into Acc
+				SUI		008H				; subtract 8 from typeControl1
+				MOV		B,A					; save result in B
+				JNZ		L0C4E				; if not zero repeat, get next byte
 				JMP  00BEFH
+				
 				LXI  D,00000H
 				MOV  L,A
 				MOV  H,D
@@ -1602,6 +1605,7 @@ L0BC7H:
 				RAL  D
 				MOV  L,H
 				JMP  00CE4H
+				
 				MOV  L,A
 				MVI  H,000H
 				DAD  B

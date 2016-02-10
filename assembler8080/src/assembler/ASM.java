@@ -866,7 +866,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			System.out.printf("Null ans from argument: %s%n", argument);
 		}
 
-		return (ans != null) ? ans % 0XFFFF : 0; // max value is 64K
+		return (ans != null) ? ans & 0XFFFF : 0; // max value is 64K
 	}// resolveSimpleArgument
 
 	private Integer resolveExpression(String arguments, Integer lineNumber) {
