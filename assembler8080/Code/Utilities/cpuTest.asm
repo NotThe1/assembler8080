@@ -19,9 +19,15 @@ CodeStart:
 		JMP		init
 		
 		
-		
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.	
+cpuOK:
+	LXI		H,OKMessage	;
+	CALL	messageOut
+	JMP		WBOOT	;EXIT TO CP/M WARM BOOT
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 		;MESSAGE OUTPUT ROUTINE
 ; HL points to the message
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 
 messageOut:
 	PUSH	D		; Save D REG.
@@ -30,8 +36,7 @@ messageOut:
 	CALL	BDOS
 	POP	D			; Restore D REG.
 	RET
-;
-;
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 ;
 ;CHARACTER OUTPUT ROUTINE
 ; char in Acc
@@ -39,8 +44,7 @@ carOut:
 	MVI		C,2		; console out vector
 	CALL	BDOS
 	RET
-;
-
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 
 cpuError:
 	XTHL					; get the return address into HL
@@ -52,6 +56,7 @@ cpuError:
 	LDA		returnAddress	; get LSB of return address
 	CALL	showAscii	; show lo byte of failing address
 	JMP		WBOOT	; exit via MDOS
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 ;
 ; send ascii value of Acc to console
 ;
@@ -77,9 +82,7 @@ doLoNibble:
 nibbleOK:
 	ADI	30H
 	RET
-;
-;
-
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 
 OKMessage:
 	DB	CTRL_L,CR,LF,' CPU IS OPERATIONAL$'
@@ -91,24 +94,163 @@ failedMessage:
 	
 mess:
 	DB	'a$',00
+;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.			
 	
 ;------------------------------------
 returnAddress:
 	DS	2				; place to save Return Address in error message
+;------------------------------------
 
+test_ret:
+	RET		; return
+	CALL	cpuError
+	HLT
+test_rc:
+	STC		; set the carry
+	RC		; return if Carry
+	CALL	cpuError
+	HLT
+test_rnc:
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+
+	RNC		; return if No Carry
+	CALL	cpuError
+	HLT
+test_rz:
+	MVI		A,ZERO
+	XRA		A			; set Z & P	
+	RZ		; return if Zero
+	CALL	cpuError
+	HLT
+test_rnz:
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+
+	RNZ		; return if Not Zero
+	CALL	cpuError
+	HLT
+test_rm:
+	MVI		A,ONES_B	;
+	ANA		A			; set s & P	
+
+	RM		; return if Minus, S = 1
+	CALL	cpuError
+	HLT
+test_rp:
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+
+	RP		; return if Plus, S = 0
+	CALL	cpuError
+	HLT
+test_rpe:
+	MVI		A,ONES_B	;
+	ANA		A			; set s & P	
+
+
+	RPE		; return if Parity even, P = 1
+	CALL	cpuError
+	HLT
+test_rpo:
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+
+	RPO		; return if Parity odd, P = 0
+	CALL	cpuError
+	HLT
+	
+	
+	
+;<><><><><><><><><><><><><><><><><><><><><><><>
 init:
 	LXI		SP,TPA		; initalize the stack
-; test Flags and flag jumps
+; test Flags and Conditional Calls
 	MVI		A,ZERO		; put 00 into Acc
 	XRA		A			; really clear it out
+						; Z & P = 1, rest = 0
 	CC		cpuError	; CY is force clear by a XRA
+	CPO		cpuError	; Parity should be even, set to 1
+	
 	CM		cpuError	; sign should be reset
 	CNZ		cpuError	; Z should be set
-	CZ		cpuError
+	
+	MVI		A,ONES_B	; set all ones
+	ANA		A			; set S & P flags
+	
+	STC					; force carry flag
+	CNC		cpuError	; CY is set
+	CP		cpuError	; S flag should be set
+	CZ		cpuError	; Z flag should be reset
+	
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+	CPE		cpuError	; parity should be odd
+	
+; test FLags and Conditional Jumps
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+	JP		jump01		; S = 0
+	CALL	cpuError
+jump01:
+	JNZ		jump02		; Z = 0
+	CALL	cpuError
+jump02:
+	JPO		jump03		; P = 0
+	CALL	cpuError
+jump03:
+	JNC		jump04		; CY = 0
+	CALL	cpuError
+jump04:
+
+	STC
+	JC		jump05		; CY = 1
+	CALL	cpuError
+jump05:
+
+	MVI		A,00H		; 
+	XRA		A			; Set Z & P
+	JZ		jump06		; Z = 1
+	CALL	cpuError
+jump06:
+	JPE		jump07		; P = 1
+	CALL	cpuError
+jump07:
+
+	MVI		A,ONES_B	; set all ones
+	ANA		A			; set S & P flags
+	JM		jump08		; S = 1
+	CALL	cpuError
+jump08:
+
+; test for Conditional returns
+
+	CALL	test_ret
+	CALL	test_rc
+	CALL	test_rnc
+	CALL	test_rz
+	CALL	test_rnz
+	CALL	test_rm
+	CALL	test_rp
+	CALL	test_rpe
+	CALL	test_rpo
+	
+; test for Comparisons
+	MVI		A,ZERO
+	SBI		ZERO 
+	
+	MVI		A,ZERO
+	CPI		ZERO
+	
+
+
+
+
+
 ;,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.	
-cpuOK:
-	LXI		H,OKMessage	;
-	CALL	messageOut
-	JMP		WBOOT	;EXIT TO CP/M WARM BOOT
+; fall thru for success
+	JMP		cpuOK		; end on a good note!
+
+	
 ;	
 CodeEnd:
