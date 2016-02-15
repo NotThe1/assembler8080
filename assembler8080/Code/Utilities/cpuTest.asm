@@ -235,6 +235,17 @@ jump08:
 	CALL	test_rpe
 	CALL	test_rpo
 	
+; test DAD
+	MVI		A,01H		; set one bit
+	ANA		A			; resets all flags
+
+	LXI		HL,ZERO
+	DAD		HL
+	
+	MVI		A,00
+	DAA
+
+	
 ; test for Comparisons
 	MVI		A,ZERO
 	SBI		ZERO 

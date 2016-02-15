@@ -776,14 +776,19 @@ MOVI:	MVI	A,077H
 ;
 ;
 ;
-CPUER:	LXI	H,NGCPU	;OUTPUT "CPU HAS FAILED    ERROR EXIT=" TO CONSOLE
-	CALL	MSG
+CPUER:
 	XTHL
-	MOV	A,H
+	SHLD	returnAddress	; save return address for display
+	LXI	H,NGCPU	;OUTPUT "CPU HAS FAILED    ERROR EXIT=" TO CONSOLE
+	CALL	MSG
+	LDA		returnAddress +1
 	CALL	BYTEO	;SHOW ERROR EXIT ADDRESS HIGH BYTE
-	MOV	A,L
+	LDA		returnAddress
 	CALL	BYTEO	;SHOW ERROR EXIT ADDRESS LOW BYTE
 	JMP	WBOOT	;EXIT TO CP/M WARM BOOT
+	
+returnAddress:
+	DS		2	; failing address to show 
 ;
 ;
 ;
