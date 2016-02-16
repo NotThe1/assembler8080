@@ -1,3 +1,4 @@
+; Index of /cpm/cdrom/CPM/UTILS/SYSUTL
 ; Lauren Guimont	1-25-80		Ver. 1.0
 ; 			1-28-80		Ver. 1.1
 ; 			3-20-80		Ver. 1.2
@@ -28,7 +29,32 @@
 
 ; Set up the equates to use
 
-PERIOD	EQU		'.'		; Period		
+PERIOD			EQU		'.'		; Period
+
+LF				EQU		0AH			; Line Feed
+;CTRL_K			EQU		0BH			; VT - Vertical tab
+;CTRL_L			EQU		0CH			; FF - Form feed
+CR				EQU		0DH			; Carriage Return
+SPACE			EQU		20H			; Space
+ASCII_OFFSET	EQU		30H			; base to make binary decimal number ascii
+
+ASCII_M			EQU		'M'			; upper M
+ASCII_R			EQU		'R'			; upper R
+
+
+SYS_CONOUT		EQU		002H	; Console out , char in E		
+SYS_GET_IOB		EQU		007H	; get IOByte , Acc returns IOByte		
+SYS_STRING_OUT	EQU		009H	; Print String, DE points at $ terminated String		
+SYS_GET_VER		EQU		00CH	; get version number, HL returns Version		
+SYS_GET_ALLOC	EQU		01BH	; get allocation , HL returns vector address		
+;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
+;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
+;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
+;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
+;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version
+
+MASK_HI_NIBBLE	EQU		0F0H	; mask for high nibble		
+MASK_LO_NIBBLE	EQU		00FH	; mask for low  nibble		
 
 true	equ	0ffffh		; true equate.
 false	equ	0000	; false equate.
@@ -47,14 +73,14 @@ bdos	equ	5		; bdos equate.
 
 ff	equ	0ch	; form feed.
 
-CONOUT	EQU	2		; CONSOLE CHAR OUT
-giobyte	equ	7		; get the iobyte.
-STROUT	EQU	9		; PRINT STRING OUTPUT
-version	equ	12		; returns version.
+;CONOUT	EQU	2		; CONSOLE CHAR OUT
+;giobyte	equ	7		; get the iobyte.
+;STROUT	EQU	9		; PRINT STRING OUTPUT
+;version	equ	12		; returns version.
 mpmvrs	equ	163		; MP/M 2.x revision.
 LOGIN	EQU	24		; RETURNS ON-LINE DRIVES
 CURDRV	EQU	25		; RETURNS DEFAULT DRIVE#
-ALLOC	EQU	27		; RETURNS ALLOCATION ADDRESS
+;ALLOC	EQU	27		; RETURNS ALLOCATION ADDRESS
 RONLY	EQU	29		; RETURNS READ ONLY VECTOR
 DPARA	EQU	31		; RETURNS DISK PARAMETER BLK
 PRUSER	EQU	32		; RETURNS PRESENT USER
@@ -64,6 +90,7 @@ systod	equ	155		; get system time of day.
 
 ;	if not rmac
 	org	0100h
+TPAstart:
 ;	endif
 CodeStart:
 
@@ -75,209 +102,212 @@ start:
 porta:	db	0c0h		; disk 1 start port address.
 portb:	db	0c3h		; disk 1 last port address.
 
-astart:				; Actual program start
-	LXI	H,0		; Clear HL
-	DAD	SP		; Get SP from CCP
+astart:					; Actual program start
+	LXI		H,0			; Clear HL
+	DAD		SP			; Get SP from CCP
 	SHLD	OLDSP		; Save it
-	LXI	SP,STACK	; Point to our stack
+	LXI		SP,STACK	; Point to our stack
 
-	mvi	c,version	; get CP/M, MP/M version.
-	call	bdos		;
-	mov	a,h		; see if MP/M.
-	sta	mpmbyte		; save it.
-	mov	a,l		; version number CP/M 1.x or 2.x.
-	sta	cpmbyte		; save it.
+	MVI		C,SYS_GET_VER	; get CP/M, MP/M version.
+	CALL	BDOS
+	MOV		A,H			; see if MP/M.
+	STA		mpmFlag		; save it.
+	MOV		A,L			; version number CP/M 1.x or 2.x.
+	STA		cpmVersion	; save it.
 
-	CALL	CLEAR
+	CALL	clearDisplay
 
-	lda	mpmbyte		; see if MP/M or CP/M.
-	ora	a		; is MP/M if none zero.
-	jz	cpm		; go do CP/M message if not.
-	lxi	d,msg24		; do MP/M message.
-	mvi	c,strout	; print it command.
+	LDA		mpmFlag		; see if MP/M or CP/M.
+	ORA		A			; is MP/M if non-zero.
+	JZ		isCPM		; go do CP/M message if not.
+	
+;-----------skip if on a CPM System---------------	
+	lxi	d,MSG24		; do MP/M message.
+	mvi	c,SYS_STRING_OUT	; print it command.
 	call	bdos		; go print it.
-	lda	cpmbyte		; get mpm version.
+	lda	cpmVersion		; get mpm version.
 	ani	0f6h		; if bit 1 set mpm 1. only.
-	lda	mpmbyte		; re-get byte just in case.
+	lda	mpmFlag		; re-get byte just in case.
 	jz	contmpm		; do mp/m 1.1
 	mvi	c,mpmvrs	; go see which MP/M.
 	call	bdos		;
 	mov	a,l		; save mp/m 2 revision level.
-	sta	cpmbyte		; save it.
+	sta	cpmVersion		; save it.
 	mov	a,h		; get 1 for mpm 2
-	sta	mpmbyte		; save new MP/M byte.
+	sta	mpmFlag		; save new MP/M byte.
 
 contmpm:
-	adi	31h		; add ascii offset.
-	call	cout		; output first number.
+	adi	ASCII_OFFSET + 1		; add ascii offset.
+	call	charDisplay		; output first number.
 	mvi	a,PERIOD		; now the seprator.
-	call	cout		; out put it.
-	lda	cpmbyte		; now the lower version number.
-	ani	0fh		; strip upper nibble.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
-	lxi	d,msg27		; trailing end of message.
-	mvi	c,strout	; print command.
+	call	charDisplay		; out put it.
+	lda	cpmVersion		; now the lower version number.
+	ani	MASK_LO_NIBBLE		; leave low nibble.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go print it.
+	lxi	d,MSG27		; trailing end of message.
+	mvi	c,SYS_STRING_OUT	; print command.
 	call	bdos		; go print it.
-	call	crlf		; go do cr,lf.
-	jmp	bpcpm		; bypass CP/M message.
+	call	displayCRLF		; go do cr,lf.
+	jmp	memHeader		; bypass CP/M message.
+;-----------skip if on a CPM System---------------	
 
-cpm:
-	LXI	D,MSG0
-	MVI	C,STROUT
+isCPM:
+	LXI		D,MSG0
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	lda	cpmbyte		; get cpm version.
-	ani	0f0h		; strip upper nibble.
-	rar			; rotate right four times.
-	rar			; 
-	rar			; 
-	rar			; 
-	adi	30h		; add ascii offset.
-	call	cout		; output first number.
-	mvi	a,PERIOD		; now the seprator.
-	call	cout		; out put it.
-	lda	cpmbyte		; now the lower version number.
-	ani	0fh		; strip upper nibble.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
-	lxi	d,msg27		; trailing end of message.
-	mvi	c,strout	; print command.
-	call	bdos		; go print it.
-	call	crlf		; go do cr,lf.
+	LDA		cpmVersion		; get cpm version.
+	ANI		MASK_HI_NIBBLE	; leave upper nibble.
+	RAR						; rotate right four times.
+	RAR	
+	RAR
+	RAR						; to put it in low nibble; 
+	ADI		ASCII_OFFSET	; add ascii offset.
+	CALL	charDisplay		; output first number.
+	MVI		A,PERIOD		; now the seprator.
+	CALL	charDisplay		; out put it.
+	LDA		cpmVersion		; now the lower version number.
+	ANI		MASK_LO_NIBBLE	; Leave Low nibble.
+	ADI		ASCII_OFFSET	; add ascii offset.
+	CALL	charDisplay		; go print it.
+	LXI		D,MSG27			; trailing end of message.
+	MVI		C,SYS_STRING_OUT	; print command.
+	CALL	bdos			; go print it.
+	CALL	displayCRLF			; go do cr,lf.
 
-bpcpm:
-	LXI	D,MSG1
-	MVI	C,STROUT
+memHeader:
+	LXI		D,MSG1
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 
 ; This is the start of the memory map
 
 	LXI	H,0000H		; Start memory map
 
-MEMORY:
-	MVI	A,0FFH
-	CMP	M		; Memory?
-	JZ	EMPTY
-	MOV	B,M		; Save memory value
-	MOV	M,A
-	MOV	A,M
-	CMP	B		; Same as original?
-	JZ	ROM
+memProfile:
+	MVI		A,-1
+	CMP		M		; Memory = -1?
+	JZ		missing	; skip it may not be there
+	MOV		B,M		; Save memory value
+	MOV		M,A		; move -1 to memory
+	MOV		A,M		; move mem value to Acc
+	CMP		B		; if it is same as original - must be
+	JZ		ROM		;     ROM
 
 RAM:
-	MOV	M,B		; Replace original byte
-	MVI	B,4DH
-	JMP	SHWBY
+	MOV		M,B		; Replace original byte
+	MVI		B,ASCII_M	; set for display of M for RAM
+	JMP		SHWBY	; go do the display
 
 ROM:
-	MVI	B,52H
-	JMP	SHWBY
+	MVI		B,ASCII_R	; set for display of R for ROM
+	JMP		SHWBY
 
-EMPTY:
-	MVI	A,80H		; Double check W/new value
-	MOV	B,M
-	MOV	M,A
-	MOV	A,M
-	CMP	B		; Is it ram?
-	JNZ	RAM
-	MVI	B,2EH
+missing:
+	MVI		A,80H		; Double check W/new value
+	MOV		B,M
+	MOV		M,A
+	MOV		A,M
+	CMP		B		
+	JNZ		RAM		; jump if the original value in Mem was -1
+	MVI		B,PERIOD	; set for display of PERIOD for MISSING Memory
 
 SHWBY:
-	MOV	A,B
-	CALL	COUT		; Output ROM, RAM, or empty
-	INR	H
-	INR	H
-	INR	H
-	INR	H
-	JNZ	MEMORY		; Loop till done
-	CALL	CRLF
+	MOV		A,B				; load display char into Acc
+	CALL	charDisplay		; Output ROM, RAM, or empty
+	INR		H
+	INR		H
+	INR		H
+	INR		H
+	JNZ		memProfile		; 1 K increments / loop thru 64K
+	CALL	displayCRLF
 
 ; Now we fill in the storage bytes with the proper
 ; values which are dependent on each particular system.
 
-	lda	mpmbyte
-	ora	a		; will be none zero for MP/M.
-	jnz	alocxios	; do acllocation vectors.
+	LDA		mpmFlag			; is it MP/M ?
+	ORA		A				; will be non-zero for MP/M.
+	JNZ		alocxios		; do acllocation vectors if MP/M.
 
-	LHLD	BDOS+1		; Get start of BDOS
-	MOV	A,L
-	SUI	6
-	MOV	L,A
-	SHLD	BEDOS		; Store it
-	LXI	D,0F700H
-	LHLD	BEDOS
-	DAD	D		; Add wrap around offset
-	SHLD	TPA
-	LXI	D,100H
-	LHLD	TPA
-	DAD	D
-	SHLD	CCP		; Store CCP=-100H of TPA
-	MVI	C,GIOBYTE
+	LHLD	BDOS+1			; Get start of BDOS
+	MOV		A,L				; get starting page into Acc
+	SUI		6
+	MOV		L,A				; just needed to load L with 00 to get start of BDOS in HL
+	SHLD	startBDOS		; Store it
+	LXI		D,0F700H
+	LHLD	startBDOS
+	DAD		D				; Add wrap around offset
+	SHLD	netTPA			; resolves to available TPA without displacing CCP
+	LXI		D,TPAstart		; get the address of the TPA start
+	LHLD	netTPA			;
+	DAD		D
+	SHLD	startCCP		; Store CCP= -TPAstart(100H) of netTPA
+	MVI		C,SYS_GET_IOB
 	CALL	BDOS
-	STA	IOBYT		; Store the I/O byte
+	STA		IOBYT		; Store the I/O byte
 
 alocxios:
-	lda	mpmbyte		; see if MP/M.
-	ora	a		; if not zero
-	jnz	mpmaloc		; do MP/M allocation vectors.
+	LDA		mpmFlag			; is it MP/M ?
+	ORA		A				; will be non-zero for MP/M.
+	JNZ		mpmaloc			; if MP/M skip to do MP/M allocation vectors.
 
-	lda	cpmbyte
-	ani	0f0h		; see if 1.x version.
-	jz	not2cpm		; go past if now 2.x CP/M.
+	LDA		cpmVersion		; if 00, before 2.0 else 2x
+	ANI		MASK_HI_NIBBLE	; see if 1.x version.
+	JZ		osDisplay		; skip if not at least rel 2.0 of cp/m
 
 mpmaloc:
-	MVI	C,ALLOC
+	MVI		C,SYS_GET_ALLOC
 	CALL	BDOS
-	SHLD	ALLOCAD
+	SHLD	allocVector
 
-	lda	mpmbyte		; see if MP/M.
-	ora	a		; if not zero
-	jnz	conmax		; do maximun number of consoles.
+	LDA		mpmFlag			; is it MP/M ?
+	ORA		A				; will be non-zero for MP/M.
+	JNZ		conmax			; if MP/M do maximun number of consoles.
 
 ; Now we must output the gathered information
 ; to the console
 
 ; Get the CCP address and print it
 
-not2cpm:
-	LXI	D,MSG2
-	MVI	C,STROUT
+osDisplay:
+	LXI		D,MSG2
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	LHLD	CCP
+	LHLD	startCCP
 	CALL	ADOUT
-	CALL	CRLF
+	CALL	displayCRLF
 
 ; Next get the BDOS address and print it
 
 	LXI	D,MSG3
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
-	LHLD	BEDOS
+	LHLD	startBDOS
 	CALL	ADOUT
-	CALL	CRLF
+	CALL	displayCRLF
 
 ; Next get address of BIOS and print it
 
 	LXI	D,MSG15
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	LXI	D,0E00H
-	LHLD	BEDOS
+	LHLD	startBDOS
 	DAD	D
 	CALL	ADOUT
-	CALL	CRLF
+	CALL	displayCRLF
 
-; Compute TPA without killing CCP and print it
+; Already computed netTPA without killing CCP and print it
 
 	LXI	D,MSG13
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
-	LHLD	TPA
+	LHLD	netTPA
 	CALL	ADOUT
 	LXI	D,MSG11
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
-	CALL	CRLF
+	CALL	displayCRLF
 
 	jmp	drvchk
 
@@ -285,26 +315,26 @@ not2cpm:
 ; print the number of consoles supported.
 
 conmax:
-	lxi	d,msg28		; go print message for number of consoles.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG28		; go print message for number of consoles.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,1		; increment to number of consoles.
 	call	offset		; dad the d wth the h&l.
 	sta	maxcon		; store at maximun number of consoles.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; 	do a system console number output.
 
 syscon:
-	lxi	d,msg25		; point to message.
-	mvi	c,strout	; print command.
+	lxi	d,MSG25		; point to message.
+	mvi	c,SYS_STRING_OUT	; print command.
 	call	bdos		; print it.
 	mvi	c,console	; get console number.
 	call	bdos		; comes back in a.
-	adi	30h		; add ascii offset.
-	call	cout		; go do it.
-	call	crlf		; do cr,lf.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go do it.
+	call	displayCRLF		; do cr,lf.
 
 ;	see if extended information bytes at end of bnkxios jmp table.
 
@@ -324,8 +354,8 @@ extended:
 	ani	0ffh		; ok?
 	jz	tod		; do the systems time of day.
 
-	lxi	d,msg99		; go print the BSR controller is active.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG99		; go print the BSR controller is active.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 
 	lhld	exiospt		; restore just in case.
@@ -338,39 +368,39 @@ extended:
 	shld	exiospt		; extended xios pointer.
 	ani	0ffh		; of ff then it is on.
 	jnz	bsract		; go do active message.
-	lxi	d,msg37		; go print the CP/Net is inactive.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG37		; go print the CP/Net is inactive.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 	jmp	cnulls		; go to console and nulls.
 
 bsract:
-	lxi	d,msg38		; go print the CP/Net is active.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG38		; go print the CP/Net is active.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 cnulls:
-	lxi	d,msg44		; go print the console number(0-to-end).
-	mvi	c,strout	; string output function.
+	lxi	d,MSG44		; go print the console number(0-to-end).
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 
 	lda	csole		; get console number back.
 	adi	30h		; make ascii.
-	call	cout		; go print console number.
+	call	charDisplay		; go print console number.
 
-	lxi	d,msg45		; go print the 'has' message.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG45		; go print the 'has' message.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lhld	exiospt		; get pointer back.
 	mov	a,m		; get the current number of nulls.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go print it.
 
-	lxi	d,msg46		; go print the 'nulls' message.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG46		; go print the 'nulls' message.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; add carriage return, linefeed per message.
+	call	displayCRLF		; add carriage return, linefeed per message.
 
 	lda	csole		; get console number.
 	adi	1		; next console.
@@ -386,8 +416,8 @@ cnulls:
 ; 	do a TOD, sytem time of day.
 
 tod:
-	lxi	d,msg26		; get tod message.
-	mvi	c,strout	; print command.
+	lxi	d,MSG26		; get tod message.
+	mvi	c,SYS_STRING_OUT	; print command.
 	call	bdos		; print it.
 	mvi	c,systod	; time of day command.
 	lxi	d,time		; set up for date, hour, minutes, seconds.
@@ -396,46 +426,46 @@ tod:
 	lxi	h,time1		; do time hours for now.
 	call	dobyte		; go do a byte
 	mvi	a,PERIOD		; separater.
-	call	cout		; go print it.
+	call	charDisplay		; go print it.
 	inx	h		; minutes.
 	call	dobyte		; go do it.
 	mvi	a,PERIOD		; separater.
-	call	cout		; go print it.
+	call	charDisplay		; go print it.
 	inx	h		; seconds.
 	call	dobyte		; go do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; now do the restart number.
 
-	lxi	d,msg29		; go print the restart message.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG29		; go print the restart message.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,2		; increment to the breakpoint number.
 	call	offset		; dad the d wth the h&l.
-	adi	30h		; ascii offset.
-	call	cout		; go print it.
-	call	crlf		; do cr,lf.
+	adi	ASCII_OFFSET		; ascii offset.
+	call	charDisplay		; go print it.
+	call	displayCRLF		; do cr,lf.
 
 ; now do CPU type.
 
-	lxi	d,msg30		; go print the CPU message.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG30		; go print the CPU message.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,5		; increment to the CPU type.
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; if ff then z-80 else 8080(type).
 	jnz	z80		; do z-80 if ff.
-	lxi	d,msg31		; go print the 8080 CPU.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG31		; go print the 8080 CPU.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 	jmp	bkbdos		; go to xios jmp table.
 
 z80:
-	lxi	d,msg32		; go print the Z-80 CPU.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG32		; go print the Z-80 CPU.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; now do the bank bdos function.
 
@@ -444,10 +474,10 @@ bkbdos:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; see if boolean non zero if banked switched.
 	jz	rspage		; go do resident page if not.
-	lxi	d,msg33		; go print the bank switched memory indicator.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG33		; go print the bank switched memory indicator.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 
 ; now do the resident page address.
@@ -457,14 +487,14 @@ rspage:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; see if boolean non zero if banked switched.
 	jz	xios		; go do xios jm table.
-	lxi	d,msg35		; go print the bdos resident page.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG35		; go print the bdos resident page.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 resbdos:
-	lxi	d,msg43
-	mvi	c,strout
+	lxi	d,MSG43
+	mvi	c,SYS_STRING_OUT
 	call	bdos
 
 	lxi	d,8		; increment to resident bdos.
@@ -474,7 +504,7 @@ resbdos:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; then cr,lf.
+	call	displayCRLF		; then cr,lf.
 
 ; 	do XIOS printout, and some other MP/M stuff.
 ; 	ex: memory segmnts and size, console number, time of day.
@@ -485,8 +515,8 @@ xios:
 	ani	0ffh		; see if boolean non zero if MPM II jmp table.
 	jz	xdos		; go do xdos if not.
 
-	lxi	d,msg20
-	mvi	c,strout
+	lxi	d,MSG20
+	mvi	c,SYS_STRING_OUT
 	call	bdos
 
 	lxi	d,7		; increment to xios jmp table.
@@ -496,7 +526,7 @@ xios:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; then cr,lf.
+	call	displayCRLF		; then cr,lf.
 
 ; now print the address of the xdos.
 
@@ -505,8 +535,8 @@ xdos:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; 
 	jz	rsp		; 
-	lxi	d,msg39		; go print the XDOS address start.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG39		; go print the XDOS address start.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,11		; increment to banked XDOS address.
 	call	offset		; dad the d wth the h&l.
@@ -515,7 +545,7 @@ xdos:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; now do the RSP base page address.
 
@@ -524,8 +554,8 @@ rsp:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; 
 	jz	bxios		; 
-	lxi	d,msg40		; go print the RSP address start.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG40		; go print the RSP address start.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,12		; increment to banked RSP base page address.
 	call	offset		; dad the d wth the h&l.
@@ -534,7 +564,7 @@ rsp:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; now do the banked XIOS base pase address.
 
@@ -543,8 +573,8 @@ bxios:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; 
 	jz	bnkbdos		; 
-	lxi	d,msg41		; go print the banked XIOS address start.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG41		; go print the banked XIOS address start.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,13		; increment to xios jmp table.
 	call	offset		; dad the d wth the h&l.
@@ -553,7 +583,7 @@ bxios:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; then cr,lf.
+	call	displayCRLF		; then cr,lf.
 
 ; now do the banked BDOS base page.
 
@@ -562,8 +592,8 @@ bnkbdos:
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; 
 	jz	cpnet		; go do CP/Net if not.
-	lxi	d,msg42		; go print the banked BDOS address start.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG42		; go print the banked BDOS address start.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,14		; increment to banked BDOS address.
 	call	offset		; dad the d wth the h&l.
@@ -572,39 +602,39 @@ bnkbdos:
 	xchg			; exchange the de&hl for printing address.
 	call	adout		; go print address.
 	xchg			; get back hl.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; now do CP/Net function.
 
 cpnet:
-	lxi	d,msg36		; go print CP/Net.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG36		; go print CP/Net.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,09h		; increment to CP/Net active/nonactive.
 	call	offset		; dad the d wth the h&l.
 	ani	0ffh		; see if boolean non zero if banked switched.
 	jnz	active		; go do active message.
-	lxi	d,msg37		; go print the CP/Net is inactive.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG37		; go print the CP/Net is inactive.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 	jmp	memseg		; go to memory segments.
 
 active:
-	lxi	d,msg38		; go print the CP/Net is active.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG38		; go print the CP/Net is active.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 memseg:
-	lxi	d,msg21
-	mvi	c,strout
+	lxi	d,MSG21
+	mvi	c,SYS_STRING_OUT
 	call	bdos
-	call	crlf
-	lxi	d,msg22
-	mvi	c,strout
+	call	displayCRLF
+	lxi	d,MSG22
+	mvi	c,SYS_STRING_OUT
 	call	bdos
-	call	crlf
+	call	displayCRLF
 	lxi	d,0fh		; offset to memory segments address start.
 	call	offset		; hl now pointing to memory seg address.
 	adi	1		; make one higher.
@@ -625,8 +655,8 @@ mem1time:
 	call	adout		; output address.
 	xchg			; get bck hl.
 
-	lxi	d,msg23		; output a few spaces.
-	mvi	c,strout	; print it.
+	lxi	d,MSG23		; output a few spaces.
+	mvi	c,SYS_STRING_OUT	; print it.
 	call	bdos
 
 	pop	h		; get it back.
@@ -644,15 +674,15 @@ mem1time:
 
 	push	h		; save it.
 
-	lxi	d,msg23		; output a few spaces.
-	mvi	c,strout	; print it.
+	lxi	d,MSG23		; output a few spaces.
+	mvi	c,SYS_STRING_OUT	; print it.
 	call	bdos
 
 	pop	h		; get it back.
 	mov	a,m		; get bnk number.
 	push	h		; save it again.
 	call	heout		; go print hex output.
-	call	crlf		; do cr,lf
+	call	displayCRLF		; do cr,lf
 	pop	h		; restore pointer.
 
 	jmp	memore		; do till done.
@@ -664,12 +694,12 @@ dobyte:
 	rar			; 
 	rar			; 
 	rar			; now have in lower nibble, time tens.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go print it.
 	mov	a,m		; get byte again.
-	ani	0fh		; drop upper nibble.
-	adi	30h		; add ascii offset, time units.
-	call	cout		; go print it.
+	ani	MASK_LO_NIBBLE		; leave low nibble.
+	adi	ASCII_OFFSET		; add ascii offset, time units.
+	call	charDisplay		; go print it.
 	ret			; done.
 
 offset:
@@ -686,8 +716,8 @@ offset:
 ; data page address.
 
 numrecd:
-	lxi	d,msg47		; go print MP/M.SYS records.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG47		; go print MP/M.SYS records.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,79h		; increment
 	call	offset		; dad the d wth the h&l.
@@ -695,46 +725,46 @@ numrecd:
 	dcx	h		; one less low-order byte.
 	mov	a,m		; get it.
 	call	heout		; print it.
-	call	crlf		; cr lf printed.
+	call	displayCRLF		; cr lf printed.
 
-	lxi	d,msg48		; ticks/sec.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG48		; ticks/sec.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,7ah		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
-	call	crlf		; print cr,lf.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg49		; system drive.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG49		; system drive.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,7bh		; increment
 	call	offset		; dad the d wth the h&l.
 	adi	40h		; add ascii offset for drive indicator.
-	call	cout		; go print it.
-	call	crlf		; print cr,lf.
+	call	charDisplay		; go print it.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg50		; go print the Common memory.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG50		; go print the Common memory.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,7ch		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg51		; #RSP's.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG51		; #RSP's.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,7dh		; increment
 	call	offset		; dad the d wth the h&l.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
-	call	crlf		; print cr,lf.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go print it.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg52		; go print the listcp array.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG52		; go print the listcp array.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,7fh		; increment
 	call	offset		; dad the d wth the h&l.
@@ -742,26 +772,26 @@ numrecd:
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg53		; max locked records.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG53		; max locked records.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0bbh		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
-	call	crlf		; print cr,lf.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg54		; max opened files.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG54		; max opened files.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0bch		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
-	call	crlf		; print cr,lf.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg55		; # list items.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG55		; # list items.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0beh		; increment
 	call	offset		; dad the d wth the h&l.
@@ -769,91 +799,91 @@ numrecd:
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg56		; system locked records.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG56		; system locked records.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0c1h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
-	call	crlf		; print cr,lf.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg57		; system opened files.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG57		; system opened files.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0c2h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
-	call	crlf		; print cr,lf.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg58		; go print dayfile.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG58		; go print dayfile.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0c3h		; increment to dayfile active/nonactive.
 	call	offset		; dad the d wth the h&l.	ani	0ffh		; see if boolean non zero if banked switched.
 	jnz	dactive		; go do active message.
-	lxi	d,msg59		; go print the dayfile is inactive.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG59		; go print the dayfile is inactive.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 dactive:
-	lxi	d,msg60		; go print the dayfile is active.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG60		; go print the dayfile is active.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg61		; temporary drive.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG61		; temporary drive.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0c4h		; increment
 	call	offset		; dad the d wth the h&l.
 	adi	40h		; add ascii offset for drive indicator.
-	call	cout		; go print it.
-	call	crlf		; print cr,lf.
+	call	charDisplay		; go print it.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg62		; # of list devices.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG62		; # of list devices.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0c5h		; increment
 	call	offset		; dad the d wth the h&l.
-	adi	30h		; add ascii offset.
-	call	cout		; go print it.
-	call	crlf		; print cr,lf.
+	adi	ASCII_OFFSET		; add ascii offset.
+	call	charDisplay		; go print it.
+	call	displayCRLF		; print cr,lf.
 
-	lxi	d,msg63		; go print the XDOS base page.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG63		; go print the XDOS base page.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f2h		; increment
 	call	offset		; dad the d wth the h&l.
  	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg64		; go print the TMP base page.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG64		; go print the TMP base page.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f3h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg65		; go print the console.dat base.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG65		; go print the console.dat base.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f4h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg66		; BDOS / XDOS entry point.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG66		; BDOS / XDOS entry point.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f6h		; increment
 	call	offset		; dad the d wth the h&l.
@@ -861,30 +891,30 @@ dactive:
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg67		; TMP.spr base page.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG67		; TMP.spr base page.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f7h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg68		; number of banked RSP's.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG68		; number of banked RSP's.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0f8h		; increment
 	call	offset		; dad the d wth the h&l.
 	call	heout		; go print it in hex format.
 	mvi	a,0		; force to zer0.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
-	lxi	d,msg69		; XDOS internal data segment address.
-	mvi	c,strout	; string output function.
+	lxi	d,MSG69		; XDOS internal data segment address.
+	mvi	c,SYS_STRING_OUT	; string output function.
 	call	bdos		; do it.
 	lxi	d,0fch		; increment
 	call	offset		; dad the d wth the h&l.
@@ -892,146 +922,146 @@ dactive:
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
 	call	heout		; go print it in hex format.
-	call	crlf		; do cr,lf.
+	call	displayCRLF		; do cr,lf.
 
 ; Determine which drive is the current drive in
 ; use, and print the result
 
 drvchk:
 	LXI	D,MSG18
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	MVI	C,CURDRV
 	CALL	BDOS
 	ADI	41H
 	STA	CDRV
-	CALL	COUT
+	CALL	charDisplay
 	MVI	A,PERIOD
-	CALL	COUT
-	CALL	CRLF
+	CALL	charDisplay
+	CALL	displayCRLF
 
 ; Determine Allocation address of current drive, and print it
 
-	lda	mpmbyte		; see if MP/M.
+	lda	mpmFlag		; see if MP/M.
 	ora	a		; none zero if so.
 	jnz	mpmcurt		; do MP/M current allocation.
 
-	lda	cpmbyte
+	lda	cpmVersion
 	ani	0f0h		; see if 1.x version.
 	jz	rport		; go to do the i/o ports, if not 2.x CP/M.
 
 mpmcurt:
 	LXI	D,MSG5
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	LDA	CDRV
-	CALL	COUT
+	CALL	charDisplay
 	LXI	D,MSG6
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
-	LHLD	ALLOCAD
+	LHLD	allocVector
 	CALL	ADOUT
 	MVI	A,48H
-	CALL	COUT
-	CALL	CRLF
+	CALL	charDisplay
+	CALL	displayCRLF
 
 ; Find out which drives are logged in and print them
 
 	MVI	C,LOGIN
 	CALL	BDOS
-	ANI	0FH
+	ANI	MASK_LO_NIBBLE		; leave low nibble.
 	STA	VECTOR
 	LXI	D,MSG4
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG7
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG8
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG9
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	LXI	D,MSG10
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	CALL	CRLF
+	CALL	displayCRLF
 
 ; Find and show the read only vectors
 
 	MVI	C,RONLY
 	CALL	BDOS
-	ANI	0FH
+	ANI	MASK_LO_NIBBLE		; leave low nibble.
 	STA	VECTOR
 	LXI	D,MSG14
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	LDA	VECTOR
 	ORA	A
 	LXI	D,MSG17
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CZ	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG7
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG8
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	STA	VECTOR
 	LXI	D,MSG9
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
 	LDA	VECTOR
 	RRC
 	LXI	D,MSG10
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	CALL	CRLF
+	CALL	displayCRLF
 
 ; Get the disk parameter block and display it
 
 	LXI	D,MSG12
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	MVI	C,DPARA
 	CALL	BDOS
 	CALL	ADOUT
 	MVI	A,48H
-	CALL	COUT
-	CALL	CRLF
+	CALL	charDisplay
+	CALL	displayCRLF
 
 ; Determine the present USER, and print the result
 
 	LXI	D,MSG19
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	MVI	E,0FFH
 	MVI	C,PRUSER
 	CALL	BDOS
 	CALL	HEOUT
 	MVI	A,48H
-	CALL	COUT
-	CALL	CRLF
+	CALL	charDisplay
+	CALL	displayCRLF
 
 ; Check all ports (0-255), and determine if they
 ; are active. If they are, print the port number
@@ -1047,7 +1077,7 @@ mpmcurt:
 
 rport:
 	LXI	D,MSG16
-	MVI	C,STROUT
+	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
 	lda	porta
 	sta	aport+1
@@ -1093,19 +1123,19 @@ finish:
 PORTOUT:
 	LDA	BYTE
 	CALL	HEOUT
-	CALL	SPACE
+	CALL	displaySpace
 	RET
 
-COUT:				; Character output
+charDisplay:				; Character output
 	PUSH	B
 	PUSH	D
 	PUSH	H
-	MOV	E,A
-	MVI	C,CONOUT
+	MOV		E,A
+	MVI		C,SYS_CONOUT
 	CALL	BDOS
-	POP	H
-	POP	D
-	POP	B
+	POP		H
+	POP		D
+	POP		B
 	RET
 
 ; The following routine will print the value of
@@ -1126,48 +1156,48 @@ HEOUT:
 	MOV	A,C		; Get it back
 
 HEOUT1:
-	ANI	0FH
+	ANI	MASK_LO_NIBBLE		; leave low nibble.
 	ADI	48
 	CPI	58		; 0-9?
 	JC	OUTCH
 	ADI	7		; Make it a letter
 
 OUTCH:
-	CALL	COUT
+	CALL	charDisplay
 	RET
 
-CLEAR:				; Clear console
-	mvi	c,25
-	MVI	A,0DH		; C/R
-	CALL	COUT
+clearDisplay:				; Clear console
+	MVI		C,25			; number of display lines + 1
+	MVI		A,CR		; C/R
+	CALL	charDisplay
 
-CLEAR1:
-	MVI	A,0AH		; Linefeed
-	CALL	COUT
-	DCR	C
-	JNZ	CLEAR1		; Loop for 25 LF
+clearDisplay1:
+	MVI		A,LF		; Linefeed
+	CALL	charDisplay
+	DCR		C
+	JNZ		clearDisplay1		; Loop for 25 LF
 	RET
 
-CRLF:				; Send C/R, LF
-	MVI	A,0DH
-	CALL	COUT
-	MVI	A,0AH
-	CALL	COUT
+displayCRLF:				; Send C/R, LF
+	MVI		A,CR
+	CALL	charDisplay
+	MVI		A,LF
+	CALL	charDisplay
 	RET
 
-SPACE:
-	MVI	A,20H
-	CALL	COUT
+displaySpace:
+	MVI		A,SPACE
+	CALL	charDisplay
 	RET
 
 ; PROGRAM MESSAGES
 
 MSG0:	db	'Status report CP/M version $'
 MSG1:	DB	'    M=RAM memory           R=ROM memory'
-	DB	'          .=no memory',0DH,0AH
+	DB	'          .=no memory',CR,LF
 	DB	'0   1   2   3   4   5   6   7   8   9'
 	DB	'   A   B   C   D   E   F'
-	DB	0DH,0AH,'$'
+	DB	CR,LF,'$'
 MSG2:	DB	'CCP starts at $'
 MSG3:	DB	'BDOS starts at $'
 MSG4:	DB	'Current logged in drives -  $'
@@ -1189,77 +1219,77 @@ MSG16:	DB	'Active I/O ports: $'
 MSG17:	DB	'None$'
 MSG18:	DB	'Current drive in use is $'
 MSG19:	DB	'The present USER number is $'
-msg20:	db	'XIOS jmp table starts at $'
-msg21:	db	'Memory segments are $'
-msg22:	db	'base         size        bank $'
-msg23:	db	'         $'
-msg25:	db	'Your console number is $'
-msg26:	db	'The system time of day is $'
+MSG20:	db	'XIOS jmp table starts at $'
+MSG21:	db	'Memory segments are $'
+MSG22:	db	'base         size        bank $'
+MSG23:	db	'         $'
+MSG25:	db	'Your console number is $'
+MSG26:	db	'The system time of day is $'
 MSG24:	db	'Status report for the P.H.O.T.U.S.'
 	db	' system - MP/M version $'
-msg27:	db	' system',0dh,0ah
+MSG27:	db	' system',CR,LF
 	db	'              - Program Version 1.8'
 		; version as of (05-Jan-84)
-	DB	0DH,0AH,0AH,'$'
-msg28:	db	'The number of consoles supported in this system is $'
-msg29:	db	'Restart number is #$'
-msg30:	db	'CPU is a $'
-msg31:	db	'8080$'
-msg32:	db	'Z-80$'
-msg33:	db	'There is Banked switched memory$'
-msg35:	db	'Bdos resident page is active$'
-msg36:	db	'CP/Net is $'
-msg37:	db	'Inactive$'
-msg38:	db	'Active$'
-msg39:	db	'Xdos starts at $'
-msg40:	db	'RSP base page is at $'
-msg41:	db	'The banked Xios base page is at $'
-msg42:	db	'The banked Bdos base page is at $'
-msg43:	db	'The RESident BDOS base page is at $'
-msg44:	db	'Console number $'
-msg45:	db	' has $'
-msg46:	db	' nulls$'
-msg47:	db	'Number of records in MP/M.SYS file: $'
-msg48:	db	'System number of ticks/second: $'
-msg49:	db	'System drive is $'
-msg50:	db	'Common memory base page is at $'
-msg51:	db	'Number of RSPs is $'
-msg52:	db	'Listcp array address $'
-msg53:	db	'Maximun number of locked records per process $'
-msg54:	db	'Maximun number of opened files per process $'
-msg55:	db	'Number of list items $'
-msg56:	db	'Total of system locked records $'
-msg57:	db	'Total of system opened files $'
-msg58:	db	'Day file logging is $'
-msg59:	db	'Inactive$'
-msg60:	db	'Active$'
-msg61:	db	'Temporary file drive is $'
-msg62:	db	'The number of list devices supported in this system is $'
-msg63:	db	'Banked XDOS base page starts at $'
-msg64:	db	'TMP.spr process discriptor base $'
-msg65:	db	'Console.dat base $'
-msg66:	db	'BDOS / XDOS entry address is at $'
-msg67:	db	'TMP.spr base is $'
-msg68:	db	'Number of banked RSPs $'
-msg69:	db	'XDOS internal data segment address $'
+	DB	CR,LF,LF,'$'
+MSG28:	db	'The number of consoles supported in this system is $'
+MSG29:	db	'Restart number is #$'
+MSG30:	db	'CPU is a $'
+MSG31:	db	'8080$'
+MSG32:	db	'Z-80$'
+MSG33:	db	'There is Banked switched memory$'
+MSG35:	db	'Bdos resident page is active$'
+MSG36:	db	'CP/Net is $'
+MSG37:	db	'Inactive$'
+MSG38:	db	'Active$'
+MSG39:	db	'Xdos starts at $'
+MSG40:	db	'RSP base page is at $'
+MSG41:	db	'The banked Xios base page is at $'
+MSG42:	db	'The banked Bdos base page is at $'
+MSG43:	db	'The RESident BDOS base page is at $'
+MSG44:	db	'Console number $'
+MSG45:	db	' has $'
+MSG46:	db	' nulls$'
+MSG47:	db	'Number of records in MP/M.SYS file: $'
+MSG48:	db	'System number of ticks/second: $'
+MSG49:	db	'System drive is $'
+MSG50:	db	'Common memory base page is at $'
+MSG51:	db	'Number of RSPs is $'
+MSG52:	db	'Listcp array address $'
+MSG53:	db	'Maximun number of locked records per process $'
+MSG54:	db	'Maximun number of opened files per process $'
+MSG55:	db	'Number of list items $'
+MSG56:	db	'Total of system locked records $'
+MSG57:	db	'Total of system opened files $'
+MSG58:	db	'Day file logging is $'
+MSG59:	db	'Inactive$'
+MSG60:	db	'Active$'
+MSG61:	db	'Temporary file drive is $'
+MSG62:	db	'The number of list devices supported in this system is $'
+MSG63:	db	'Banked XDOS base page starts at $'
+MSG64:	db	'TMP.spr process discriptor base $'
+MSG65:	db	'Console.dat base $'
+MSG66:	db	'BDOS / XDOS entry address is at $'
+MSG67:	db	'TMP.spr base is $'
+MSG68:	db	'Number of banked RSPs $'
+MSG69:	db	'XDOS internal data segment address $'
 
-msg99:	db	'BSR controller is $'
+MSG99:	db	'BSR controller is $'
 
 	DS	80h		; Set up a stack area
 STACK	EQU	$
 
-BEDOS:	DS	2
-TPA:	DS	2
-CCP:	DS	2
+startBDOS:	DS	2		; memory location of start of BDOS
+netTPA:		DS	2		; available TPA without displacing the CCP
+startCCP:	DS	2		; CCP starting address
 CONTLR:	DS	1
 OLDSP:	DS	2
 BYTE:	DB	0
 IOBYT:	DS	1
 VECTOR:	DS	2
 CDRV:	DS	1
-ALLOCAD:	DS	2
-mpmbyte:	ds	1
-cpmbyte:	ds	1
+allocVector:	DS	2	; address for allocation table
+mpmFlag:	DS	1		; non-zero if MP/M
+cpmVersion:	DS	1		; Current version
 time:	ds	2
 time1:	ds	3
 timeend:	db	'$'
