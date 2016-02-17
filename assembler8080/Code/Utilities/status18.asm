@@ -38,6 +38,8 @@ CR				EQU		0DH			; Carriage Return
 SPACE			EQU		20H			; Space
 ASCII_OFFSET	EQU		30H			; base to make binary decimal number ascii
 
+ASCII_A			EQU		'A'			; upper A
+ASCII_H			EQU		'H'			; upper H
 ASCII_M			EQU		'M'			; upper M
 ASCII_R			EQU		'R'			; upper R
 
@@ -46,9 +48,9 @@ SYS_CONOUT		EQU		002H	; Console out , char in E
 SYS_GET_IOB		EQU		007H	; get IOByte , Acc returns IOByte		
 SYS_STRING_OUT	EQU		009H	; Print String, DE points at $ terminated String		
 SYS_GET_VER		EQU		00CH	; get version number, HL returns Version		
+SYS_GET_LOGINV	EQU		018H	; get logged in Vector, HL returns Vector (Acc =L)		
+SYS_GET_CUR_DRV	EQU		019H	; get Current Drive, Acc returns with current Drive		
 SYS_GET_ALLOC	EQU		01BH	; get allocation , HL returns vector address		
-;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
-;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
 ;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
 ;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
 ;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version
@@ -78,8 +80,8 @@ ff	equ	0ch	; form feed.
 ;STROUT	EQU	9		; PRINT STRING OUTPUT
 ;version	equ	12		; returns version.
 mpmvrs	equ	163		; MP/M 2.x revision.
-LOGIN	EQU	24		; RETURNS ON-LINE DRIVES
-CURDRV	EQU	25		; RETURNS DEFAULT DRIVE#
+;LOGIN	EQU	24		; RETURNS ON-LINE DRIVES
+;CURDRV	EQU	25		; RETURNS DEFAULT DRIVE#
 ;ALLOC	EQU	27		; RETURNS ALLOCATION ADDRESS
 RONLY	EQU	29		; RETURNS READ ONLY VECTOR
 DPARA	EQU	31		; RETURNS DISK PARAMETER BLK
@@ -274,38 +276,38 @@ osDisplay:
 	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 	LHLD	startCCP
-	CALL	ADOUT
+	CALL	displayHL
 	CALL	displayCRLF
 
 ; Next get the BDOS address and print it
 
-	LXI	D,MSG3
-	MVI	C,SYS_STRING_OUT
+	LXI		D,MSG3
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 	LHLD	startBDOS
-	CALL	ADOUT
+	CALL	displayHL
 	CALL	displayCRLF
 
 ; Next get address of BIOS and print it
 
-	LXI	D,MSG15
-	MVI	C,SYS_STRING_OUT
+	LXI		D,MSG15
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	LXI	D,0E00H
+	LXI		D,0E00H
 	LHLD	startBDOS
-	DAD	D
-	CALL	ADOUT
+	DAD		D
+	CALL	displayHL
 	CALL	displayCRLF
 
 ; Already computed netTPA without killing CCP and print it
 
-	LXI	D,MSG13
-	MVI	C,SYS_STRING_OUT
+	LXI		D,MSG13
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 	LHLD	netTPA
-	CALL	ADOUT
-	LXI	D,MSG11
-	MVI	C,SYS_STRING_OUT
+	CALL	displayHL
+	LXI		D,MSG11
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 	CALL	displayCRLF
 
@@ -321,7 +323,7 @@ conmax:
 	lxi	d,1		; increment to number of consoles.
 	call	offset		; dad the d wth the h&l.
 	sta	maxcon		; store at maximun number of consoles.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 ; 	do a system console number output.
@@ -502,7 +504,7 @@ resbdos:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; then cr,lf.
 
@@ -524,7 +526,7 @@ xios:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; then cr,lf.
 
@@ -543,7 +545,7 @@ xdos:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; do cr,lf.
 
@@ -562,7 +564,7 @@ rsp:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; do cr,lf.
 
@@ -581,7 +583,7 @@ bxios:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; then cr,lf.
 
@@ -600,7 +602,7 @@ bnkbdos:
 	mov	d,m		; get into d for printing.
 	mvi	e,0		; force low order byte to zero.
 	xchg			; exchange the de&hl for printing address.
-	call	adout		; go print address.
+	call	displayHL		; go print address.
 	xchg			; get back hl.
 	call	displayCRLF		; do cr,lf.
 
@@ -652,7 +654,7 @@ memore:
 mem1time:
 	push	h		; save hl.
 	xchg			; put de into hl.
-	call	adout		; output address.
+	call	displayHL		; output address.
 	xchg			; get bck hl.
 
 	lxi	d,MSG23		; output a few spaces.
@@ -665,7 +667,7 @@ mem1time:
 				; note high low reversed for memory seg size.
 	mvi	e,0		; force to 0.
 	xchg			; put de into hl.
-	call	adout		; output size.
+	call	displayHL		; output size.
 	xchg			; get back hl.
 
 ; add these functions later.
@@ -681,7 +683,7 @@ mem1time:
 	pop	h		; get it back.
 	mov	a,m		; get bnk number.
 	push	h		; save it again.
-	call	heout		; go print hex output.
+	call	displayAcc		; go print hex output.
 	call	displayCRLF		; do cr,lf
 	pop	h		; restore pointer.
 
@@ -721,10 +723,10 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,79h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	dcx	h		; one less low-order byte.
 	mov	a,m		; get it.
-	call	heout		; print it.
+	call	displayAcc		; print it.
 	call	displayCRLF		; cr lf printed.
 
 	lxi	d,MSG48		; ticks/sec.
@@ -732,7 +734,7 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,7ah		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; print cr,lf.
 
 	lxi	d,MSG49		; system drive.
@@ -749,9 +751,9 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,7ch		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG51		; #RSP's.
@@ -768,10 +770,10 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,7fh		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG53		; max locked records.
@@ -779,7 +781,7 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,0bbh		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; print cr,lf.
 
 	lxi	d,MSG54		; max opened files.
@@ -787,7 +789,7 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,0bch		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; print cr,lf.
 
 	lxi	d,MSG55		; # list items.
@@ -795,10 +797,10 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,0beh		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG56		; system locked records.
@@ -806,7 +808,7 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,0c1h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; print cr,lf.
 
 	lxi	d,MSG57		; system opened files.
@@ -814,7 +816,7 @@ numrecd:
 	call	bdos		; do it.
 	lxi	d,0c2h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; print cr,lf.
 
 	lxi	d,MSG58		; go print dayfile.
@@ -857,9 +859,9 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f2h		; increment
 	call	offset		; dad the d wth the h&l.
- 	call	heout		; go print it in hex format.
+ 	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG64		; go print the TMP base page.
@@ -867,9 +869,9 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f3h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG65		; go print the console.dat base.
@@ -877,9 +879,9 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f4h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG66		; BDOS / XDOS entry point.
@@ -887,10 +889,10 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f6h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG67		; TMP.spr base page.
@@ -898,9 +900,9 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f7h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG68		; number of banked RSP's.
@@ -908,9 +910,9 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0f8h		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	mvi	a,0		; force to zer0.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 	lxi	d,MSG69		; XDOS internal data segment address.
@@ -918,81 +920,81 @@ dactive:
 	call	bdos		; do it.
 	lxi	d,0fch		; increment
 	call	offset		; dad the d wth the h&l.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	dcx	h		; decement.
 	mov	a,m		; get low-order byte.
-	call	heout		; go print it in hex format.
+	call	displayAcc		; go print it in hex format.
 	call	displayCRLF		; do cr,lf.
 
 ; Determine which drive is the current drive in
 ; use, and print the result
 
 drvchk:
-	LXI	D,MSG18
-	MVI	C,SYS_STRING_OUT
+	LXI		D,MSG18
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	MVI	C,CURDRV
+	MVI		C,SYS_GET_CUR_DRV
 	CALL	BDOS
-	ADI	41H
-	STA	CDRV
+	ADI		ASCII_A				; adjust for ascii output 0=A,1=B...
+	STA		currentDrive
+	CALL	charDisplay			; send to display to finish message 18
+	MVI		A,PERIOD
 	CALL	charDisplay
-	MVI	A,PERIOD
-	CALL	charDisplay
-	CALL	displayCRLF
+	CALL	displayCRLF			;skip a line for next section
 
 ; Determine Allocation address of current drive, and print it
 
-	lda	mpmFlag		; see if MP/M.
-	ora	a		; none zero if so.
-	jnz	mpmcurt		; do MP/M current allocation.
+	LDA		mpmFlag				; see if MP/M.
+	ORA		A					; non-zero if so.
+	JNZ		mpmcurt				; do MP/M current allocation.
 
-	lda	cpmVersion
-	ani	0f0h		; see if 1.x version.
-	jz	rport		; go to do the i/o ports, if not 2.x CP/M.
+	LDA		cpmVersion
+	ANI		MASK_HI_NIBBLE		; see if 1.x version.
+	JZ		rport				; go to do the i/o ports, if not 2.x CP/M.
 
 mpmcurt:
-	LXI	D,MSG5
-	MVI	C,SYS_STRING_OUT
+	LXI		D,MSG5
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	LDA	CDRV
-	CALL	charDisplay
-	LXI	D,MSG6
-	MVI	C,SYS_STRING_OUT
+	LDA		currentDrive
+	CALL	charDisplay		; display the drive for message 5
+	LXI		D,MSG6
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
 	LHLD	allocVector
-	CALL	ADOUT
-	MVI	A,48H
+	CALL	displayHL
+	MVI		A,ASCII_H		; show that address is Hex
 	CALL	charDisplay
 	CALL	displayCRLF
 
 ; Find out which drives are logged in and print them
 
-	MVI	C,LOGIN
+	MVI		C,SYS_GET_LOGINV
 	CALL	BDOS
-	ANI	MASK_LO_NIBBLE		; leave low nibble.
-	STA	VECTOR
-	LXI	D,MSG4
-	MVI	C,SYS_STRING_OUT
+	ANI		MASK_LO_NIBBLE		; leave low nibble. Assumes Number of drives LE 8
+	STA		activeDrives		; save bitmap of logged in drives lsb = A.. ...msb = H
+	LXI		D,MSG4				; current logged in drives -
+	MVI		C,SYS_STRING_OUT
 	CALL	BDOS
-	LDA	VECTOR
+	LDA		activeDrives		; get bitmap
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG7
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG8
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG9
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
 	LXI	D,MSG10
 	MVI	C,SYS_STRING_OUT
@@ -1004,34 +1006,34 @@ mpmcurt:
 	MVI	C,RONLY
 	CALL	BDOS
 	ANI	MASK_LO_NIBBLE		; leave low nibble.
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG14
 	MVI	C,SYS_STRING_OUT
 	CALL	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	ORA	A
 	LXI	D,MSG17
 	MVI	C,SYS_STRING_OUT
 	CZ	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG7
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG8
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
-	STA	VECTOR
+	STA	activeDrives
 	LXI	D,MSG9
 	MVI	C,SYS_STRING_OUT
 	CC	BDOS
-	LDA	VECTOR
+	LDA	activeDrives
 	RRC
 	LXI	D,MSG10
 	MVI	C,SYS_STRING_OUT
@@ -1045,7 +1047,7 @@ mpmcurt:
 	CALL	BDOS
 	MVI	C,DPARA
 	CALL	BDOS
-	CALL	ADOUT
+	CALL	displayHL
 	MVI	A,48H
 	CALL	charDisplay
 	CALL	displayCRLF
@@ -1058,10 +1060,13 @@ mpmcurt:
 	MVI	E,0FFH
 	MVI	C,PRUSER
 	CALL	BDOS
-	CALL	HEOUT
+	CALL	displayAcc
 	MVI	A,48H
 	CALL	charDisplay
 	CALL	displayCRLF
+; skip the port stuff	
+	MVI		C,00h		; system reset
+	CALL	BDOS
 
 ; Check all ports (0-255), and determine if they
 ; are active. If they are, print the port number
@@ -1122,7 +1127,7 @@ finish:
 
 PORTOUT:
 	LDA	BYTE
-	CALL	HEOUT
+	CALL	displayAcc
 	CALL	displaySpace
 	RET
 
@@ -1139,32 +1144,33 @@ charDisplay:				; Character output
 	RET
 
 ; The following routine will print the value of
-; HL to the console. If entered at HEOUT, it will
-; only print the value of the A register
+; HL to the console. If entered at displayAcc, it will
+; only print the value of Acc
 
-ADOUT:				; Output HL to console
-	MOV	A,H		; H is first
-	CALL	HEOUT
-	MOV	A,L		; L is next
-HEOUT:
-	MOV	C,A		; Save it
+displayHL:					; Output HL to console
+	MOV		A,H				; H is first
+	CALL	displayAcc		; display ascci value
+	MOV		A,L				; L is next
+; display ascii value of Acc	
+displayAcc:
+	MOV		C,A				; Save it
 	RRC
 	RRC
 	RRC
-	RRC
-	CALL	HEOUT1		; Put it out
-	MOV	A,C		; Get it back
-
-HEOUT1:
-	ANI	MASK_LO_NIBBLE		; leave low nibble.
-	ADI	48
-	CPI	58		; 0-9?
-	JC	OUTCH
-	ADI	7		; Make it a letter
+	RRC						; move MSN to LSN
+	CALL	displayAcc1		; Put it out
+	MOV		A,C				; restore original value
+displayAcc1:
+	ANI		MASK_LO_NIBBLE	; leave low nibble.
+	ADI		ASCII_OFFSET	; get ascii equivalent
+	CPI		03AH			; 0-9?
+	JC		OUTCH			; skip if decimal digit
+	ADI		07H				;   else make it a letter
 
 OUTCH:
 	CALL	charDisplay
 	RET
+;
 
 clearDisplay:				; Clear console
 	MVI		C,25			; number of display lines + 1
@@ -1285,8 +1291,8 @@ CONTLR:	DS	1
 OLDSP:	DS	2
 BYTE:	DB	0
 IOBYT:	DS	1
-VECTOR:	DS	2
-CDRV:	DS	1
+activeDrives:	DS	2
+currentDrive:	DS	1
 allocVector:	DS	2	; address for allocation table
 mpmFlag:	DS	1		; non-zero if MP/M
 cpmVersion:	DS	1		; Current version
