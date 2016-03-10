@@ -1442,7 +1442,7 @@ NBYTES:
 ;	The user's stack is saved (UserStack) 
 ;	BDOS uses its own stack  (BDOSstack)
 ;	The Function number is checked
-;	The corect routine is calcualted using the FunctionVector and (C)
+;	The corect routine is calcualted using the functionTable and (C)
 ;
 	ORG  0E806H					; forces - see start of bios fix later
 BDOSEntry:
@@ -1459,15 +1459,15 @@ BDOSEntry:
 	SHLD	UserStack			; save users stack pointer.
 	LXI		SP,BDOSstack		; and set our own.
 	XRA		A					; clear A for flags resets
-	STA		AutoSelectFlag		; clear auto select storage Flag
-	STA		AutoSelectActive	; clear auto select Active Flag
+	STA		fcbDisk				; clear auto select storage Flag
+	STA		reselectionFlag		; clear reselection Flag
 	LXI		H,BDOSExit			; get return address to BDOSExit routine
 	PUSH	H					; put it on the stack
 	MOV		A,C					; get function number and put into A.
-	CPI		FunctionCount + 1	; valid function number?
+	CPI		functionCount + 1	; valid function number?
 	RNC							; Exit if not valid
 	MOV		C,E					; keep single register function value in C.
-	LXI		H,FunctionVector	; now look thru the function table.
+	LXI		H,functionTable	; now look thru the function table.
 	MOV		E,A
 	MVI		D,0					;(DE)=function number.
 	DAD		D
@@ -1490,12 +1490,12 @@ UserStack:			DW	0	;save users stack pointer here.
 BDOSstack	EQU	$	;end of stack area.
 ;----------------------------------
 BDOSExit:
-	LDA	AutoSelectActive	;was auto select activated?
+	LDA	reselectionFlag	;was auto select activated?
 	ORA	A
 	JZ	BDOSExit1
 	LHLD	ParamsDE	;yes, but was a change made?
 	MVI	M,0	;(* reset first byte of fcb *)
-	LDA	AutoSelectFlag
+	LDA		fcbDisk		; disk named in FCB
 	ORA	A
 	JZ	BDOSExit1
 	MOV	M,A	;yes, reset first byte properly.
@@ -1517,7 +1517,7 @@ BDOSExit1:
 ;
 ;NFUNCTS	EQU	41	;number of functions in followin table.
 ;
-FunctionVector:
+functionTable:
 	DW	fcSystemReset			;0		Overall system and BDOS reset
 	DW	fcConsoleIn				;1		Read a byte from the console keyboard
 	DW	fcConsoleOut			;2		Write a byte to the console screen
@@ -1530,8 +1530,8 @@ FunctionVector:
 	DW	fcConsoleStringOut		;9		Send a "$"-terminated string to the console
 	DW	fcConsoleStringIn		;10		Read a string from the console into a buffer
 	DW	fcConsoleStatusIn		;11		Check if a console key is waiting to be read
-	DW	fcGetVersion			;12		Return the CP/M version number
-	
+diskFunctions	EQU	 ($ -functionTable)/2	
+	DW	fcGetVersion			;12		Return the CP/M version number	
 	DW	fcResetDiskSystem		;13		Reset disk system
 	DW	fcSelectDisk			;14		Select specified logical disk drive
 	DW	fcOpenFile				;15		Open specified file for reading/writing
@@ -1561,7 +1561,7 @@ FunctionVector:
 	DW	fcReturn				;39		Simple Return
 	DW	fcWriteZeroFill			;40		Write a "record" randomly with zero fill
 	
-FunctionCount	EQU	 ($ -FunctionVector)/2
+functionCount	EQU	 ($ -functionTable)/2
 
 ;
 ;   Bdos error table.
@@ -3936,7 +3936,7 @@ fcSelectDisk:
 ;
 AutoSelect:
 	MVI		A,0FFH				;say 'auto-select activated'.
-	STA		AutoSelectActive
+	STA		reselectionFlag
 	LHLD	ParamsDE			; get drive specified.
 	MOV		A,M					; (A) should be equal to currentDisk where:
 	ANI		1FH					; (uuuudddd) where 'uuuu' is the user number;look at lower 5 bits.
@@ -3947,8 +3947,8 @@ AutoSelect:
 	
 	LDA		CurrentDrive		; we must change
 	STA		OldDrive			;  save currently active drive.
-	MOV		A,M					; and save first byte of fcb also.
-	STA		AutoSelectFlag		; this must be non-zero.
+	MOV		A,M					; and get first byte of fcb also.
+	STA		fcbDisk				; and store it away
 	ANI		0E0H				; whats this for (bits 6,7 are used for
 	MOV		M,A					; something)? maybe User Number
 	CALL	fcSelectDisk		; select and log in this drive.
@@ -4239,9 +4239,9 @@ RELBLOCK:				DB	0	;relative position within fcb of block number written.
 CharCounter:			DB	0	;byte counter for directory name searches.
 SaveFCB:				DW	0,0	;save space for address of fcb (for directory searches).
 SmallDisk:				DB	0	;if =0 then disk is > 256 blocks long.
-AutoSelectActive:		DB	0	;if non-zero, then auto select activated.
+reselectionFlag:		DB	0	;if non-zero auto select activated.
 OldDrive:				DB	0	;on auto select, storage for previous drive.
-AutoSelectFlag:			DB	0	;if non-zero, then auto select changed drives.
+fcbDisk:				DB	0	;(if non-zero auto select changed drives) Disk named in FCB.
 SAVNXT:					DB	0	;storage for next record number to access.
 SAVEXT:					DB	0	;storage for extent number of file.
 SAVNREC:				DW	0	;storage for number of records in file.

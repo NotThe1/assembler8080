@@ -80,33 +80,33 @@ roferr:	dw	rofsub	;ro file error subroutine
 ;
 bdose:	;arrive here from user programs
 	xchg
-	shld ParamsDE
-	xchg ;ParamsDE=DE, DE=ParamsDE
-	mov a,e
-	sta ParamE ;ParamE = low(info) - don't equ
-	lxi h,0
-	shld StatusBDOSReturn ;return value defaults to 0000
+	shld	ParamsDE
+	xchg	;ParamsDE=DE, DE=ParamsDE
+	mov		a,e
+	sta		ParamE ;ParamE = low(info) - don't equ
+	lxi		h,0
+	shld	StatusBDOSReturn ;return value defaults to 0000
 	;save user's stack pointer, set to local stack
-	dad sp
-	shld UserStack ;UserStack = stackptr
-	lxi sp,BDOSstack ;local stack setup
-	xra a
-	sta fcbdsk
-	sta resel ;fcbdsk,resel=false
-	lxi h,goback ;return here after all functions
-	push h ;jmp goback equivalent to ret
-	mov a,c
-	cpi nfuncs
-	rnc ;skip if invalid #
-	mov c,e ;possible output character to C
-	lxi h,functab
-	mov e,a
-	mvi d,0 ;DE=func, HL=.ciotab
-	dad d
-	dad d
-	mov e,m
-	inx h
-	mov d,m ;DE=functab(func)
+	dad		sp
+	shld	UserStack ;UserStack = stackptr
+	lxi		sp,BDOSstack ;local stack setup
+	xra		a
+	sta		fcbdsk
+	sta		resel ;fcbdsk,resel=false
+	lxi		h,goback ;return here after all functions
+	push	h ;jmp goback equivalent to ret
+	mov		a,c
+	cpi		nfuncs
+	rnc 		;skip if invalid #
+	mov		c,e ;possible output character to C
+	lxi		h,functab
+	mov		e,a
+	mvi		d,0 ;DE=func, HL=.ciotab
+	dad		d
+	dad		d
+	mov		e,m
+	inx		h
+	mov		d,m ;DE=functab(func)
 	xchg
 	 pchl ;dispatched
 ;
