@@ -2575,7 +2575,7 @@
 2575: EDA7                CHECKDIR:           
 2576: EDA7     2AE5F5     	LHLD	CheckSumTable 
 2577: EDAA     EB         	XCHG               
-2578: EDAB     2AC4F5     	LHLD	DirectoryFAT1 
+2578: EDAB     2AC4F5     	LHLD	e 
 2579: EDAE     CD9EED     	CALL	DEminusHL2HL  
 2580: EDB1     D0         	RNC								; ok if (CheckSumTable) > (DirectoryFAT1), so return.
 2581: EDB2     C5         	PUSH	B						; save set/check flag (c)

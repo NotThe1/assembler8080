@@ -80,6 +80,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private Pattern patternForLabel;
 	private Pattern patternForName;
 	private Pattern patternForComments;
+	private Pattern patternForInclude;
+	private Pattern patternForLineNumber;
 	private String r8r8Pattern;
 	private String r16dPattern;
 	private String r8Pattern;
@@ -126,7 +128,12 @@ public class ASM implements ActionListener, AdjustmentListener {
 	 * starting point for the Assembler
 	 */
 
-	public void performPassTwo(File sourceFile) {
+	public void passTwo(File sourceFile) {
+		Matcher matcher;
+		String line= null;
+		String rawLine = null;
+		String sourceLine = null;
+		
 		try {
 			if (memoryImage != null) {
 				memoryImage = null;
@@ -139,21 +146,25 @@ public class ASM implements ActionListener, AdjustmentListener {
 			FileWriter fw = new FileWriter(listFile);
 			PrintWriter pw = new PrintWriter(fw);
 
-			FileReader source = new FileReader(sourceFile);
-			BufferedReader reader = new BufferedReader(source);
-			String line = null;
-			String rawLine = null;
-			lineNumber = 0;
+//			FileReader source = new FileReader(sourceFile);
+//			BufferedReader reader = new BufferedReader(source);
+			
 			currentPC = instructionCounter.getCurrentLocation();
-
-			while ((rawLine = reader.readLine()) != null) {
-				// line = rawLine.replace("\t", " ").toUpperCase();
-				line = rawLine.toUpperCase();
-				lineNumber++;
+			
+			Scanner scannerPassTwo = new Scanner(txtSource.getText());
+			while (scannerPassTwo.hasNextLine()) {
 				String memImage = "";
-				// outputLine = String.format("%04d  %s%n", lineNumber, line);
-				// txtLog1.append(outputLine);
+				sourceLine = scannerPassTwo.nextLine();
+				matcher = patternForLineNumber.matcher(sourceLine);
+				if (!matcher.lookingAt()){
+					continue;
+				}// no line number
+				int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
+				rawLine = sourceLine.substring(matcher.end(), sourceLine.length());
+				line = rawLine.toUpperCase();
 				parseLine(lineNumber, line);
+				//
+				
 				if (isEmptyLine) {
 					passOneList.add(new PassOne(lineNumber)); // empty line
 				} else if (instruction != null) {
@@ -174,7 +185,50 @@ public class ASM implements ActionListener, AdjustmentListener {
 				if (cbSaveToFile.isSelected()) {
 					pw.print(logMessage);
 				}// if - do we send to file?
+
+				
 			}// while
+	
+			
+			
+			
+			
+			
+			
+//			String line line= null;
+//			String rawLine = null;
+//			lineNumber = 0;
+//			currentPC = instructionCounter.getCurrentLocation();
+
+//			while ((rawLine = reader.readLine()) != null) {
+//				// line = rawLine.replace("\t", " ").toUpperCase();
+//				line = rawLine.toUpperCase();
+//				lineNumber++;
+//				String memImage = "";
+//				// outputLine = String.format("%04d  %s%n", lineNumber, line);
+//				// txtLog1.append(outputLine);
+//				parseLine(lineNumber, line);
+//				if (isEmptyLine) {
+//					passOneList.add(new PassOne(lineNumber)); // empty line
+//				} else if (instruction != null) {
+//					passOneList.add(new PassOne(lineNumber, currentPC, symbol, instruction, arguments, comment));// Instruction
+//					memImage = setMemoryBytes(lineNumber, instruction, arguments);
+//				} else if (directive != null) {
+//					if (directive.doPassTwo()) {
+//						memImage = setMemoryBytesForDirectives(lineNumber, directive, arguments);
+//					}// if pass2
+//					passOneList.add(new PassOne(lineNumber, currentPC, symbol, directive, arguments, comment));// Directive
+//				} else {
+//					passOneList.add(new PassOne(lineNumber, currentPC, symbol, comment));
+//				}//
+//				saveMemoryImage(currentPC, memImage);
+//				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage,
+//						rawLine);
+//				txtListing.append(logMessage);
+//				if (cbSaveToFile.isSelected()) {
+//					pw.print(logMessage);
+//				}// if - do we send to file?
+//			}// while
 
 			doList(pw);
 			if (cbSaveToFile.isSelected()) {
@@ -191,7 +245,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 			txtSource.setCaretPosition(0);
 			txtListing.setCaretPosition(0);
-			reader.close();
+//			reader.close();
 			pw.close();
 			fw.close();
 		} catch (IOException e) {
@@ -355,32 +409,71 @@ public class ASM implements ActionListener, AdjustmentListener {
 		}
 	}// saveMemoryImage
 
-	public void performPassOne(File sourceFile) {
-		try {
-			FileReader source = new FileReader(sourceFile);
-			BufferedReader reader = new BufferedReader(source);
-			String line = null;
-			String rawLine = null;
-			lineNumber = 0;
-			String outputLine;
-			// instructionCounter.getCurrentLocation();
-			while ((rawLine = reader.readLine()) != null) {
-				line = rawLine.toUpperCase();
-				lineNumber++;
-				outputLine = String.format("%04d  %s%n", lineNumber, line);
-				txtSource.append(outputLine);
-
-				parseLine(lineNumber, line);
-			}// while
-			reader.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}// TRY
+	public void passOne() {
+		Matcher matcher;
+		String line;
+		
+		Scanner scannerPassOne = new Scanner(txtSource.getText());
+		while (scannerPassOne.hasNextLine()) {
+			line = scannerPassOne.nextLine();
+			matcher = patternForLineNumber.matcher(line);
+			if (!matcher.lookingAt()){
+				continue;
+			}// no line number
+			int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
+			parseLine(lineNumber, line.substring(matcher.end(), line.length()));
+		}// while
 
 		// symbolTable.passOneDone();
 		SymbolTable.passOneDone();
 		instructionCounter.reset();
 	}// buildTheSymbolTable
+
+	public void passZero(File sourceFile) {
+		try {
+			FileReader source = new FileReader(sourceFile);
+			BufferedReader reader = new BufferedReader(source);
+			String line = null;
+			String rawLine = null;
+			String outputLine;
+			Matcher matcher1;
+			while ((rawLine = reader.readLine()) != null) {
+				line = rawLine.toUpperCase();
+				lineNumber++;
+				outputLine = String.format("%04d  %s%n", lineNumber, line);
+				txtSource.append(outputLine);
+				matcher1 = patternForInclude.matcher(line);
+
+				if (matcher1.find()) {
+					String fileReference = line.substring(matcher1.end(), line.length());
+					doInclude(fileReference, sourceFile.getParentFile().getAbsolutePath());
+				}// if
+			}// while
+			reader.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}// TRY
+	}// passZero
+
+	public void doInclude(String fileReference, String parentDirectory) {
+
+		if (!fileReference.contains("\\")) {
+			fileReference = parentDirectory + System.getProperty("file.separator") + fileReference;
+		}//
+
+		if (!fileReference.endsWith(ASSEMBLER_SUFFIX.toUpperCase())) {
+			fileReference += "." + ASSEMBLER_SUFFIX;
+		}//
+
+		String includeMarker = ";<<<<<<<<<<<<<<<<<<<<<<<   Include  >>>>>>>>>>>>>>>>";
+		txtSource.append(String.format("%04d  %s%n", lineNumber++, includeMarker));
+
+		File includedFile = new File(fileReference);
+		passZero(includedFile);
+
+		txtSource.append(String.format("%04d  %s%n", lineNumber++, includeMarker));
+
+	}// doInclude
 
 	public void displaySymbolTable() {
 		HashMap<String, SymbolTableEntry> symbols = symbolTable.getTableEntries();
@@ -834,7 +927,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		return lineToCheck.trim();
 	}// checkForDirective
 
-	private Integer resolveSimpleArgument(String argument, Integer lineNumbe) {
+	private Integer resolveSimpleArgument(String argument, Integer lineNumber) {
 		// Integer ans = null;
 		Integer ans = 0;
 		if (argument.equals("$")) {
@@ -860,7 +953,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			ans = Integer.valueOf(argument.replace("D", ""), 2);
 
 		} else {// send to expression resolver
-			ans = resolveExpression(argument, lineNumbe);
+			ans = resolveExpression(argument, lineNumber);
 		}
 		if (ans == null) {
 			System.out.printf("Null ans from argument: %s%n", argument);
@@ -922,7 +1015,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		default:
 			suffix = ".list";
 		}// switch
-		
+
 		return fileNameParts[0] + suffix;
 
 	}// replaceFileType
@@ -968,8 +1061,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 			if (asmSourceFile != null) {
 				txtSource.setText("");
 				txtListing.setText("");
-				performPassOne(asmSourceFile);
-				performPassTwo(asmSourceFile);
+				lineNumber = 0;
+
+				passZero(asmSourceFile);
+				passOne();
+				passTwo(asmSourceFile);
+				// passOne(asmSourceFile);
+				// passTwo(asmSourceFile);
 			}// if
 			break;
 		case "btnTest":
@@ -1018,6 +1116,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 		r8r8Pattern = "[ABCDEHLM],[ABCDEHLM]";
 		r16dPattern = "B|BC|D|DE|H|HL|SP";
 		r8Pattern = "A|B|C|D|E|H|L|M";
+		patternForInclude = Pattern.compile("\\$INCLUDE ");
+		patternForLineNumber = Pattern.compile("^\\d{4}\\s");
 
 		Path sourcePath = Paths.get(FILE_LOCATION, "Code");
 		defaultDirectory = sourcePath.resolve(FILE_LOCATION).toString();

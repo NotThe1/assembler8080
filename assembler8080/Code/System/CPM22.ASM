@@ -4269,23 +4269,23 @@ CheckSumTable:
 ;
 BIOSEntry	Equ	0F600H		; start of bios
 
-biosBoot			EQU		BIOSEntry + 000H	
-fcSystemReset		EQU		BIOSEntry + 003H
-biosConsoleStatus	EQU		BIOSEntry + 006H
-biosConsoleIn		EQU		BIOSEntry + 009H
-biosConsoleOut		EQU		BIOSEntry + 00CH
-fcListOut			EQU		BIOSEntry + 00FH
-fcPunchOut			EQU		BIOSEntry + 012H
-biosReaderIn		EQU		BIOSEntry + 015H
-biosHomeDisk		EQU		BIOSEntry + 018H
-biosSelectDisk		EQU		BIOSEntry + 01BH
-biosSetTrack		EQU		BIOSEntry + 01EH
-biosSetSector		EQU		BIOSEntry + 021H
-biosSetDMA			EQU		BIOSEntry + 024H
-biosReadDisk		EQU		BIOSEntry + 027H
-biosWriteDisk		EQU		BIOSEntry + 02AH
-biosListStatus		EQU		BIOSEntry + 02DH
-biosSectorTranslate	EQU		BIOSEntry + 030H
+biosBoot			EQU		BIOSEntry + 000H	;  0
+fcSystemReset		EQU		BIOSEntry + 003H	;  1
+biosConsoleStatus	EQU		BIOSEntry + 006H	;  2
+biosConsoleIn		EQU		BIOSEntry + 009H	;  3
+biosConsoleOut		EQU		BIOSEntry + 00CH	;  4
+fcListOut			EQU		BIOSEntry + 00FH	;  5
+fcPunchOut			EQU		BIOSEntry + 012H	;  6
+biosReaderIn		EQU		BIOSEntry + 015H	;  7
+biosHomeDisk		EQU		BIOSEntry + 018H	;  8
+biosSelectDisk		EQU		BIOSEntry + 01BH	;  9
+biosSetTrack		EQU		BIOSEntry + 01EH	; 10 (A)
+biosSetSector		EQU		BIOSEntry + 021H	; 11 (B)
+biosSetDMA			EQU		BIOSEntry + 024H	; 12 (C)
+biosReadDisk		EQU		BIOSEntry + 027H	; 13 (D)
+biosWriteDisk		EQU		BIOSEntry + 02AH	; 14 (E)
+biosListStatus		EQU		BIOSEntry + 02DH	; 15 (F)
+biosSectorTranslate	EQU		BIOSEntry + 030H	; 16 (10)
 
 ;*
 ;******************   E N D   O F   C P / M   *****************
