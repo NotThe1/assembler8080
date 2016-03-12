@@ -8,21 +8,24 @@
 ;	Box 579, Pacific Grove,
 ;	California, 93950
 ;
+		$Include osHeader.asm
 false	equ	0000h
 true	equ	-1		;not false
 testing	equ	false	;true if debugging
 ;
 ;
 ;;	if	testing
-	org	3400h
-bdosl	equ	$+800h		;bdos location
+;;	org	3400h
+CodeStart:
+	ORG		CCPEntry
+;;bdosl	equ	$+800h		;bdos location BDOSBase
 ;;	else
 ;;	org	000h
 ;;bdosl	equ	$+800h		;bdos location
 ;;	endif
-tran	equ	100h
+;;tran	equ	100h
 tranm	equ	$
-ccploc	equ	$
+;;ccploc	equ	$
 ;
 ;	********************************************************
 ;	*	Base of CCP contains the following code/data   *
@@ -115,7 +118,7 @@ crlf:
 	jmp  printbc
 ;
 blank:
-	mvi a,' '
+	mvi a,SPACE
 	jmp printbc
 ;
 print:	;print string starting at b,c until next 00 entry
@@ -358,7 +361,7 @@ del$sub:
 serialize:
 	;check serialization
 	lxi d,serial
-	lxi h,bdosl
+	lxi h,BDOSBase			;bdosl
 	mvi b,6 ;check six bytes
 	ser0:	ldax d
 	cmp m
@@ -376,7 +379,7 @@ comerr:
 	lhld staddr ;h,l address first to print
 	comerr0: ;print characters until blank or zero
 		mov a,m
-	cpi ' '
+	cpi SPACE
 	jz comerr1; not blank
 		ora a
 	jz comerr1; not zero, so print it
@@ -386,7 +389,7 @@ comerr:
 	inx h
 		jmp comerr0; for another character
 	comerr1: ;print question mark,and delete sub file
-		mvi a,'?'
+		mvi a,QMARK
 	call printchar
 		call crlf
 	call del$sub
@@ -399,22 +402,22 @@ comerr:
 		ldax d
 	ora a
 	rz ;not the last element
-		cpi ' '
+		cpi SPACE
 	jc comerr ;non graphic
 		rz ;treat blank as delimiter
-		cpi '='
+		cpi EQUAL_SIGN
 	rz
 		cpi la
 	 rz ;left arrow
-		cpi '.'
+		cpi PERIOD
 	rz
-		cpi ':'
+		cpi COLON
 	rz
-		cpi ';'
+		cpi SEMICOLON
 	rz
-		cpi '<'
+		cpi LESS_THAN
 	rz
-		cpi '>'
+		cpi GREATER_THAN
 	rz
 		ret	;delimiter not found
 ;
@@ -422,7 +425,7 @@ comerr:
 		ldax d
 	ora a
 	rz ;treat end of line as blank
-		cpi ' '
+		cpi SPACE
 	rnz
 	inx d
 	jmp deblank
@@ -456,11 +459,11 @@ fillfcb:
 	ldax d
 	ora a
 	jz setcur0 ;use current disk if empty command
-	sbi 'A'-1
+	sbi 040H		;ASCII_A-1
 	mov b,a ;disk name held in b if : follows
 	inx d
 	ldax d
-	cpi ':'
+	cpi COLON
 	jz setdsk ;set disk name if :
 	;
 	setcur: ;set current disk
@@ -481,9 +484,9 @@ fillfcb:
 		setnam0: call delim
 	jz padname ;not a delimiter
 			inx h
-	cpi '*'
+	cpi ASTERISK
 	jnz setnam1 ;must be ?'s
-			mvi m,'?'
+			mvi m,QMARK
 	jmp setnam2 ;to dec count
 		;
 		setnam1: mov m,a ;store character to fcb
@@ -498,22 +501,22 @@ fillfcb:
 	jmp trname
 		;
 	padname: inx h
-	mvi m,' '
+	mvi m,SPACE
 	dcr b
 	jnz padname
 		;
 	setty: ;set the type field
 		mvi b,3
-	cpi '.'
+	cpi PERIOD
 	jnz padty ;skip the type field if no .
 		inx d ;past the ., to the file type field
 		setty0: ;set the field from the command buffer
 			call delim
 	jz padty
 	inx h
-	cpi '*'
+	cpi ASTERISK
 	jnz setty1
-			mvi m,'?' ;since * specified
+			mvi m,QMARK ;since * specified
 	jmp setty2
 			;
 		setty1: ;not a *, so copy to type field
@@ -532,7 +535,7 @@ fillfcb:
 		;
 		padty:	;pad the type field with blanks
 			inx h
-	mvi m,' '
+	mvi m,SPACE
 	dcr b
 	jnz padty
 		;
@@ -551,7 +554,7 @@ fillfcb:
 	lxi b,11 ;b=0, c=8+3
 		scnq: inx h
 	mov a,m
-	cpi '?'
+	cpi QMARK
 	jnz scnq0
 		;? found, count it in b
 	inr b
@@ -595,7 +598,7 @@ intrinsic:
 		;
 		;complete match on name, check for blank in fcb
 		ldax d
-	cpi ' '
+	cpi SPACE
 	jnz intrin3 ;otherwise matched
 		mov a,c
 	ret ;with intrinsic number in a
@@ -645,9 +648,9 @@ ccp:
 	lxi sp,stack
 	call crlf ;print d> prompt, where d is disk name
 	call cselect ;get current disk number
-	adi 'A'
+	adi ASCII_A	
 	call printchar
-	mvi a,'>'
+	mvi a,GREATER_THAN
 	call printchar
 	call readcom ;command buffer filled
 ccp0:	;(enter here from initialization with command full)
@@ -682,9 +685,9 @@ ccp0:	;(enter here from initialization with command full)
 			dw	user	;user number
 			dw	userfunc;user-defined function
 		badserial:
-			lxi h,di or (hlt shl 8)
-			shld ccploc
-	lxi h,ccploc
+				LXI	H,76F3H	;'DI HLT' instructions  lxi h,di or (hlt shl 8)
+			shld CCPEntry
+	lxi h,CCPEntry
 	pchl
 			;
 ;
@@ -711,16 +714,16 @@ ccp0:	;(enter here from initialization with command full)
 	lxi b,11 ;(b=0, c=11)
 		;value accumulated in b, c counts name length to zero
 		conv0:	mov a,m
-	cpi ' '
+	cpi SPACE
 	jz conv1
 			;more to scan, convert char to binary and add
 			inx h
-	sui '0'
+	sui ASCII_ZERO
 	cpi 10
 	jnc comerr ;valid?
 			mov d,a ;save value
 	mov a,b ;mult by 10
-			ani 1110$0000b
+			ani 11100000b
 	jnz comerr
 			mov a,b ;recover value
 			rlc
@@ -738,7 +741,7 @@ ccp0:	;(enter here from initialization with command full)
 			ret
 		conv1:	;end of digits, check for all blanks
 			mov a,m
-	cpi ' '
+	cpi SPACE
 	jnz comerr ;blanks?
 			inx h
 	dcr c
@@ -796,11 +799,11 @@ direct:
 	call setdisk ;change disk drives if requested
 	lxi h,comfcb+1
 	mov a,m ;may be empty request
-	cpi ' '
+	cpi SPACE
 	jnz dir1 ;skip fill of ??? if not blank
 		;set comfcb to all ??? for current disk
 		mvi b,11 ;length of fill ????????.???
-		dir0: mvi m,'?'
+		dir0: mvi m,QMARK
 	inx h
 	dcr b
 	jnz dir0
@@ -815,7 +818,7 @@ direct:
 		rrc
 	rrc
 	rrc
-	ani 110$0000b
+	ani 1100000b
 	mov c,a
 		;c contains base index into buff for dir entry
 		mvi a,sysfile
@@ -837,13 +840,13 @@ direct:
 	call cselect
 	pop b
 			;current disk in A
-			adi 'A'
+			adi ASCII_A	
 	call printbc
-			mvi a,':'
+			mvi a,COLON
 	call printbc
 			jmp dirhdr1 ;skip current line hdr
 		dirhdr0:call blank ;after last one
-			mvi a,':'
+			mvi a,COLON
 	call printbc
 		dirhdr1:
 			call blank
@@ -853,7 +856,7 @@ direct:
 	call addhcf ;buff+a+c fetched
 			ani 7fh ;mask flags
 			;may delete trailing blanks
-			cpi ' '
+			cpi SPACE
 	jnz dir4 ;check for blank type
 			pop psw
 	push psw ;may be 3rd item
@@ -862,10 +865,10 @@ direct:
 			mvi a,9
 	call addhcf ;first char of type
 			ani 7fh
-	cpi ' '
+	cpi SPACE
 	jz dir5
 			;not a blank in the file type field
-		dirb:	mvi a,' ' ;restore trailing filename chr
+		dirb:	mvi a,SPACE ;restore trailing filename chr
 		dir4:
 			call printbc ;char printed
 			inr b
@@ -904,7 +907,7 @@ erase:
 	jnz ccp ;bad input
 		inx h
 	mov a,m
-	cpi 'Y'
+	cpi ASCII_Y
 	jnz ccp
 		;ok, erase the entire diskette
 		inx h
@@ -981,7 +984,7 @@ save:
 	mvi h,0
 	dad h
 	
-		lxi d,tran ;h,l is sector count, d,e is load address
+		lxi d,TPA ;h,l is sector count, d,e is load address
 	save0:	;check for sector count zero
 		mov a,h
 	ora l
@@ -1032,7 +1035,7 @@ rename:
 		lhld comaddr
 	xchg
 	call deblank
-		cpi '='
+		cpi EQUAL_SIGN
 	jz ren1 ;ok if =
 		cpi la
 	jnz renerr2
@@ -1083,7 +1086,7 @@ user:
 	jnc comerr; must be between 0 and 15
 	mov e,a ;save for setuser call
 	lda comfcb+1
-	cpi ' '
+	cpi SPACE
 	jz comerr
 	call setuser ;new user number set
 	jmp endcom
@@ -1092,7 +1095,7 @@ userfunc:
 	call serialize ;check serialization
 	;load user function and set up for execution
 	lda comfcb+1
-	cpi ' '
+	cpi SPACE
 	jnz user0
 		;no file name, but may be disk switch
 		lda sdisk
@@ -1106,8 +1109,8 @@ userfunc:
 	user0:	;file name is present
 		lxi d,comfcb+9
 	ldax d
-	cpi ' '
-	jnz comerr ;type ' '
+	cpi SPACE
+	jnz comerr ;type SPACE
 		push d
 	call setdisk
 	pop d
@@ -1116,7 +1119,7 @@ userfunc:
 		call openc
 	jz userer
 		;file opened properly, read it into memory
-		lxi h,tran ;transient program base
+		lxi h,TPA ;transient program base
 		load0:	push h ;save dma address
 			xchg
 	call setdma
@@ -1160,7 +1163,7 @@ userfunc:
 		bmove0:	mov a,m
 	ora a
 	jz bmove1
-	cpi ' '
+	cpi SPACE
 	jz bmove1
 			inx h
 	jmp bmove0 ;for another scan
@@ -1185,7 +1188,7 @@ userfunc:
 			call setdmabuff ;default dma
 			call saveuser ;user code saved
 			;low memory diska contains user code
-			call tran ;gone to the loaded program
+			call TPA ;gone to the loaded program
 			lxi sp,stack ;may come back here
 			call setdiska
 	call select
@@ -1209,7 +1212,7 @@ retcom:	;reset disk before end of command check
 endcom:	;end of intrinsic command
 	call fillfcb0 ;to check for garbage at end of line
 	lda comfcb+1
-	sui ' '
+	sui SPACE
 	lxi h,sdisk
 	ora m
 	;0 in accumulator if no disk selected, and blank fcb
@@ -1239,4 +1242,5 @@ cdisk:	ds	1	;current disk
 sdisk:	ds	1	;selected disk for current operation
 			;none=0, a=1, b=2 ...
 bptr:	ds	1	;buffer pointer
-	end	ccploc
+	end	CCPEntry
+CodeEnd:

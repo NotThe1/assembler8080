@@ -16,8 +16,9 @@
 CodeStart:
 on	equ	0ffffh
 off	equ	00000h
-BIOS	EQU	0F600H
-	org	0E800H
+;;BIOS	EQU	0F600H
+;;	org	0E800H
+	ORG		BDOSBase;
 	
 ;	bios value defined at end of module
 ;
@@ -29,23 +30,23 @@ ioloc	equ	0003h		;i/o byte location
 bdosa	equ	0006h		;address field of jmp BDOS
 ;
 ;	bios access constants
-bootf	set	bios+3*0	;cold boot function
-wbootf	set	bios+3*1	;warm boot function
-constf	set	bios+3*2	;console status function
-coninf	set	bios+3*3	;console input function
-conoutf	set	bios+3*4	;console output function
-listf	set	bios+3*5	;list output function
-punchf	set	bios+3*6	;punch output function
-readerf	set	bios+3*7	;reader input function
-homef	set	bios+3*8	;disk home function
-seldskf	set	bios+3*9	;select disk function
-settrkf	set	bios+3*10	;set track function
-setsecf	set	bios+3*11	;set sector function
-setdmaf	set	bios+3*12	;set dma function
-readf	set	bios+3*13	;read disk function
-writef	set	bios+3*14	;write disk function
-liststf	set	bios+3*15	;list status function
-sectran	set	bios+3*16	;sector translate
+bootf	set	BIOSEntry+3*0	;cold boot function
+wbootf	set	BIOSEntry+3*1	;warm boot function
+constf	set	BIOSEntry+3*2	;console status function
+coninf	set	BIOSEntry+3*3	;console input function
+conoutf	set	BIOSEntry+3*4	;console output function
+listf	set	BIOSEntry+3*5	;list output function
+punchf	set	BIOSEntry+3*6	;punch output function
+readerf	set	BIOSEntry+3*7	;reader input function
+homef	set	BIOSEntry+3*8	;disk home function
+seldskf	set	BIOSEntry+3*9	;select disk function
+settrkf	set	BIOSEntry+3*10	;set track function
+setsecf	set	BIOSEntry+3*11	;set sector function
+setdmaf	set	BIOSEntry+3*12	;set dma function
+readf	set	BIOSEntry+3*13	;read disk function
+writef	set	BIOSEntry+3*14	;write disk function
+liststf	set	BIOSEntry+3*15	;list status function
+sectran	set	BIOSEntry+3*16	;sector translate
 ;
 ;	equates for non graphic characters
 ctlc	equ	03h	;control c

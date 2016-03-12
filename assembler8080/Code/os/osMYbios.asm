@@ -1,11 +1,7 @@
 ;	Pages 165/493 &  204/493  Programmers CPM Handbook by Andy Johnston-Laird
 ; programmers CPM Handbook by Andy Johnson
-; <<<<<<<<<<<<<<<<<<< osHeader.asm>>>>>>>>>>>>>>>>>>>>>>
 
-
-
-
-; <<<<<<<<<<<<<<<<<<< osHeader.asm>>>>>>>>>>>>>>>>>>>>>>
+	$INCLUDE osHeader.asm
 					
 ;SPACE		EQU		020H	; blank
 ;SLASH		EQU		02FH	; /
