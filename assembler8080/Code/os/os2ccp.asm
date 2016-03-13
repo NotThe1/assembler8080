@@ -8,10 +8,11 @@
 ;	Box 579, Pacific Grove,
 ;	California, 93950
 ;
-		$Include osHeader.asm
-false	equ	0000h
-true	equ	-1		;not false
-testing	equ	false	;true if debugging
+		$Include ../Headers/osHeader.asm
+		$Include ../Headers/stdHeader.asm
+;;false	equ	0000h
+;;true	equ	-1		;not false
+;;testing	equ	false	;true if debugging
 ;
 ;
 ;;	if	testing
@@ -1242,5 +1243,5 @@ cdisk:	ds	1	;current disk
 sdisk:	ds	1	;selected disk for current operation
 			;none=0, a=1, b=2 ...
 bptr:	ds	1	;buffer pointer
-	end	CCPEntry
+	end			;CCPEntry
 CodeEnd:

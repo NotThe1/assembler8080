@@ -1,3 +1,4 @@
 ; testHeader.asm
 ;
-$Include osHeader.asm
+		$Include ../Headers/osHeader.asm
+		$Include ../Headers/stdHeader.asm

@@ -13,9 +13,12 @@
 ;	Box 579, Pacific Grove
 ;	California
 ;
+		$Include ../Headers/osHeader.asm
+		$Include ../Headers/stdHeader.asm
+
 CodeStart:
-on	equ	0ffffh
-off	equ	00000h
+;on	equ	0ffffh
+;off	equ	00000h
 ;;BIOS	EQU	0F600H
 ;;	org	0E800H
 	ORG		BDOSBase;
@@ -30,39 +33,24 @@ ioloc	equ	0003h		;i/o byte location
 bdosa	equ	0006h		;address field of jmp BDOS
 ;
 ;	bios access constants
-bootf	set	BIOSEntry+3*0	;cold boot function
-wbootf	set	BIOSEntry+3*1	;warm boot function
-constf	set	BIOSEntry+3*2	;console status function
-coninf	set	BIOSEntry+3*3	;console input function
-conoutf	set	BIOSEntry+3*4	;console output function
-listf	set	BIOSEntry+3*5	;list output function
-punchf	set	BIOSEntry+3*6	;punch output function
-readerf	set	BIOSEntry+3*7	;reader input function
-homef	set	BIOSEntry+3*8	;disk home function
-seldskf	set	BIOSEntry+3*9	;select disk function
-settrkf	set	BIOSEntry+3*10	;set track function
-setsecf	set	BIOSEntry+3*11	;set sector function
-setdmaf	set	BIOSEntry+3*12	;set dma function
-readf	set	BIOSEntry+3*13	;read disk function
-writef	set	BIOSEntry+3*14	;write disk function
-liststf	set	BIOSEntry+3*15	;list status function
-sectran	set	BIOSEntry+3*16	;sector translate
+bootf	EQU	BIOSEntry+3*0	;cold boot function
+wbootf	EQU	BIOSEntry+3*1	;warm boot function
+constf	EQU	BIOSEntry+3*2	;console status function
+coninf	EQU	BIOSEntry+3*3	;console input function
+conoutf	EQU	BIOSEntry+3*4	;console output function
+listf	EQU	BIOSEntry+3*5	;list output function
+punchf	EQU	BIOSEntry+3*6	;punch output function
+readerf	EQU	BIOSEntry+3*7	;reader input function
+homef	EQU	BIOSEntry+3*8	;disk home function
+seldskf	EQU	BIOSEntry+3*9	;select disk function
+settrkf	EQU	BIOSEntry+3*10	;set track function
+setsecf	EQU	BIOSEntry+3*11	;set sector function
+setdmaf	EQU	BIOSEntry+3*12	;set dma function
+readf	EQU	BIOSEntry+3*13	;read disk function
+writef	EQU	BIOSEntry+3*14	;write disk function
+liststf	EQU	BIOSEntry+3*15	;list status function
+sectran	EQU	BIOSEntry+3*16	;sector translate
 ;
-;	equates for non graphic characters
-ctlc	equ	03h	;control c
-ctle	equ	05h	;physical eol
-ctlh	equ	08h	;backspace
-ctlp	equ	10h	;prnt toggle
-ctlr	equ	12h	;repeat line
-ctls	equ	13h	;stop/start screen
-ctlu	equ	15h	;line delete
-ctlx	equ	18h	;=ctl-u
-ctlz	equ	1ah	;end of file
-rubout	equ	7fh	;char delete
-tab	equ	09h	;tab char
-cr	equ	0dh	;carriage return
-lf	equ	0ah	;line feed
-ctl	equ	5eh	;up arrow
 ;
 	db	0,0,0,0,0,0
 ;
@@ -132,7 +120,7 @@ func1:
 	jmp sta$ret
 ;
 func2:
-	;write console character with tab expansion
+	;write console character with TAB expansion
 	call tabout
 	ret ;jmp goback
 ;
@@ -205,8 +193,8 @@ sta$ret:
 persub:	;report permanent error
 	lxi h,permsg
 	 call errflg ;to report the error
-	cpi ctlc
-	 jz reboot ;reboot if response is ctlc
+	cpi CTRL_C
+	 jz reboot ;reboot if response is CTRL_C
 	ret ;and ignore the error
 ;
 selsub:	;report select error
@@ -274,16 +262,16 @@ conech:
 ;
 echoc:
 	;echo character if graphic
-	;cr, lf, tab, or backspace
-	cpi cr
+	;CR, LF, TAB, or backspace
+	cpi CR
 	 rz ;carriage return?
-	cpi lf
+	cpi LF
 	 rz ;line feed?
-	cpi tab
-	 rz ;tab?
-	cpi ctlh
+	cpi TAB
+	 rz ;TAB?
+	cpi CTRL_H
 	 rz ;backspace?
-	cpi ' '
+	cpi SPACE
 	 ret ;carry set if not graphic
 ;
 conbrk:	;check for character ready
@@ -296,12 +284,12 @@ conbrk:	;check for character ready
 	 rz ;return if no char ready
 		;character ready, read it
 		call coninf ;to A
-		cpi ctls
+		cpi CTRL_S
 	 jnz conb0 ;check stop screen function
-		;found ctls, read next character
+		;found CTRL_S, read next character
 		call coninf ;to A
-		cpi ctlc
-	 jz reboot ;ctlc implies re-boot
+		cpi CTRL_C
+	 jz reboot ;CTRL_C implies re-boot
 		;not a reboot, act as if nothing has happened
 		xra a
 	 ret ;with zero in accumulator
@@ -337,10 +325,10 @@ conout:
 		mov a,c ;recall the character
 		;and compute column position
 		lxi h,column ;A = char, HL = .column
-		cpi rubout
+		cpi RUBOUT
 	 rz ;no column change if nulls
 		inr m ;column = column + 1
-		cpi ' '
+		cpi SPACE
 	 rnc ;return if graphic
 		;not graphic, reset column position
 		dcr m ;column = column - 1
@@ -349,14 +337,14 @@ conout:
 	 rz ;return if at zero
 		;not at zero, may be backspace or end line
 		mov a,c ;character back to A
-		cpi ctlh
+		cpi CTRL_H
 	 jnz notbacksp
 			;backspace character
 			dcr m ;column = column - 1
 			ret
 		notbacksp:
 			;not a backspace character, eol?
-			cpi lf
+			cpi LF
 	 rnz ;return if not
 			;end of line, column = 0
 			mvi m,0 ;column = 0
@@ -366,10 +354,10 @@ ctlout:
 	;send C character with possible preceding up-arrow
 	mov a,c
 	 call echoc ;cy if not graphic (or special case)
-	jnc tabout ;skip if graphic, tab, cr, lf, or ctlh
+	jnc tabout ;skip if graphic, TAB, CR, LF, or CTRL_H
 		;send preceding up arrow
 		push psw
-	 mvi c,ctl
+	 mvi c,CARET
 	 call conout ;up arrow
 		pop psw
 	 ori 40h ;becomes graphic letter
@@ -379,11 +367,11 @@ ctlout:
 tabout:
 	;expand tabs to console
 	mov a,c
-	 cpi tab
+	 cpi TAB
 	 jnz conout ;direct to conout if not
-		;tab encountered, move to next tab position
+		;TAB encountered, move to next TAB position
 	tab0:
-		mvi c,' '
+		mvi c,SPACE
 	 call conout ;another blank
 		lda column
 	 ani 111b ;column mod 8 = 0 ?
@@ -391,22 +379,22 @@ tabout:
 	ret
 ;
 pctlh:
-	;send ctlh to console without affecting column count
-	mvi c,ctlh
+	;send CTRL_H to console without affecting column count
+	mvi c,CTRL_H
 	 jmp conoutf
 	;ret
 ;
 backup:
 	;back-up one screen position
 	call pctlh
-	 mvi c,' '
+	 mvi c,SPACE
 	 call conoutf
 	 jmp pctlh
 ;
 crlfp:
-	;print #, cr, lf for ctlx, ctlu, ctlr functions
+	;print #, CR, LF for CTRL_X, CTRL_U, CTRL_R functions
 	;then move to strtcol (starting column)
-	mvi c,'#'
+	mvi c,HASH_TAG
 	 call conout
 	call crlf
 	;column = 0, move to position strtcol
@@ -415,23 +403,23 @@ crlfp:
 	 lxi h,strtcol
 		cmp m
 	 rnc ;stop when column reaches strtcol
-		mvi c,' '
+		mvi c,SPACE
 	 call conout ;print blank
 		jmp crlfp0
 ;;
 ;
 crlf:
 	;carriage return line feed sequence
-	mvi c,cr
+	mvi c,CR
 	 call conout
-	 mvi c,lf
+	 mvi c,LF
 	 jmp conout
 	;ret
 ;
 print:
 	;print message until M(BC) = '$'
 	ldax b
-	 cpi '$'
+	 cpi DOLLAR
 	 rz ;stop on $
 		;more to print
 		inx b
@@ -461,11 +449,11 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			ani 7fh ;mask parity bit
 			pop h
 	 pop b ;reactivate counters
-			cpi cr
+			cpi CR
 	 jz readen ;end of line?
-			cpi lf
+			cpi LF
 	 jz readen ;also end of line
-			cpi ctlh
+			cpi CTRL_H
 	 jnz noth ;backspace?
 			;do we have any characters to back over?
 			mov a,b
@@ -479,9 +467,9 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			jmp linelen ;uses same code as repeat
 		noth:
 			;not a backspace
-			cpi rubout
-	 jnz notrub ;rubout char?
-			;rubout encountered, rubout if possible
+			cpi RUBOUT
+	 jnz notrub ;RUBOUT char?
+			;RUBOUT encountered, RUBOUT if possible
 			mov a,b
 	 ora a
 	 jz readnx ;skip if len=0
@@ -493,8 +481,8 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			jmp rdech1 ;act like this is an echo
 ;
 		notrub:
-			;not a rubout character, check end line
-			cpi ctle
+			;not a RUBOUT character, check end line
+			cpi CTRL_E
 	 jnz note ;physical end line?
 			;yes, save active counters and force eol
 			push b
@@ -505,8 +493,8 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			jmp readn0 ;for another character
 		note:
 			;not end of line, list toggle?
-			cpi ctlp
-	 jnz notp ;skip if not ctlp
+			cpi CTRL_P
+	 jnz notp ;skip if not CTRL_P
 			;list toggle - change parity
 			push h ;save next to fill - 1
 			lxi h,listcp ;HL=.listcp flag
@@ -516,8 +504,8 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			pop h
 	 jmp readnx ;for another char
 		notp:
-			;not a ctlp, line delete?
-			cpi ctlx
+			;not a CTRL_P, line delete?
+			cpi CTRL_X
 	 jnz notx
 			pop h ;discard start position
 			;loop while column > strtcol
@@ -532,18 +520,18 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 		notx:
 			;not a control x, control u?
 			;not control-X, control-U?
-			cpi ctlu
+			cpi CTRL_U
 	 jnz notu ;skip if not
-			;delete line (ctlu)
+			;delete line (CTRL_U)
 			call crlfp ;physical eol
 			pop h ;discard starting position
 			jmp read ;to start all over
 		notu:
 			;not line delete, repeat line?
-			cpi ctlr
+			cpi CTRL_R
 	 jnz notr
 		linelen:
-			;repeat line, or compute line len (ctlh)
+			;repeat line, or compute line len (CTRL_H)
 			;if compcol > 0
 			push b
 	 call crlfp ;save line length
@@ -572,7 +560,7 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			lda compcol
 	 ora a ;>0 if computing length
 			jz readn0 ;for another char if so
-			;column position computed for ctlh
+			;column position computed for CTRL_H
 			lxi h,column
 	 sub m ;diff > 0
 			sta compcol ;count down below
@@ -585,7 +573,7 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			jnz backsp
 			jmp readn0 ;for next character
 		notr:
-			;not a ctlr, place into buffer
+			;not a CTRL_R, place into buffer
 		rdecho:
 			inx h
 	 mov m,a ;character filled to mem
@@ -599,7 +587,7 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			pop h
 	 pop b
 	 mov a,m ;recall char
-			cpi ctlc ;set flags for reboot test
+			cpi CTRL_C ;set flags for reboot test
 			mov a,b ;move length to A
 			jnz notc ;skip if not a control c
 			cpi 1 ;control C, must be length 1
@@ -613,7 +601,7 @@ read:	;read to ParamsDE address (max length, current length, buffer)
 			;end of read operation, store blen
 			pop h
 	 mov m,b ;M(current len) = B
-			mvi c,cr
+			mvi c,CR
 	 jmp conout ;return carriage
 			;ret
 ;
@@ -804,69 +792,69 @@ wrbuff:
 seek:
 	;seek the track given by arecord (actual record)
 	;local equates for registers
-	arech  equ b
-	 arecl  equ c ;arecord = BC
-	crech  equ d
-	 crecl  equ e ;currec  = DE
-	ctrkh  equ h
-	 ctrkl  equ l ;curtrk  = HL
-	tcrech equ h
-	 tcrecl equ l ;tcurrec = HL
+;;	arech  equ b
+;;	 arecl  equ c ;arecord = BC
+;;	crech  equ d
+;;	 crecl  equ e ;currec  = DE
+;;	ctrkh  equ h
+;;	 ctrkl  equ l ;curtrk  = HL
+;;	tcrech equ h
+;;	 tcrecl equ l ;tcurrec = HL
 	;load the registers from memory
 	lxi h,arecord
-	 mov arecl,m
+	 mov C,M		;arecl,m
 	 inx h
-	 mov arech,m
+	 mov B,M		;arech,m
 	lhld curreca 
-	 mov crecl,m
+	 mov E,M		;crecl,m
 	 inx h
-	 mov crech,m
+	 mov D,M		;crech,m
 	lhld curtrka 
 	 mov a,m
 	 inx h
-	 mov ctrkh,m
-	 mov ctrkl,a
+	 mov H,M		;ctrkh,m
+	 mov L,A		;ctrkl,a
 	;loop while arecord < currec
 	seek0:
-		mov a,arecl
-	 sub crecl
-	 mov a,arech
-	 sbb crech
+		mov A,C			;a,arecl
+	 sub E		;crecl
+	 mov A,B		;a,arech
+	 sbb D			;crech
 		jnc seek1 ;skip if arecord >= currec
 			;currec = currec - sectpt
-			push ctrkh
+			push H		;ctrkh
 	 lhld sectpt
-			mov a,crecl
+			mov A,E		;a,crecl
 	 sub l
-	 mov crecl,a
-			mov a,crech
+	 mov E,A		;crecl,a
+			mov A,D		;a,crech
 	 sbb h
-	 mov crech,a
-			pop ctrkh
+	 mov D,A		;crech,a
+			pop H		;ctrkh
 			;curtrk = curtrk - 1
-			dcx ctrkh
+			dcx H		;ctrkh
 		jmp seek0 ;for another try
 	seek1:
 	;look while arecord >= (t:=currec + sectpt)
-		push ctrkh
+		push H		;ctrkh
 		lhld sectpt
-	 dad crech ;HL = currec+sectpt
-		mov a,arecl
-	 sub tcrecl
-	 mov a,arech
-	 sbb tcrech
+	 dad D		;crech ;HL = currec+sectpt
+		mov A,C			;a,arecl
+	 sub L		;tcrecl
+	 mov A,B		;a,arech
+	 sbb H		;tcrech
 		jc seek2 ;skip if t > arecord
 			;currec = t
 			xchg
 			;curtrk = curtrk + 1
-			pop ctrkh
-	 inx ctrkh
+			pop H		;ctrkh
+	 inx H		;ctrkh
 		jmp seek1 ;for another try
-	seek2:	pop ctrkh
+	seek2:	pop H		;ctrkh
 	;arrive here with updated values in each register
-	push arech
-	 push crech
-	 push ctrkh ;to stack for later
+	push 	BC		;arech
+	 push D		;crech
+	 push H		;ctrkh ;to stack for later
 	;stack contains (lowest) BC=arecord, DE=currec, HL=curtrk
 	xchg
 	 lhld offset
@@ -881,18 +869,18 @@ seek:
 	 inx h
 	 mov m,d ;curtrk updated
 	;now compute sector as arecord-currec
-	pop crech ;recall currec
+	pop D		;crech ;recall currec
 	lhld curreca
-	 mov m,crecl
+	 mov M,E		;m,crecl
 	 inx h
-	 mov m,crech
-	pop arech ;BC=arecord, DE=currec
-	mov a,arecl
-	 sub crecl
-	 mov arecl,a
-	mov a,arech
-	 sbb crech
-	 mov arech,a
+	 mov M,D		;m,crech
+	pop BC			;arech ;BC=arecord, DE=currec
+	mov A,C			;a,arecl
+	 sub E		;crecl
+	 mov C,A		;arecl,a
+	 mov A,B		;a,arech
+	 sbb D		;crech
+	 mov B,A		;arech,a
 	lhld tranv
 	 xchg ;BC=sector#, DE=.tran
 	call sectran ;HL = tran(sector)
@@ -1132,7 +1120,7 @@ nowrite:
 	 mov c,a
 	 call hlrotr
 	mov a,l
-	 ani 1b
+	 ani 1BH		;1b
 	 ret ;non zero if nowrite
 ;
 set$ro:
@@ -1376,7 +1364,7 @@ read$dir:
 		ora a
 	 rnz ;return if not a new record
 		push b ;save initialization flag C
-		call seek$dir ;seek proper record
+		call seekDir	;seek$dir ;seek proper record
 		call rd$dir ;read the directory record
 		pop b ;recall initialization flag
 		jmp checksum ;checksum the directory elt
@@ -1440,7 +1428,7 @@ setallocbit:
 	;value of the bit is in register E.
 	push d
 	 call getallocbit ;shifted val A, count in D
-	ani 1111$1110b ;mask low bit to zero (may be set)
+	ani 11111110b ;mask low bit to zero (may be set)
 	pop b
 	 ora c ;low bit of C is masked into A
 	jmp rotr ;to rotate back into proper position
@@ -1484,7 +1472,7 @@ scandm:
 			;arrive here with BC=block#, E=0/1
 			mov a,c
 	 ora b ;skip if = 0000
-			cnz set$alloc$bit
+			cnz setAllocBit
 			;bit set to 0/1
 			pop h
 	 inx h ;to next bit position
@@ -1545,7 +1533,7 @@ initialize:
 		;same user code, check for '$' submit
 		inx h
 	 mov a,m ;first character
-		sui '$' ;dollar file?
+		sui DOLLAR ;dollar file?
 		jnz pdollar
 		;dollar file found, mark in lret
 		dcr a
@@ -1612,7 +1600,7 @@ searchn:
 	 ora a
 	 jz endsearch
 			ldax d
-	 cpi '?'
+	 cpi QMARK
 	 jz searchok ;? matches all
 			;scan next character if not ubytes
 			mov a,b
@@ -1761,7 +1749,7 @@ copy$dir:
 	call move ;data moved
 seek$copy:
 	;enter from close to seek and copy current element
-	call seek$dir ;to the directory element
+	call seekDir		;seek$dir ;to the directory element
 	jmp wrdir ;write the directory element
 	;ret
 ;
@@ -2240,7 +2228,10 @@ diskwrite:	;(may enter here from seqdiskwrite above)
 		push psw ;save vrecord value
 		call getmodnum ;HL=.fcb(modnum), A=fcb(modnum)
 		;reset the file write flag to mark as written fcb
-		ani (not fwfmsk) and 0ffh ;bit reset
+		
+;;XXXXXXXXXXXXX		ani (not fwfmsk) and 0ffh ;bit reset
+		ANI	7FH		; not fwfmsk
+		
 		mov m,a ;fcb(modnum) = fcb(modnum) and 7fh
 		pop psw ;restore vrecord
 	noupdate:
@@ -2273,7 +2264,7 @@ diskwrite:	;(may enter here from seqdiskwrite above)
 rseek:
 	;random access seek operation, C=0ffh if read mode
 	;fcb is assumed to address an active file control block
-	;(modnum has been set to 1100$0000b if previous bad seek)
+	;(modnum has been set to 11000000b if previous bad seek)
 	xra a
 	 sta seqio ;marked as random access operation
 	push b ;save r/w flag
@@ -2371,7 +2362,7 @@ rseek:
 		;appears as overflow with file write flag set
 		push h ;save error flag
 		call getmodnum ;HL = .modnum
-		mvi m,1100$0000b
+		mvi m,11000000b
 		pop h ;and drop through
 	seekerr:
 		pop b ;discard r/w flag
@@ -2539,7 +2530,7 @@ reselect:
 	 sta resel ;mark possible reselect
 	lhld ParamsDE
 	 mov a,m ;drive select code
-	ani 1$1111b ;non zero is auto drive select
+	ani 00011111b ;non zero is auto drive select
 	dcr a ;drive code normalized to 0..30, or 255
 	sta ParamE ;save drive code
 	cpi 30
@@ -2549,7 +2540,7 @@ reselect:
 	 sta olddsk ;olddsk=curdsk
 		mov a,m
 	 sta fcbdsk ;save drive code
-		ani 1110$0000b
+		ani 11100000b
 	 mov m,a ;preserve hi bits
 		call curselect
 	noselect:
@@ -2603,7 +2594,7 @@ func17:
 	mvi c,0 ;length assuming '?' true
 	lhld ParamsDE
 	 mov a,m
-	 cpi '?' ;no reselect if ?
+	 cpi QMARK ;no reselect if ?
 	jz qselect ;skip reselect if so
 		;normal search
 		call clrmodnum ;module number zeroed
