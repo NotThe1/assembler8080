@@ -12,7 +12,7 @@ OUTopCode	EQU		0D3H
 PageZero:	ORG 0000H		; Start of page Zero
 	JMP		WarmBootEntry	; warm start
 ;IOBYTE:
-	DB		01H				; IOBYTE- Console is assigned the CRT device
+	DB		01000001B		; IOBYTE- Console & List is assigned the CRT device
 DefaultDisk:
 	DB		00H				; Current default drive (A)
 	JMP		BDOSEntry		; jump to BDOS entry
@@ -213,10 +213,10 @@ DisplayMessage:
 	JMP		DisplayMessage		; loop till done
 
 ;---------------------------------------------------------------------------
-;< Console Status 02
+;	Console Status  BIOS 02
 ; Entered directly from BIOS JMP vector, returns Register A
 ; 00H -> No data ,  0FFH -> there is data
-;>
+;
 
 CONST:
 	CALL	GetConsoleStatus	; return A= zero or not zero
@@ -225,6 +225,16 @@ CONST:
 	MVI		A,0FFH				; else indicate there is data
 	RET
 ;---------------------------------------------------------------------------
+GetConsoleStatus:
+	LDA		IOBYTE		; Get IO redirection byte
+	CALL	SelectRoutine	; these routines return to the caller of GetConsoleStatus
+	DW		TTYInStatus				; 00  <- IOBYTE bits 1,0
+	DW		TerminalInStatus		; 01
+	DW		CommunicationInStatus	; 10
+	DW		DummyInStatus			; 11
+
+;---------------------------------------------------------------------------
+;	Console In  BIOS 03
 ; Get console Input character entered directly from the BIOS jmp Vector
 ; return the character from the console in the A register.
 ; most significant bit will be 0. except when "reader" (communication)
@@ -240,10 +250,12 @@ CONIN:
 	DW		CommunicationInput	; 10
 	DW		DummyInput			; 11
 
+;---------------------------------------------------------------------------
+;	Console Out  BIOS 04
+;  entered directly from BIOS JMP Vector. it outputs the 
+; character in the C register to the appropriate device according to
+; bits 1,0 of IOBYTE
 CONOUT:
-	; Console output, entered directly from BIOS JMP Vector. it outputs the 
-	; character in the C register to the appropriate device according to
-	; bits 1,0 of IOBYTE
 	LDA		IOBYTE				; get i/o redirection byte
 	CALL 	SelectRoutine
 			; Vectors to device routines
@@ -251,21 +263,25 @@ CONOUT:
 	DW		TerminalOutput		; 01
 	DW		CommunicationOutput	; 10
 	DW		DummyOutput			; 11
-	
-GetConsoleStatus:
-	LDA		IOBYTE		; Get IO redirection byte
-	CALL	SelectRoutine	; these routines return to the caller of GetConsoleStatus
-	DW		TTYInStatus				; 00  <- IOBYTE bits 1,0
-	DW		TerminalInStatus		; 01
-	DW		CommunicationInStatus	; 10
-	DW		DummyInStatus			; 11
+
+;---------------------------------------------------------------------------
+;	List output  BIOS 05
+; entered directly from the BIOS JMP Vector
+; outputs the data in Register C
+LIST:
+	LDA		IOBYTE
+	RLC						; move bits 7,6
+	RLC						; to 1,0
+	CALL	SelectRoutine
+	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+	DW		TerminalOutput		; 01
+	DW		CommunicationOutput	; 10
+	DW		DummyOutput			; 11	
 	
 ;------------------------- Not Yet Implemented	
 BOOT:
 WBOOT:
 
-
-LIST:
 PUNCH:
 READER:
 HOME:

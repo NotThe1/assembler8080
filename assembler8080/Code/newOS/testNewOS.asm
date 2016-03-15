@@ -2,13 +2,16 @@
 ;
 CodeStart:
 DISPLAYMESSAGE EQU 0F6C3H
-	ORG 0100H
+BIOS	EQU		0F600H		
+		ORG 0100H
 
-	LXI	SP, $
-	LXI	HL, Mess1
-	CALL DISPLAYMESSAGE
-	HLT
+		LXI		SP, $
+		MVI		C,'E'
+		CALL	BIOS + (3 * 5) 
+		LXI		HL, Mess1
+		CALL	DISPLAYMESSAGE
+		HLT
 	
-Mess1: db 'Test message 1',00
+Mess1: DB 'Test message 1',00
 	
 CodeEnd:

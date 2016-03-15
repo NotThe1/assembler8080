@@ -678,6 +678,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 			if (D8.matches(stringValuePattern)) {// Literal
 				arg = Integer.valueOf(D8.replace("'", ""), 16) & 0XFF;
+				arg = resolveSimpleArgument(D8, lineNumber);
 				;
 			} else {
 				arg = resolveSimpleArgument(D8, lineNumber);
