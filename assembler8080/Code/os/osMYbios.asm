@@ -33,14 +33,14 @@ OUTopCode	EQU		0D3H
 VERSION		EQU		'0A'		;Equates for the sign-on Screen
 MONTH		EQU		'08'		; '08'
 DAY			EQU		'25'		; '09'
-Year		EQU		'45'		; '15'
+YEAR		EQU		'45'		; '15'
 
 
 
 ;;;	DefaultDisk	EQU	0004H
 PageZero:	ORG 0000H		; Start of page Zero
 	JMP		WarmBootEntry	; warm start
-IOBYTE:
+;IOBYTE:
 	DB		01H				; IOBYTE- Console is assigned the CRT device
 DefaultDisk:
 	DB		00H				; Current default drive (A)
@@ -179,7 +179,7 @@ InitializePort:
 InitializeComplete:
 	MVI		A,01H				; set up for terminal to be console
 	STA		IOBYTE				; save in Page 0
-	LXI		H,SignonMessage
+	LXI		H,SignOnMessage
 	CALL	DisplayMessage		; display the signon message
 	
 	XRA		A					; Set default disk to A: (0)
@@ -284,7 +284,7 @@ LISTST:
 	CALL	GetListStatus	; return  A = 0 or non-zero	
 	ORA		A				; set flags
 	RZ						; exit if not ready
-	MVI		a,0FFH			; else set retuen value for ok
+	MVI		A,0FFH			; else set retuen value for ok
 	RET	
 	; exit
 GetListStatus:

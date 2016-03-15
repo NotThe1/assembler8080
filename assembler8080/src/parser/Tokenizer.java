@@ -18,10 +18,10 @@ public class Tokenizer {
 		this.add("[\\+|-]", Token.PLUS_MINUS);
 		this.add("[\\*|/]", Token.MULT_DIV);
 		this.add("[\\^]", Token.RAISED);
-		this.add("[0-9][0-9a-fA-F]{0,4}H", Token.HEX);
-		this.add("[0-7]+[Q|O]",Token.OCTAL);
-		this.add("[0-1]+B", Token.BINARY);
-		this.add("[0-9]{1,4}D?+", Token.DECIMAL);
+		this.add("[0-9][0-9a-fA-F]{0,4}[H|h]", Token.HEX);
+		this.add("[0-7]+[Q|q|O|o]",Token.OCTAL);
+		this.add("[0-1]+[B|b]", Token.BINARY);
+		this.add("[0-9]{1,4}[D|d]?+", Token.DECIMAL);
 		this.add("'.*'", Token.STRING);
 		this.add("\\bAND\\b|\\bOR\\b", Token.LOGIC);
 		this.add("^[\\?\\@\\w\\$][\\w\\$]{0,24}", Token.VARIABLE);

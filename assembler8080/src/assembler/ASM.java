@@ -161,8 +161,9 @@ public class ASM implements ActionListener, AdjustmentListener {
 				}// no line number
 				int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
 				rawLine = sourceLine.substring(matcher.end(), sourceLine.length());
-				line = rawLine.toUpperCase();
-				parseLine(lineNumber, line);
+				parseLine(lineNumber, rawLine);
+//				line = rawLine.toUpperCase();
+//				parseLine(lineNumber, line);
 				//
 				
 				if (isEmptyLine) {
@@ -438,7 +439,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 			String outputLine;
 			Matcher matcher1;
 			while ((rawLine = reader.readLine()) != null) {
-				line = rawLine.toUpperCase();
+//				line = rawLine.toUpperCase();
+				line = rawLine;
 				lineNumber++;
 				outputLine = String.format("%04d  %s%n", lineNumber, line);
 				txtSource.append(outputLine);
@@ -461,7 +463,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 			fileReference = parentDirectory + System.getProperty("file.separator") + fileReference;
 		}//
 
-		if (!fileReference.endsWith(ASSEMBLER_SUFFIX.toUpperCase())) {
+		if (!(fileReference.toUpperCase().endsWith(ASSEMBLER_SUFFIX.toUpperCase())) ) {
 			fileReference += "." + ASSEMBLER_SUFFIX;
 		}//
 
@@ -1116,7 +1118,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		r8r8Pattern = "[ABCDEHLM],[ABCDEHLM]";
 		r16dPattern = "B|BC|D|DE|H|HL|SP";
 		r8Pattern = "A|B|C|D|E|H|L|M";
-		patternForInclude = Pattern.compile("\\$INCLUDE ");
+		patternForInclude = Pattern.compile("\\$INCLUDE ",Pattern.CASE_INSENSITIVE);
 		patternForLineNumber = Pattern.compile("^\\d{4}\\s");
 
 		Path sourcePath = Paths.get(FILE_LOCATION, "Code");
