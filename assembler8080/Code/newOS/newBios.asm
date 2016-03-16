@@ -32,8 +32,7 @@ DefaultDiskBuffer:
 	
 
 CodeStart:
-	ORG		BIOSEntry		; Assemble code at BIOS address
-CodeStart:		
+	ORG		BIOSEntry		; Assemble code at BIOS address		
 		; BIOS jum Vector
 		
 	JMP	BOOT			; 00  Not Yet Checked
@@ -42,9 +41,9 @@ WarmBootEntry:
 	JMP	CONST			; 02 Checked
 	JMP	CONIN			; 03 Checked
 	JMP	CONOUT			; 04 Checked
-	JMP	LIST			; 05 Not Yet Checked
-	JMP	PUNCH			; 06 Not Yet Checked
-	JMP	READER			; 07 Not Yet Checked
+	JMP	LIST			; 05 Checked
+	JMP	PUNCH			; 06 Not Yet Checked *
+	JMP	READER			; 07 Not Yet Checked *
 	JMP	HOME			; 08 Not Yet Checked
 	JMP	SELDSK			; 09 Not Yet Checked	
 	JMP	SETTRK			; 0A Not Yet Checked
@@ -277,7 +276,238 @@ LIST:
 	DW		TerminalOutput		; 01
 	DW		CommunicationOutput	; 10
 	DW		DummyOutput			; 11	
+
+;---------------------------------------------------------------------------
+;	Punch output  BIOS 06	- not tested
+PUNCH:					; Punch output
+						; entered directly from the BIOS JMP Vector
+						; outputs the data in Register C
+	LDA		IOBYTE
+	RLC						; move bits 5,4
+	RLC
+	RLC						; to 1,0
+	CALL	SelectRoutine
+	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+	DW		DummyOutput			; 01
+	DW		CommunicationOutput	; 10
+	DW		TerminalOutput		; 11
 	
+;---------------------------------------------------------------------------
+;	Reader input  BIOS 07	- not tested
+READER:					; Reader Input
+						; entered directly from the BIOS JMP Vector
+						; inputs data into the A register
+	LDA		IOBYTE
+	RLC						; move bits 3,2  to 1,0
+	CALL	SelectRoutine
+	DW		TTYOutput			; 00 <- IOBYTE bits 1,0
+	DW		DummyOutput			; 01
+	DW		CommunicationOutput	; 10
+	DW		TerminalOutput		; 11
+	
+;---------------------------------------------------------------------------
+;---------------------------------------------------------------------------
+;				Disk routines
+;---------------------------------------------------------------------------
+;	Select Disk	BIOS 09
+; Select disk in C. C=0 for A: 1 for B: etc.
+; Return the address of the appropriate disk parameter header
+; in HL, or 0000H if selected disk does not exist		
+;**********************	
+SELDSK:
+	LXI		H,00H				; Assume an error
+	MOV		A,C 				; Check if  requested disk is valid
+	CPI		NumberOfLogicalDisks
+	RNC							; return if > max number of Disks
+	
+	STA		SelectedDisk		; save disk number
+	MOV		L,A					; make disk into word number
+	MVI		H,0
+		; Compute offset down disk parameter table by multiplying by parameter
+		; header length (16 bytes)
+	DAD		H
+	DAD		H
+	DAD		H
+	DAD		H					; pointing at right one
+	LXI		D,DiskParameterHeaders		; get base address
+	DAD		D					; DE -> appropriate DPH
+	PUSH	H					; Save DPH address access disk parameter block to extract special
+								;    prefix byte that identifies disk type and whether de-blocking
+								;    is required
+	LXI		D,10				; Get DPB pointer offset in DPH
+	DAD		D					; DE -> DPB address
+	MOV		E,M					; Get DPB address in DE
+	INX		H
+	MOV		D,M	
+	XCHG						; DE ->DPB
+	DCX		H					; DE -> prefix byte
+	MOV		A,M					; get Disk Type/Blocking byte
+								; Disk Type bottom nibble - Blocking MSB (bit 7)
+	ANI		0FH					; isolate disk type
+	STA		DiskType			; save for use in low level driver
+	MOV		A,M					; get another copy
+	ANI		NeedDeblocking		; determin if deblocking is required and
+	STA		DeblockingRequired	; save for low level driver
+	POP		H					; recover DPH pointer
+	RET
+;---------------------------------------------------------------------------
+;				Disk Data
+;---------------------------------------------------------------------------
+;				Disk Equates
+;---------------------------------------------------------------------------
+; Disk Types
+Floppy5			EQU		1 		; 5 1/4" mini floppy
+Floppy8			EQU		2 		; 8"  floppy (SS SD)
+
+NumberOfLogicalDisks	EQU 4	; max number of disk in this system
+
+NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
+
+;---------------------------------------------------------------------------
+;				Disk Storage area
+;---------------------------------------------------------------------------
+;     variables for selected disk, track and sector
+; These are moved and compared as a group, DO NOT ALTER
+SelectedDkTrkSec:
+SelectedDisk:			DB		00H
+SelectedTrack:			DW		00H
+SelectedSector:			DB		00H
+
+DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
+DeblockingRequired:		DB		00H		; Non-zero when the selected disk needs de-blocking (set in SELDSK)
+;---------------------------------------------------------------------------
+
+;---------------------------------------------------------------------------
+;				Disk Definition Tables
+; These consists of disk parameter headers, with one entry
+; per logical disk driver, and disk parameter blocks, with
+; either one parameter block per logical disk or the same
+; parameter block for several logical disks.
+;---------------------------------------------------------------------------
+;---------------------------------------------------------------------------
+DiskParameterHeaders:		; described in chapter 3
+
+		; Logical Disk A: (5 1/4" Diskette)
+	DW	Floppy5SkewTable				; 5 1/4" skew table
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
+	DW	DirectoryBuffer
+	DW	Floppy5ParameterBlock
+	DW	DiskAWorkArea
+	DW	DiskAAllocationVector
+	
+		; Logical Disk B: (5 1/4" Diskette)
+	DW	Floppy5SkewTable	; shares the same skew table as A:
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
+	DW	DirectoryBuffer		; all disks use this buffer
+	DW	Floppy5ParameterBlock
+	DW	DiskBWorkArea
+	DW	DiskBAllocationVector
+	
+		; Logical Disk C: (8" Floppy)
+	DW	Floppy8SkewTable	; 8" skew table
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
+	DW	DirectoryBuffer		; all disks use this buffer
+	DW	Floppy8ParameterBlock
+	DW	DiskCWorkArea
+	DW	DiskCAllocationVector
+	
+		; Logical Disk D: (8" Floppy)
+	DW	Floppy8SkewTable	; shares the same skew table as A:
+	DW	0								; Rel pos for file (0-3)
+	DW	0								; Last Selected Track #
+	DW	0								; Last Selected Sector #
+	DW	DirectoryBuffer		; all disks use this buffer
+	DW	Floppy8ParameterBlock
+	DW	DiskDWorkArea
+	DW	DiskDAllocationVector
+	
+	DB	Floppy5 + NeedDeblocking
+	
+Floppy5ParameterBlock:
+	DW	048H				; 128-byte sectors per track- (72)
+	DB	04H					; Block shift ( 4=> 2K)
+	DB	0FH					; Block mask
+	DB	01 					; Extent mask
+	DW	0AEH 				; Maximum allocation block number (174)
+	DW	07FH 				; Number of directory entries - 1 (127)
+	DB	0C0H				; Bit map for reserving 1 alloc. block
+	DB	00					;  for file directory
+	DW	020H				;Disk change work area size (32)
+	DW	01					; Number of tracks before directory
+	
+	; Standard 8" floppy
+							; extra byte prefixed to DPB for 
+							;  this version of the BIOS
+	DB	Floppy8				; Indicates disk type and the fact
+							;   that no de-blocking is required
+	
+Floppy8ParameterBlock:
+	DW	01AH				; sectors per track (26)
+	DB	03					; Block shift (3=>1K)
+	DB	07					; Block mask
+	DB	00 					; Extent mask
+	DW	0F2H 				; Maximum allocation block number (242)
+	DW	03FH 				; Number of directory entries - 1 (63)
+	DB	0C0H				; Bit map for reserving 2 alloc. block
+	DB	00					;  for file directory
+	DW	010H				;Disk change work area size (16)
+	DW	02					; Number of tracks before directory
+	
+
+Floppy5SkewTable:			; each physical sector contains four
+							;  128-byte sectors						
+	DB		00,01,02,03,04,05,06,07,08,09
+	DB		10,11,12,13,14,15,16,17,18,19
+	DB		20,21,22,23,24,25,26,27,28,29
+	DB		30,31,32,33,34,35,36,37,38,39
+	DB		40,41,42,43,44,45,46,47,48,49
+	DB		50,51,52,53,54,55,56,57,58,59
+	DB		60,61,62,63,64,65,66,67,68,69
+	DB		70,71
+Floppy8SkewTable:			; Standard 8" Driver
+	DB		01,02,03,04,05,06,07,08,09,10		; Physical Sectors
+	DB		11,12,13,14,15,16,17,18,19,20		; Physical Sectors
+	DB		21,22,23,24,25,26					; Physical Sectors
+
+;---------------------------------------------------------------------------
+;				Disk work area
+;---------------------------------------------------------------------------
+; These are used by the BDOS to detect any unexpected
+; change of diskette. The BDOS will automatically set
+; such a changed diskette to read-only status.
+	
+DiskAWorkArea:	DS	020H		; A:
+DiskBWorkArea:	DS	020H		; B:
+DiskCWorkArea:	DS	010H		; C:
+DiskDWorkArea:	DS	010H		; D:
+
+;---------------------------------------------------------------------------
+;				Disk allocation vectors
+;---------------------------------------------------------------------------
+; Disk allocation vectors
+; These are used by the BDOS to maintain a bit map of
+; which allocation blocks are used and which are free.
+; One byte is used for eight allocation blocks, hence the
+; expression of the form (allocation blocks/8)+1
+
+DiskAAllocationVector:	DS		(174/8)+1 	; A:
+DiskBAllocationVector:	DS		(174/8)+1 	; B:
+	
+DiskCAllocationVector:	DS		(242/8)+1 	; C:
+DiskDAllocationVector:	DS		(242/8)+1 	; A:
+;---------------------------------------------------------------------------
+;				Disk Buffer
+;---------------------------------------------------------------------------
+DirBuffSize	EQU		128
+DirectoryBuffer:	DS	DirBuffSize
+;---------------------------------------------------------------------------
+		
 ;------------------------- Not Yet Implemented	
 BOOT:
 WBOOT:

@@ -41,7 +41,7 @@ public class InstructionCounter {
 	public void setCurrentLocation(int loc) {
 		 location[currentSegment] = loc;
 	}// getCurrentLocation
-	private void setPriorLocation(){
+	public void setPriorLocation(){
 		priorLocation[currentSegment] = location[currentSegment];
 	}//
 	public int getCurrentLocation() {

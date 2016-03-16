@@ -868,6 +868,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 				Integer loc = resolveSimpleArgument(arguments, lineNumber);
 				if (loc != null) {
 					instructionCounter.setCurrentLocation(loc);
+					instructionCounter.setPriorLocation();
 				}// set if valid else leave alone
 				lineToCheck = ""; // done with this line
 				break;
