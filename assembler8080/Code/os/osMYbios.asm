@@ -770,7 +770,7 @@ Floppy5SkewTable:			; each physical sector contains four
 	DB		40,41,42,43,44,45,46,47,48,49
 	DB		50,51,52,53,54,55,56,57,58,59
 	DB		60,61,62,63,64,65,66,67,68,69
-	Db		70,71
+	DB		70,71
 							
 ;	,		Physical 128b 	Logical 128b	Physical 512-byte
 ;	DB		00,01,02,03		;00,01,02,03				0	)
