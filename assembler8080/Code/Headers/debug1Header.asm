@@ -2,6 +2,7 @@
 ;
 ;
 ; x_displayMessage - (HL) points to 00 terminated string
+; x_CRLF - Print CR LF
 ;
 ;	Display Ascii values of :
 ; x_showAddress1 - (HL) address
@@ -108,7 +109,7 @@ x_displayMessage:
 		PUSH	BC
 		PUSH	DE
 		PUSH	HL
-x_DM:
+xx_DM:
 		MOV		A,M					; get next message byte
 		ORA		A					; terminator (a = 0)?
 		JZ		xx_FullExit			; restore registers and return
@@ -118,7 +119,7 @@ x_DM:
 		CALL	xx_CONOUT				; go to main console output routine	*******
 		POP		H
 		INX		H 					; point at next character
-		JMP		x_DM				; loop till done
+		JMP		xx_DM				; loop till done
 ;--------------         x_displayMessage      -------------
 ;--------------           x_displayHL          -------------
 x_displayHL:
@@ -130,6 +131,17 @@ x_displayHL:
 		CALL	x_showRegA
 		RET
 ;--------------           x_displayHL          -------------
+
+;--------------              x_CRLF           -------------
+x_CRLF:
+		PUSH	AF
+		PUSH	BC
+		PUSH	DE
+		PUSH	HL
+		CALL	xx_CRLF				; call routine
+		JMP		xx_FullExit			; restore registers and return
+
+;--------------              x_CRLF           -------------
 
 ;--------------              xx_CRLF           -------------
 xx_CRLF:
