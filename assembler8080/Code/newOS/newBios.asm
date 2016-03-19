@@ -45,7 +45,7 @@ WarmBootEntry:
 	JMP	PUNCH			; 06 Not Yet Checked *
 	JMP	READER			; 07 Not Yet Checked *
 	JMP	HOME			; 08 Not Yet Checked
-	JMP	SELDSK			; 09 Not Yet Checked	
+	JMP	SELDSK			; 09 Checked	
 	JMP	SETTRK			; 0A Not Yet Checked
 	JMP	SETSEC			; 0B Not Yet Checked
 	JMP	SETDMA			; 0C Not Yet Checked
@@ -349,6 +349,17 @@ SELDSK:
 	ANI		NeedDeblocking		; determin if deblocking is required and
 	STA		DeblockingRequired	; save for low level driver
 	POP		H					; recover DPH pointer
+	RET
+	
+;**********************	
+;	Set Track	BIOS 0A
+;SETTRK - Set logical track for next read or write
+;		Track is in BC
+;**********************	
+SETTRK:
+	MOV		H,B					; select track in BC on entry
+	MOV		L,C
+	SHLD	SelectedTrack		; save for low level driver	
 	RET
 ;---------------------------------------------------------------------------
 ;				Disk Data
