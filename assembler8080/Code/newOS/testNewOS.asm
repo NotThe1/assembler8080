@@ -16,6 +16,7 @@ BIOS	EQU		0F600H
 
 SELDSK	EQU		BIOS + (3 * 9)
 SETTRK	EQU		BIOS + ( 3 * 0AH)
+SETSEC	EQU		BIOS + ( 3 * 0BH)
 CodeStart:
 
 		ORG		0100H
@@ -25,9 +26,51 @@ CodeStart:
 ;		CALL	tstConsole
 ;		CALL	tstSeldsk
 		CALL	tstSetTrk
+		CALL	tstSetSec
 		HLT
 		
 ;----------------------------------------------------
+;----------------------------------------------------
+;tstSetSec, tstSet equates need to match current BIOS
+t_SelectedSector EQU	0F768H
+
+tstSetSec:
+		LXI		BC,0000
+		CALL	tstSetSec1
+		LXI		BC,0FFFFH
+		CALL	tstSetSec1
+		LXI		BC,0AAAAH
+		CALL	tstSetSec1
+		LXI		BC,05555H
+		CALL	tstSetSec1
+		LXI		BC,01234H
+
+tstSetSec1:
+		PUSH	BC
+		PUSH	BC
+		LXI		HL, mess11
+		CALL	x_displayMessage
+		POP		HL
+		CALL	x_displayHL
+		LXI		HL, mess12
+		CALL	x_displayMessage
+			
+		POP		BC
+		CALL	SETTRK
+		LXI		HL, t_SelectedSector
+		CALL	x_showAddress2
+		CALL	x_CRLF
+		
+		RET
+
+track:	DW		0000
+		
+mess11:	DB		'Set Sector = ',xx_EOM
+mess12:	DB		'  SelectedSector = ',xx_EOM
+;----------------------------------------------------;----------------------------------------------------
+;tstSetTrk, tstSet equates need to match current BIOS
+t_SelectedTrack EQU	0F766H
+
 tstSetTrk:
 		LXI		BC,0000
 		CALL	tstSetTrk1
@@ -56,13 +99,22 @@ tstSetTrk1:
 		CALL	x_CRLF
 		
 		RET
-t_SelectedTrack EQU	0F766H
 
 track:	DW		0000
 		
 mess11:	DB		'Set Track = ',xx_EOM
 mess12:	DB		'  SelectedTrack = ',xx_EOM
-;----------------------------------------------------				
+;----------------------------------------------------
+;tstSelDsk equates need to match current BIOS
+; 
+; variable that start with t_ need to be set from current BIOS
+;
+t_SelectedDkTrkSec	EQU	0F75FH		
+t_SelectedDisk	EQU		t_SelectedDkTrkSec + 0			; a=1, b=2 ,....
+t_DiskType		EQU		0F763H			; Floppy 5 = 1, Floppy 8 = 2
+t_DeblockingReq	EQU		t_DiskType + 1	; 080 = req (Floppy 5)
+t_diskParamHdr	EQU		0F765H
+				
 tstSeldsk:
 		MVI		C,numberOfDrives + 1	; bad parameter
 		CALL	SELDSK
@@ -149,10 +201,7 @@ checkDPH:
 ; equates for the Select Disk test
 ; variable that start with t_ need to be set from current BIOS
 ;		
-t_SelectedDisk	EQU		0F75FH			; a=1, b=2 ,....
-t_DiskType		EQU		0F763H			; Floppy 5 = 1, Floppy 8 = 2
-t_DeblockingReq	EQU		t_DiskType + 1	; 080 = req (Floppy 5)
-t_diskParamHdr	EQU		0F765H
+
 dphDiskA		EQU		t_diskParamHdr + 0	; ParameterHeader for A
 dphDiskB		EQU		t_diskParamHdr + 16	; ParameterHeader for B
 dphDiskC		EQU		t_diskParamHdr + 32	; ParameterHeader for C

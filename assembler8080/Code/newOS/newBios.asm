@@ -44,15 +44,15 @@ WarmBootEntry:
 	JMP	LIST			; 05 Checked
 	JMP	PUNCH			; 06 Not Yet Checked *
 	JMP	READER			; 07 Not Yet Checked *
-	JMP	HOME			; 08 Not Yet Checked
+	JMP	HOME			; 08 Checked
 	JMP	SELDSK			; 09 Checked	
-	JMP	SETTRK			; 0A Not Yet Checked
-	JMP	SETSEC			; 0B Not Yet Checked
-	JMP	SETDMA			; 0C Not Yet Checked
+	JMP	SETTRK			; 0A Checked
+	JMP	SETSEC			; 0B Checked
+	JMP	SETDMA			; 0C Checked
 	JMP	READ			; 0D Not Yet Checked
 	JMP	WRITE			; 0E Not Yet Checked
-	JMP	LISTST			; 0F Not Yet Checked
-	JMP	SECTRAN			; 10 Not Yet Checked
+	JMP	LISTST			; 0F Not Yet Checked *
+	JMP				; 10 Not Yet Checked
 ;-------------------------------------------------
 TTYStatusPort				EQU	0EDH
 TTYDataPort					EQU	0ECH
@@ -120,6 +120,20 @@ CommunicationInStatus:
 DummyInStatus:
 		MVI		A,0FFH					; Dummy always indicates data ready
 		RET
+		
+TTYOutStatus:
+		LXI		H,TTYTable				;HL-> control table
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+TerminalOutStatus:
+		LXI		H,TerminalTable			;HL-> control table
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+CommunicationOutStatus:
+		LXI		H,CommunicationTable	;HL-> control table
+		JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+DummyOutStatus:
+		MVI		A,0FFH					; Dummy always indicates ready to output data
+		RET
+
 ;--------------------------------------------------------------------------------	
 TTYInput:
 		LXI		H,TTYTable				;HL-> control table
@@ -264,6 +278,31 @@ CONOUT:
 	DW		DummyOutput			; 11
 
 ;---------------------------------------------------------------------------
+;	List Status  BIOS 0F
+	
+LISTST:
+; List Device (output) status entered directly from the BIOS JMP Vector
+; returns in A the list device status that indicates if the device will
+; accept another character the IOBYTE's bits 7,6 determin the physical device
+; A = 00H (zero flag set): cannot accpet data
+; A = 0FFH ( zero flag cleared): can accept data
+
+	CALL	GetListStatus	; return  A = 0 or non-zero	
+	ORA		A				; set flags
+	RZ						; exit if not ready
+	MVI		A,0FFH			; else set retuen value for ok
+	RET	
+	; exit
+GetListStatus:
+	LDA		IOBYTE
+	RLC						; move bits 7,6
+	RLC						; to 1,0
+	CALL	SelectRoutine
+	DW		TTYOutStatus			; 00 <- IOBYTE bits 1,0
+	DW		TerminalOutStatus		; 01
+	DW		CommunicationOutStatus	; 10
+	DW		DummyOutStatus			; 11
+;---------------------------------------------------------------------------
 ;	List output  BIOS 05
 ; entered directly from the BIOS JMP Vector
 ; outputs the data in Register C
@@ -309,6 +348,24 @@ READER:					; Reader Input
 ;---------------------------------------------------------------------------
 ;				Disk routines
 ;---------------------------------------------------------------------------
+;**********************
+;	Home Disk	BIOS 08
+;HOME - Home the selected logical disk to track 0.
+;	Before doing this, a check must be made to see if the
+;	physical disk buffer has information that must be
+;	written out. This is indicated by a flag, MustWriteBuffer,
+;	set in the de-blocking code
+;**********************	
+HOME:
+	LDA		MustWriteBuffer		; check flag
+	ORA		A
+	JNZ		HomeNoWrite
+	STA		DataInDiskBuffer	; no, so indicate empty buffer
+HomeNoWrite:
+	MVI		C,00H				; Set to track 0
+	CALL	SETTRK				; no, physical, only logical
+	RET
+	
 ;	Select Disk	BIOS 09
 ; Select disk in C. C=0 for A: 1 for B: etc.
 ; Return the address of the appropriate disk parameter header
@@ -361,6 +418,26 @@ SETTRK:
 	MOV		L,C
 	SHLD	SelectedTrack		; save for low level driver	
 	RET
+	
+;**********************	
+;SETSEC - Set logical sector for next read or write
+;		Sector is in C
+;**********************
+SETSEC:
+	MOV		A,C
+	STA		SelectedSector		; save for low level driver	
+	RET
+	
+;**********************
+;SetDMA - Set DMA (input/output) address for next read or write
+;       Address in BC
+;**********************
+
+SETDMA:
+	MOV		L,C					; select address in BC on entry
+	MOV		H,B
+	SHLD	DMAAddress			; save for low level driver	
+	RET
 ;---------------------------------------------------------------------------
 ;				Disk Data
 ;---------------------------------------------------------------------------
@@ -374,6 +451,30 @@ NumberOfLogicalDisks	EQU 4	; max number of disk in this system
 
 NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
 
+;*******************************************************************************
+; These are the values handed over by the BDOS when it calls the Writer operation
+; The allocated.unallocated indicates whether the BDOS is set to write to an
+; unallocated allocation block (it only indicates this for the first 128 byte
+; sector write) or to an allocation block that has already been allocated to a
+; file. The BDOS also indicates if it is set to write to the file directory
+;*******************************************************************************
+;WriteAllocated			EQU		00H
+;WriteDirectory			EQU		01H
+;WriteUnallocated		EQU		02H
+;------------------------------
+;WriteType:				DB		00H		; The type of write indicated by BDOS
+
+	;       variables for physical sector
+	; These are moved and compared as a group, DO NOT ALTER
+;InBufferDkTrkSec:
+;InBufferDisk:			DB		00H
+;InBufferTrack:			DW		00H
+;InBufferSector:			DB		00H
+
+DataInDiskBuffer:		DB		00H		; when non-zero, the disk buffer has data from disk
+
+MustWriteBuffer:		DB		00H		; Non-zero when data has been written into DiskBuffer,
+										;	but not yet written out to the disk
 ;---------------------------------------------------------------------------
 ;				Disk Storage area
 ;---------------------------------------------------------------------------
@@ -383,6 +484,8 @@ SelectedDkTrkSec:
 SelectedDisk:			DB		00H
 SelectedTrack:			DW		00H
 SelectedSector:			DB		00H
+
+DMAAddress:				DW		00H		; DMA address
 
 DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 DeblockingRequired:		DB		00H		; Non-zero when the selected disk needs de-blocking (set in SELDSK)
@@ -523,16 +626,9 @@ DirectoryBuffer:	DS	DirBuffSize
 BOOT:
 WBOOT:
 
-PUNCH:
-READER:
-HOME:
-SELDSK:
-SETTRK:
-SETSEC:
-SETDMA:
+
 READ:
 WRITE:
-LISTST:
 SECTRAN:
 		HLT
 		
