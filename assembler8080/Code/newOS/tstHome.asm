@@ -5,7 +5,7 @@
 BIOS	EQU		0F600H
 HOME	EQU		BIOS + ( 3 * 08H)
 
-t_DataInDiskBuffer	EQU		0F780H
+t_DataInDiskBuffer	EQU		0F7ADH
 t_MustWriteBuffer	EQU		t_DataInDiskBuffer + 1
 
 CodeStart:

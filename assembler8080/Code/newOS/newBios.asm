@@ -52,8 +52,15 @@ WarmBootEntry:
 	JMP	READ			; 0D Not Yet Checked
 	JMP	WRITE			; 0E Not Yet Checked
 	JMP	LISTST			; 0F Not Yet Checked *
-	JMP				; 10 Not Yet Checked
+	JMP	SECTRAN			; 10 Checked
+	
 ;-------------------------------------------------
+PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128, 
+DiskBuffer:
+	DS	PhysicalSectorSize	
+AfterDiskBuffer		EQU	$
+;-------------------------------------------------
+
 TTYStatusPort				EQU	0EDH
 TTYDataPort					EQU	0ECH
 TTYOutputReady				EQU	01H		; Status Mask
@@ -376,7 +383,7 @@ SELDSK:
 	MOV		A,C 				; Check if  requested disk is valid
 	CPI		NumberOfLogicalDisks
 	RNC							; return if > max number of Disks
-	
+		
 	STA		SelectedDisk		; save disk number
 	MOV		L,A					; make disk into word number
 	MVI		H,0
@@ -410,8 +417,7 @@ SELDSK:
 	
 ;**********************	
 ;	Set Track	BIOS 0A
-;SETTRK - Set logical track for next read or write
-;		Track is in BC
+;SETTRK - Set logical track for next read or write.	Track is in BC
 ;**********************	
 SETTRK:
 	MOV		H,B					; select track in BC on entry
@@ -420,8 +426,8 @@ SETTRK:
 	RET
 	
 ;**********************	
-;SETSEC - Set logical sector for next read or write
-;		Sector is in C
+;	Set Sector	BIOS 0B
+;SETSEC - Set logical sector for next read or write. Sector is in C
 ;**********************
 SETSEC:
 	MOV		A,C
@@ -429,15 +435,280 @@ SETSEC:
 	RET
 	
 ;**********************
-;SetDMA - Set DMA (input/output) address for next read or write
-;       Address in BC
+;	Set Sector	BIOS 0C
+;SetDMA - Set DMA (input/output) address for next read or write. Address in BC
 ;**********************
-
 SETDMA:
 	MOV		L,C					; select address in BC on entry
 	MOV		H,B
 	SHLD	DMAAddress			; save for low level driver	
 	RET
+	
+;**********************
+;	Sector Translate	BIOS 10
+;SECTRAN - Translate logical sector to physical
+; on Entry:	BC= logical sector number DE-> appropriate skew table
+; on Exit:	HL = physical sector number
+;**********************
+SECTRAN:
+	XCHG			;HL -> skew table base
+	DAD		B		; Add on logical sector number
+	MOV		L,M		; Get physical sector number
+	MVI		H,00H	; make into a word
+	RET
+	
+;************************************************************************************************
+;        READ
+; Read in the 128-byte CP/M sector specified by previous calls to select disk and to set track  and 
+; sector. The sector will be read into the address specified in the previous call to set DMA address
+;
+; If reading from a disk drive using sectors larger than 128 bytes, de-blocking code will be used
+; to unpack a 128-byte sector from  the physical sector. 
+;************************************************************************************************
+READ:
+		LDA		DeblockingRequired
+		ORA		A
+;;		JZ		ReadNoDeblock			; if 0 use normal non-blocked read (128 byte sectors)
+; The de-blocking algorithm used is such that a read operation can be viewed UP until the actual
+; data transfer as though it was the first write to an unallocated allocation block. 
+										; else its a 512 byte sector
+		XRA		A						; set record count to 0
+		STA		UnalocatedlRecordCount
+		INR		A
+		STA		ReadFlag			; Set to non zero to indicate that this is a read
+		STA		PrereadSectorFlag		; force pre-read
+		MVI		A,WriteUnallocated		; fake de-blocking code into responding as if this
+		STA		WriteType				;  is the first write to an unallocated allocation block
+		JMP		PerformReadWrite		; use common code to execute read
+;----------------------------------------
+;----------------------------------------
+;*******************************************************
+; Common code to execute both reads and writes of 128-byte sectors	
+;*******************************************************	
+PerformReadWrite:
+		XRA		A						; Assume no disk error will occur
+		STA		DiskErrorFlag
+		LDA		SelectedSector
+		RAR								; Convert selected 128-byte sector
+		RAR								; into physical sector by dividing by 4
+		ANI		03FH					; remove unwanted bits
+		STA		SelectedPhysicalSector
+		LXI		H,DataInDiskBuffer		; see if there is any data here ?
+		MOV		A,M
+		MVI		M,001H					; force there is data here for after the actual read
+		ORA		A						; really is there any data here ?
+		JZ		ReadSectorIntoBuffer	; NO - go read into buffer
+;
+		; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
+		; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
+;;		LXI		D,InBufferDkTrkSec
+;;		LXI		H,SelectedDkTrkSec		; get the requested sector
+;;		CALL	CompareDkTrk			; is it in the buffer ? 
+;;		JNZ		SectorNotInBuffer		; NO, it must be read
+;;		; Yes, it is in the buffer
+;;		LDA		InBufferSector			; get the sector
+;;		LXI		H,SelectedPhysicalSector
+;;		CMP		M						; Check if correct physical sector
+;;		JZ		SectorInBuffer			; Yes - it is already in memory
+		; No, it will have to be read in over current contents of buffer
+SectorNotInBuffer:
+		LDA		MustWriteBuffer
+		ORA		A						; do we need to write ?
+		CNZ		WritePhysical			; if yes - write it out
+
+ReadSectorIntoBuffer:
+		; indicate the  selected disk, track, and sector now residing in buffer
+		LDA		SelectedDisk
+		STA		InBufferDisk
+		LHLD	SelectedTrack
+		SHLD	InBufferTrack
+		LDA		SelectedPhysicalSector
+		STA		InBufferSector
+		
+		LDA		PrereadSectorFlag		; do we need to pre-read
+		ORA		A
+		CNZ		ReadPhysical			; yes - pre-read the sector
+		
+; At this point the data is in the buffer.
+; Either it was already here, or we returned from ReadPhysical
+
+		XRA		A						; reset the flag
+		STA		MustWriteBuffer			; and store it away
+		
+; Selected sector on correct track and  disk is already 1n the buffer.
+; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
+SectorInBuffer:
+		LDA		SelectedSector
+		ANI		SectorMask				; only want the least bits
+		MOV		L,A						; to calculate offset into 512 byte buffer
+		MVI		H,00H					; Multiply by 128
+		DAD		H						; *2
+		DAD		H						; *4
+		DAD		H						; *8
+		DAD		H						; *16
+		DAD		H						; *32
+		DAD		H						; *64
+		DAD		H						; *128
+		LXI		D,DiskBuffer
+		DAD		D						; HL -> 128-byte sector number start address
+		XCHG							; DE -> sector in the disk buffer
+		LHLD	DMAAddress				; Get DMA address (set in SETDMA)
+		XCHG							; assume a read so :
+										; DE -> DMA Address & HL -> sector in disk buffer
+		MVI		C,128/8					; 8 bytes per move (loop count)
+;
+;  At this point -
+;	C	->	loop count
+;	DE	->	DMA address
+;	HL	->	sector in disk buffer
+;
+		LDA		ReadFlag				; Move into or out of buffer /
+		ORA		A						; 0 => Write, non Zero => Read
+		JNZ		BufferMove				; Move out of buffer
+		
+		INR		A						; going to force a write
+		STA		MustWriteBuffer
+		XCHG							; DE <--> HL
+		
+;The following move loop moves eight bytes at a time from (HL> to (DE), C contains the loop count
+BufferMove:
+		MOV		A,M						; Get byte from source
+		STAX	D						; Put into destination
+		INX		D						; update pointers
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M	
+		STAX	D
+		INX		D
+		INX		H
+		
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		
+		DCR		C						; count down on loop counter
+		JNZ		BufferMove				; repeat till done (CP/M sector moved)
+; end of loop
+		
+		LDA		WriteType				; write to directory ?
+		CPI		WriteDirectory
+		LDA		DiskErrorFlag			; get flag in case of a delayed read or write
+		RNZ								; return if delayed read or write
+		
+		ORA		A						; Any disk errors ?
+		RNZ								; yes - abandon attempt to write to directory
+		
+		XRA		A
+		STA		MustWriteBuffer			; clear flag
+		CALL	WritePhysical
+		LDA		DiskErrorFlag			; return error flag to caller
+		RET
+;********************************************************************
+;Write contents of disk buffer to correct sector
+WritePhysical:
+	MVI		A,DiskWriteCode	; get write function
+	JMP		CommonPhysical
+ReadPhysical:
+	MVI		A,DiskReadCode	; get read function
+CommonPhysical:
+	STA		DCTCommand		; set the command
+	
+	LDA		DiskType
+	CPI		Floppy5				; is it 5 1/4 ?
+	JZ		CorrectDisktype		; yes
+	MVI		A,1
+	STA		DiskError			; no set error and exit
+	RET
+;---------	
+	
+CorrectDisktype:
+	LDA		InBufferDisk
+	ANI		01H					; only units 0 or 1
+	STA		DCTUnit				; set disk
+	LHLD	InBufferTrack
+	MOV		A,L					; for this controller it is a byte value
+	STA		DCTTrack			; set track
+;  The sector must be converted into a head number and sector number.
+; Sectors 0 - 8 are head 0, 9 - 17 , are head 1 
+	MVI		B,0					; assume head 0
+	LDA		InBufferSector
+	MOV		C,A					; save copy
+	CPI		09H
+	JC		Head0
+	SUI		09H					; Modulo sector
+	MOV		C,A
+	INR		B					; set head to 1
+Head0:
+	MOV		A,B
+	STA		DCTHead				; set head number
+	MOV		A,C
+	INR		A					; physical sectors start at 1
+	STA		DCTSector			; set sector
+	LXI		H,PhysicalSectorSize
+	SHLD	DCTByteCount		; set byte count
+	LXI		H,DiskBuffer
+	SHLD	DCTDMAAddress	; set transfer address
+;	As only one control table is in use, close the status and busy chain pointers
+;  back to the main control bytes
+	LXI		H,DiskStatusBlock
+	SHLD	DCTNextStatusBlock
+	LXI		H,DiskControl5
+	SHLD	DCTNextControlLocation
+	LXI		H,DCTCommand
+	SHLD	CommandBlock5
+	
+	LXI		H,DiskControl5		; activate 5 1/4" disk controller
+	MVI		M,080H
+
+;Wait until Disk Status Block indicates , operation complete, then check 
+; if any errors occurred. ,On entry HL -> disk control byte	
+WaitForDiskComplete:
+	MOV		A,M				; get control bytes
+	ORA		A
+	JNZ		WaitForDiskComplete	; operation not done
+	
+	LDA		DiskStatusBlock		; done , so now check status
+	CPI		080H
+	JC		DiskError
+	XRA		A
+	STA		DiskErrorFlag		; clear the flag
+	RET
+	
+DiskError:
+	MVI		A,1
+	STA		DiskErrorFlag		; set the error flag
+	RET
+	
+;**********************************************************************************
+;********************************************************************
+;********************************************************************
+		
 ;---------------------------------------------------------------------------
 ;				Disk Data
 ;---------------------------------------------------------------------------
@@ -451,6 +722,78 @@ NumberOfLogicalDisks	EQU 4	; max number of disk in this system
 
 NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
 
+;**************************************************************************************************
+;  There are two "smart" disk controllers on this system, one for the 8" floppy diskette drives,
+; and one for the 5 1/4" mini-diskette drives
+;
+;  The controllers are "hard-wired" to monitor certain locations in memory to detect when they are to
+; perform some disk operation. The 8" controller monitors location 0040H, and the 5 1/4 controller
+; monitors location 0045H. These are called their disk control bytes.
+; If the most significant bit of  disk control byte is set, the controller will look at the word
+; following the respective control bytes. This word must contain the address of  valid disk control
+; table that specifies the exact disk operation to be performed.
+;
+;  Once the operation has been completed. the controller resets its disk control byte to OOH.
+; This indicates completion to the disk driver code.
+;
+;  The controller also sets a return code in a disk status block -both controllers use the SAME location
+; for this, 0043H. If the first byte of this status block is less than 80H. then a disk error
+; has occurred. For this simple BIOS. no further details of the status settings are relevant.
+; Note that the disk controller has built-in retry logic -- reads and writes are attempted
+; ten times before the controller returns an error
+;
+;  The disk control table layout is shown below. Note that the controllers have the capability
+; for control tables to be chained together so that a sequence of disk operations can be initiated.
+; In this BIOS this feature is not used. However. the controller requires that the chain pointers
+; in the disk control tables be pointed back to the main control bytes in order to indicate
+; the end of the chain
+;**************************************************************************************************
+
+DiskControl8				EQU	040H	; 8" control byte
+CommandBlock8				EQU	041H	; Control Table Pointer
+
+DiskStatusBlock				EQU	043H	; 8" and 5 1/4" status block
+
+DiskControl5				EQU	045H	; 8" control byte
+CommandBlock5				EQU	046H	; Control Table Pointer
+
+DiskReadCode				EQU	01H		; Code for Read
+DiskWriteCode				EQU	02H		; Code for Write
+;***************************************************************************
+;					Disk Control tables
+;***************************************************************************
+DiskControlTable:
+DCTCommand:				DB	00H		; Command
+DCTUnit:				DB	00H		; unit (drive) number = 0 or 1
+DCTHead:				DB	00H		; head number = 0 or 1
+DCTTrack:				DB	00H		; track number
+DCTSector:				DB	00H		; sector number
+DCTByteCount:			DW	0000H	; number of bytes to read/write
+DCTDMAAddress:			DW	0000H	; transfer address
+DCTNextStatusBlock:		DW	0000H	; pointer to next status block
+DCTNextControlLocation:	DW	0000H	; pointer to next control byte
+
+;*******************************************************************************
+;					 More tables
+; Data written to or read from the mini-floppy drive is transferred via a
+; physical buffer that is actually 512 bytes long (it was declared at the front
+; of the BIOS and holds the "one-time" initialization code used for the
+; cold boot procedure.)
+;
+; The blocking/de-blocking code attempts to minimize the amount of actual
+; disk I/O by storing the disk,track, and physical sector currently residing
+; in the Physical Buffer. If a read request is for a 128 byte CP/M "sector"
+; that is already in the physical buffer, then no disk access occurs
+;*******************************************************************************
+AllocationBlockSize		EQU		0800H		; 2048
+PhysicalSecPerTrack		EQU		012H		; 18
+CPMSecPerPhysical		EQU		PhysicalSectorSize/128
+CPMSecPerTrack			EQU		CPMSecPerPhysical * PhysicalSecPerTrack
+SectorMask				EQU		CPMSecPerPhysical - 1
+SectorBitShift			EQU		02H			; LOG2(CPMSecPerPhysical)
+;***************************************************************************
+
+; the following has been moved to osHeader.asm
 ;*******************************************************************************
 ; These are the values handed over by the BDOS when it calls the Writer operation
 ; The allocated.unallocated indicates whether the BDOS is set to write to an
@@ -462,14 +805,15 @@ NeedDeblocking	EQU 	080H	; Sector size > 128 bytes
 ;WriteDirectory			EQU		01H
 ;WriteUnallocated		EQU		02H
 ;------------------------------
-;WriteType:				DB		00H		; The type of write indicated by BDOS
+
+WriteType:				DB		00H		; The type of write indicated by BDOS
 
 	;       variables for physical sector
 	; These are moved and compared as a group, DO NOT ALTER
-;InBufferDkTrkSec:
-;InBufferDisk:			DB		00H
-;InBufferTrack:			DW		00H
-;InBufferSector:			DB		00H
+InBufferDkTrkSec:
+InBufferDisk:			DB		00H
+InBufferTrack:			DW		00H
+InBufferSector:			DB		00H
 
 DataInDiskBuffer:		DB		00H		; when non-zero, the disk buffer has data from disk
 
@@ -487,8 +831,28 @@ SelectedSector:			DB		00H
 
 DMAAddress:				DW		00H		; DMA address
 
+	;Selected physical sector derived from selected (CP/M) sector by shifting it
+	;	right the number of of bits specified by SectorBitShift
+SelectedPhysicalSector:	DB		00H
+
+	; Parameters for writing to a previously unallocated allocation block
+	; These are moved and compared as a group, DO NOT ALTER
+UnallocatedDkTrkSec:
+UnallocatedDisk:		DB		00H
+UnallocatedTrack:		DW		00H
+UnallocatedSector:		DB		00H
+UnalocatedlRecordCount:	DB		00H		; Number of unallocated "records"in current previously unallocated allocation block.
+
+DiskErrorFlag:			DB		00H		; Non-Zero - unrecoverable error output "Bad Sector" message
+
+	; Flags used inside the de-blocking code
+PrereadSectorFlag:		DB		00H		; non-zero if physical sector must be read into the disk buffer
+										; either before a write to a allocated block can occur, or
+										; for a normal CP/M 128 byte sector read
+ReadFlag:				DB		00H		; Non-zero when a CP/M 128 byte sector is to be read
 DiskType:				DB		00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 DeblockingRequired:		DB		00H		; Non-zero when the selected disk needs de-blocking (set in SELDSK)
+
 ;---------------------------------------------------------------------------
 
 ;---------------------------------------------------------------------------
@@ -585,9 +949,9 @@ Floppy5SkewTable:			; each physical sector contains four
 	DB		60,61,62,63,64,65,66,67,68,69
 	DB		70,71
 Floppy8SkewTable:			; Standard 8" Driver
-	DB		01,02,03,04,05,06,07,08,09,10		; Physical Sectors
-	DB		11,12,13,14,15,16,17,18,19,20		; Physical Sectors
-	DB		21,22,23,24,25,26					; Physical Sectors
+	DB		00,01,02,03,04,05,06,07,08,09		; Physical Sectors
+	DB		10,11,12,13,14,15,16,17,18,19		; Physical Sectors
+	DB		20,21,22,23,24,25,26				; Physical Sectors
 
 ;---------------------------------------------------------------------------
 ;				Disk work area
@@ -626,10 +990,9 @@ DirectoryBuffer:	DS	DirBuffSize
 BOOT:
 WBOOT:
 
-
-READ:
+;READ:
 WRITE:
-SECTRAN:
+
 		HLT
 		
 CodeEnd:

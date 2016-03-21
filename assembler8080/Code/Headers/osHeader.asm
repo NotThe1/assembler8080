@@ -48,3 +48,14 @@ BDOSEntry		EQU		BDOSBase + 6
 BIOSBase		EQU		BDOSBase + BDOSLength
 BIOSEntry		EQU		CCPEntry + CCPLength + BDOSLength
 
+;*******************************************************************************
+; These are the values handed over by the BDOS when it calls the Writer operation
+; The allocated.unallocated indicates whether the BDOS is set to write to an
+; unallocated allocation block (it only indicates this for the first 128 byte
+; sector write) or to an allocation block that has already been allocated to a
+; file. The BDOS also indicates if it is set to write to the file directory
+;*******************************************************************************
+WriteAllocated			EQU		00H
+WriteDirectory			EQU		01H
+WriteUnallocated		EQU		02H
+
