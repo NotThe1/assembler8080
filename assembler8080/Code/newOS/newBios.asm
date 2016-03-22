@@ -55,10 +55,11 @@ WarmBootEntry:
 	JMP	SECTRAN			; 10 Checked
 	
 ;-------------------------------------------------
-PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128, 
+					ORG		(($+10H)/10H) * 10H
+PhysicalSectorSize	EQU		512			; for the 5.25" disk the 8" size is 128 
 DiskBuffer:
 	DS	PhysicalSectorSize	
-AfterDiskBuffer		EQU	$
+AfterDiskBuffer		EQU		$
 ;-------------------------------------------------
 
 TTYStatusPort				EQU	0EDH
@@ -501,15 +502,15 @@ PerformReadWrite:
 ;
 		; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
 		; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
-;;		LXI		D,InBufferDkTrkSec
-;;		LXI		H,SelectedDkTrkSec		; get the requested sector
-;;		CALL	CompareDkTrk			; is it in the buffer ? 
-;;		JNZ		SectorNotInBuffer		; NO, it must be read
-;;		; Yes, it is in the buffer
-;;		LDA		InBufferSector			; get the sector
-;;		LXI		H,SelectedPhysicalSector
-;;		CMP		M						; Check if correct physical sector
-;;		JZ		SectorInBuffer			; Yes - it is already in memory
+		LXI		D,InBufferDkTrkSec
+		LXI		H,SelectedDkTrkSec		; get the requested sector
+		CALL	CompareDkTrk			; is it in the buffer ? 
+		JNZ		SectorNotInBuffer		; NO, it must be read
+		; Yes, it is in the buffer
+		LDA		InBufferSector			; get the sector
+		LXI		H,SelectedPhysicalSector
+		CMP		M						; Check if correct physical sector
+		JZ		SectorInBuffer			; Yes - it is already in memory
 		; No, it will have to be read in over current contents of buffer
 SectorNotInBuffer:
 		LDA		MustWriteBuffer
@@ -629,6 +630,23 @@ BufferMove:
 		CALL	WritePhysical
 		LDA		DiskErrorFlag			; return error flag to caller
 		RET
+;********************************************************************
+; Compares just the disk and track   pointed to by DE and HL (used for Blocking/Deblocking)
+CompareDkTrk:			
+		MVI		C,03H			; Disk(1), Track(2)
+		JMP		CompareDkTrkSecLoop
+CompareDkTrkSec:				;Compares just the disk and track   pointed to by DE and HL 
+		MVI		C,04H			; Disk(1), Track(2), Sector(1)
+CompareDkTrkSecLoop:
+		LDAX	D
+		CMP		M
+		RNZ						; Not equal
+		INX	D
+		INX	H
+		DCR		C
+		RZ						; return they match (zero flag set)
+		JMP		CompareDkTrkSecLoop	; keep going
+
 ;********************************************************************
 ;Write contents of disk buffer to correct sector
 WritePhysical:
