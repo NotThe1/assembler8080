@@ -459,7 +459,7 @@ SECTRAN:
 	RET
 	
 ;************************************************************************************************
-;        READ
+;        READ			BIOS 
 ; Read in the 128-byte CP/M sector specified by previous calls to select disk and to set track  and 
 ; sector. The sector will be read into the address specified in the previous call to set DMA address
 ;
@@ -482,7 +482,72 @@ READ:
 		STA		WriteType				;  is the first write to an unallocated allocation block
 		JMP		PerformReadWrite		; use common code to execute read
 ;----------------------------------------
-;----------------------------------------
+;************************************************************************************************
+;		WRITE
+;Write a 128-byte sector from the current DMA address to the previously $elected disk, track, and sector.
+;
+; On arrival here, the BOOS will have set register C to indicate whether this write operation is to:
+;	00H [WriteAllocated]	 An already allocated allocation block (which means a pre-read of the sector may be needed),
+;	01H [WriteDirectory]	 To the directory (in which case the data will be written to the disk immediately),
+;	02H	[WriteUnallocated]	 To the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
+;
+; Only writes to the directory take place immediately.
+; In all other cases, the data will be moved from the DMA address into the disk buffer,
+; and only written out when circumstance, force the transfer.
+; The number of physical disk operations can therefore be reduced considerably.
+;************************************************************************************************
+WRITE:
+		LDA		DeblockingRequired
+		ORA		A
+		JZ		WriteNoDeblock			; if 0 use non-blocked write
+; Buffered I/O
+		XRA		A
+		STA		ReadFlag				; Set to zero to indicate that this is not a read
+		MOV		A,C
+		STA		WriteType				; save the BDOS write type
+		CPI		WriteUnallocated		; first write to an unallocated allocation block ?
+		JNZ		CheckUnallocatedBlock	; No, - in the middle of writing to an unallocated block ?
+										; Yes, It is the first write to unallocated allocation block.
+; Initialize  variables associated with unallocated writes
+		MVI		A,AllocationBlockSize/ 128	; Number of 128 byte sectors
+		STA		UnalocatedlRecordCount
+		LXI		H,SelectedDkTrkSec		; copy disk, track & sector into unallocated variables
+		LXI		D,UnallocatedDkTrkSec
+		CALL 	MoveDkTrkSec
+		
+	; Check if this is not the first write to an unallocated allocation block -- if it is,
+	; the unallocated record count has just been set to the number of 128-byte sectors in the allocation block
+CheckUnallocatedBlock:
+		LDA		UnalocatedlRecordCount
+		ORA		A
+		JZ		RequestPreread			; No - write to an unallocated block
+		DCR		A						; decrement 128 byte sectors left
+		STA		UnalocatedlRecordCount
+		
+		LXI		H,SelectedDkTrkSec		; same Disk, Track & sector as for those in an unallocated block
+		LXI		D,UnallocatedDkTrkSec
+		CALL	CompareDkTrkSec			; are they the same
+		JNZ		RequestPreread			; NO - do a pre-read
+										;Compare$DkSTrkSec  returns with  DE -> Unallocated$Sector , HL -> UnallocatedSSector 
+		XCHG
+		INR	M
+		MOV		A,M
+		CPI		CPMSecPerTrack			; Sector > maximum on track ?
+		JC		NoTrackChange			; No ( A < M)
+		MVI		M,00H					; Yes
+		LHLD	UnallocatedTrack
+		INX		H						; increment track 
+		SHLD	UnallocatedTrack
+NoTrackChange:
+		XRA		A
+		STA		PrereadSectorFlag		; clear flag
+		JMP		PerformReadWrite
+		
+RequestPreread:
+		XRA		A
+		STA		UnalocatedlRecordCount	; not a write into an unallocated block
+		INR		A
+		STA		PrereadSectorFlag		; set flag
 ;*******************************************************
 ; Common code to execute both reads and writes of 128-byte sectors	
 ;*******************************************************	
@@ -647,6 +712,59 @@ CompareDkTrkSecLoop:
 		RZ						; return they match (zero flag set)
 		JMP		CompareDkTrkSecLoop	; keep going
 
+;********************************************************************
+;Moves the disk, track, and sector variables pointed at by HL to those pointed at by DE 
+MoveDkTrkSec:
+		MVI		C,04H			; Disk(1), Track(2), Sector(1)
+MoveDkTrkSecLoop:
+		MOV		A,M
+		STAX	D
+		INX		D
+		INX		H
+		DCR		C
+		RZ					; exit loop done
+		JMP		MoveDkTrkSecLoop
+;********************************************************************
+; Write contents of disk buffer to correct sector
+WriteNoDeblock:
+	MVI		A,DiskWriteCode	; get write function code
+	JMP		CommonNoDeblock
+;Read previously selected sector into disk buffer
+ReadNoDeblock:
+	MVI		A,DiskReadCode	; get read function code
+CommonNoDeblock:
+	STA		DCTCommand		; set the correct command code
+	LXI		H,128				; bytes per sector
+	SHLD	DCTByteCount
+	XRA		A					; 8" has only head 0
+	STA		DCTHead
+	
+	LDA		SelectedDisk		; insure only disk 0 or 1
+	ANI		01H
+	STA		DCTUnit			; set the unit number
+	
+	LDA		SelectedTrack
+	STA		DCTTrack			; set track number
+	
+	LDA		SelectedSector
+	STA		DCTSector		; set sector
+	
+	LHLD	DMAAddress
+	SHLD	DCTDMAAddress	; set transfer address
+	
+;  The disk controller can accept chained disk control tables, but in this case
+; they are not used. so the "Next" pointers must be pointed back at the initial
+; control bytes in the base page. 
+	LXI		H,DiskStatusBlock
+	SHLD	DCTNextStatusBlock	; set pointer back to start
+	LXI		H,DiskControl8
+	SHLD	DCTNextControlLocation	; set pointer back to start
+	LXI		H,DCTCommand
+	SHLD	CommandBlock8
+	
+	LXI		H,DiskControl8
+	MVI		M,080H				; activate the controller to perform operation
+	JMP		WaitForDiskComplete
 ;********************************************************************
 ;Write contents of disk buffer to correct sector
 WritePhysical:
@@ -1008,8 +1126,7 @@ DirectoryBuffer:	DS	DirBuffSize
 BOOT:
 WBOOT:
 
-;READ:
-WRITE:
+;WRITE:
 
 		HLT
 		
