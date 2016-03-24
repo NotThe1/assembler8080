@@ -35,8 +35,8 @@ test:
 		CALL	SELDSK
 		MOV		A,L
 		ANA		H					; if HL = 0000 SelDsk faile
-		MVI		B,TESTCOUNT			;**************************************##########
-		PUSH	BC					;**************************************##########
+;		MVI		B,TESTCOUNT			;**************************************##########
+;		PUSH	BC					;**************************************##########
 		JNZ		test1				; skip if ok HL <> 0000h
 		LXI		HL,messBadSELDSK
 		CALL	x_displayMessage
@@ -49,19 +49,19 @@ test1:
 		LDA		Sector				; get the CPM sector
 		ANI		03H					; Block size is 4
 		JNZ		test2				; skip if assumption correct
-		LXI		HL,messWriteUnAll	;**************************************##########
-		CALL	x_displayMessage	;**************************************##########
+;		LXI		HL,messWriteUnAll	;**************************************##########
+;		CALL	x_displayMessage	;**************************************##########
 		MVI		C,WriteUnallocated	; otherwise correct assumption
 test2:
 		CALL	WRITE				; write the data Out
-		CALL	displayPosition		;**************************************##########
+;		CALL	displayPosition		;**************************************##########
 		CALL	incSector			; up the sector count
-		POP		BC					;**************************************##########		
-		DCR		B					;**************************************##########
-		PUSH	BC					;**************************************##########		
+;		POP		BC					;**************************************##########		
+;		DCR		B					;**************************************##########
+;		PUSH	BC					;**************************************##########		
 ;		JNZ		test1				;**************************************##########
 		JMP		test1
-		POP		BC					;**************************************##########
+;		POP		BC					;**************************************##########
 		RET
 ;set Track Head Sector Disk and DMA
 SetUpDiskLocation:
@@ -215,8 +215,8 @@ BlockSize		EQU		4		; Number of CPM sectors peer physical sector
 MaxSector		EQU		(SectorCount * BlockSize) -1
 
 ;WriteAllocated			EQU		00H
-WriteDirectory			EQU		01H
-WriteUnallocated		EQU		02H
+;WriteDirectory			EQU		01H
+;WriteUnallocated		EQU		02H
 
 ;......................		
 Disk:			DB		00H		; Disk A

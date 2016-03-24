@@ -61,6 +61,99 @@ DiskBuffer:
 	DS	PhysicalSectorSize	
 AfterDiskBuffer		EQU		$
 ;-------------------------------------------------
+		ORG		DiskBuffer		; code only used once
+SignOnMessage:			; Cold boot message
+		DB		'CP/M 2.2.( 2016)',CR,LF,LF
+		DB		'Simple BIOS for Machine8080',CR,LF,LF
+		DB		'Disk Configuration :',CR,LF,LF	
+
+		DB		'     A: 0.35 MByte 5" Floppy',CR,LF
+		DB		'     B: 0.35 MByte 5" Floppy',CR,LF,LF
+		DB		'     C: 0.24 MByte 8" Floppy',CR,LF
+		DB		'     D: 0.24 MByte 8" Floppy',CR,LF
+		DB		EndOfMessage		
+;-------------------------------------------------
+;219--------------------BOOT-----------------------------	
+	
+BOOT:		; entered directly from the BIOS JMP vector
+				; Control transfered by the CP/M bootstrap loader
+				; initial state will be determined by the PROM
+				
+
+DI
+					; on this system the console is already initialized so the
+					; InitializeStream is not used here
+;	LXI		H,InitializeStream		;HL-> Data stream for port initialization (none here)
+;InitializeLoop:
+;	MOV		A,M					; get port #
+;	ORA		A					; if 00H then done
+;	JZ		InitializeComplete
+;	
+;	STA		InitializePort		; set up OUT instruction
+;	INX		H					; HL -> count # of bytes to output
+;	MOV		C,M					; get byte count
+;InitializeNextByte:
+;	INX		H	
+;	MOV		A,M					; get next byte
+;	DB		OUTopCode			; OUT instruction output to correct port
+;InitializePort:
+;	DB		0					; set by above code (self modifying code!!!!!)
+;	DCR		C					; Count down
+;	JNZ		InitializeNextByte
+;	INX		H					; HL-> next port number
+;	JMP		InitializeLoop		; go back for more
+;----------- above not needed with the console ------------------------	
+
+InitializeComplete:
+	MVI		A,01H				; set up for terminal to be console
+	STA		IOBYTE				; save in Page 0
+	LXI		H,SignOnMessage
+	CALL	DisplayMessage		; display the signon message
+	
+	XRA		A					; Set default disk to A: (0)
+	STA		DefaultDisk
+	EI							; enable the interrupts
+	
+	JMP		EnterCPM			; Complete initialization and enter CP/M
+								; by going to the Console Command Processor
+;---------------End of Cold Boot Initialization Code--------------
+
+		ORG AfterDiskBuffer		; reset Location Counter
+		
+		
+						; HL points at a Zero-Byte terminated string to be output
+DisplayMessage:
+	MOV		A,M					; get next message byte
+	ORA		A					; terminator (a = 0)?
+	RZ							; Yes, thes return to caller
+	
+	MOV		C,A					; prepare for output
+	PUSH	HL					; save message pointer
+	CALL	CONOUT				; go to main console output routine	*******
+	POP		H
+	INX		H 					; point at next character
+	JMP		DisplayMessage		; loop till done
+	
+EnterCPM:
+	MVI		A,0C3H				; JMP op code
+	STA		0000H				; set up the jump in location 0000H
+	STA		0005H				; and at location 0005H
+	
+	LXI		H,WarmBootEntry		; get BIOS vector address
+	SHLD	0001H				; put address in location 1
+	
+	LXI		H,BDOSEntry			; Get BDOS entry point address
+	SHLD	0006H				; put address at location 5
+	
+	LXI		B,DefaultDiskBuffer	; set disk I/O address to default
+	CALL	SETDMA				; use normal BIOS routine		****************************************************************
+	
+	EI
+	LDA		DefaultDisk			; Transfer current default disk to
+	MOV		C,A					; Console Command Processor
+	JMP		CCPEntry			; transfer to CCP
+
+;-------------------------------------------------
 
 TTYStatusPort				EQU	0EDH
 TTYDataPort					EQU	0ECH
@@ -1121,12 +1214,87 @@ DiskDAllocationVector:	DS		(242/8)+1 	; A:
 DirBuffSize	EQU		128
 DirectoryBuffer:	DS	DirBuffSize
 ;---------------------------------------------------------------------------
+;**********************************************************************************
+;		Disk Control table image for warm boot
+;**********************************************************************************
+BootControlPart1:
+	DB		01H				; Read function
+	DB		00H				; unit number
+	DB		00H				; head number
+	DB		00H				; track number
+	DB		02H				; Starting sector number (skip cold boot sector)
+	DW		8 * 512			; Number of bytes to read ( rest of the head)
+	DW		CCPEntry		; read into this address
+	DW		DiskStatusBlock	; pointer to next block - no linking
+	DW		DiskControl5	; pointer to next table- no linking
+BootControlPart2:
+	DB		01H				; Read function
+	DB		00H				; unit number
+	DB		01H				; head number - next head
+	DB		00H				; track number
+	DB		01H				; Starting sector number
+	DW		3 * 512			; Number of bytes to read (Rest of BDOS)
+	DW		CCPEntry + ( 8 * 512)		; Pick up where 1st read left off
+	DW	DiskStatusBlock		; pointer to next block - no linking
+	DW	DiskControl5		; pointer to next table - no linking
+
+;**********************************************************************************	
+;						Warm Boot
+;  On warm boot. the CCP and BDOS must be reloaded into memory.
+; In this BIOS. only the 5 1/4" diskettes will be used.
+; Therefore this code is hardware specific to the controller.
+; Two prefabricated control tables are used.
+;**********************************************************************************	
+WBOOT:
+	LXI		SP,DefaultDiskBuffer
+	LXI		D,BootControlPart1
+	CALL	WarmBootRead
+	
+	LXi		D,BootControlPart2
+	CALL	WarmBootRead
+	JMP		EnterCPM
+	
+WarmBootRead:
+	LXI		H,DiskControlTable			; get pointer to the Floppy's Device Control Table
+	SHLD	CommandBlock5		; put it into the Command block for drive A:
+	MVI		C,13				; set byte count for move
+WarmByteMove:
+	LDAX	D					; Move the coded Control block into the Command Block
+	MOV		M,A
+	INX		H
+	INX		D
+	DCR		C
+	JNZ		WarmByteMove
+	
+	LXI		H,DiskControl5
+	MVI		M,080H				; activate the controller 
+	
+WaitForBootComplete:
+	MOV		A,M					; Get the control byte
+	ORA		A					; Reset to 0 (Completed operation) ?
+	JNZ		WaitForBootComplete	; if not try again
+	
+	LDA		DiskStatusBlock		; after operation what's the status?
+	CPI		080H				; any errors ?
+	JC		WarmBootError		; Yup
+	RET							; else we are done!
+
+WarmBootError:
+	LXI		H,WarmBootErroMessage	; point at error message
+	CALL	DisplayMessage			; sent it. and
+	JMP		WBOOT					; try again.
+	
+WarmBootErroMessage:
+	DB		CR,LF
+	DB		'Warm Boot -'
+	DB		' Retrying.'
+	DB		CR,LF
+	DB		EndOfMessage
+;---------------------------------------------------------------------------
 		
 ;------------------------- Not Yet Implemented	
-BOOT:
-WBOOT:
-
-;WRITE:
+;BOOT:
+;WBOOT:
 
 		HLT
 		
