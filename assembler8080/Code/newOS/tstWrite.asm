@@ -1,8 +1,8 @@
 ;tstWrite.asm
 ;
-		$Include ../Headers/osHeader.asm
+;		$Include ../Headers/osHeader.asm
 
-
+TESTCOUNT	EQU		256
 BIOS	EQU		0F600H
 SELDSK	EQU		BIOS + ( 3 * 09H)
 SETTRK	EQU		BIOS + ( 3 * 0AH)
@@ -15,7 +15,8 @@ WRITE	EQU		BIOS + ( 3 * 0EH)
 CodeStart:
 		ORG		0100H
 		JMP		Start
-		DS		20H
+;		DS		20H
+		ORG		(($+0100H)/0100H) * 0100H
 Start:
 		LXI		SP, $
 		CALL	appInit				; init the applications variable
@@ -29,40 +30,46 @@ Start:
 		HLT
 
 test:
-		CALL	SetUpBuffer			; put in Track Head Sector Disk .....
 		LDA		Disk
 		MOV		C,A					; get disk into C for Call
 		CALL	SELDSK
 		MOV		A,L
-		ANA		H
-		JNZ		test1				; if HL = 0000 SelDsk failed
+		ANA		H					; if HL = 0000 SelDsk faile
+		MVI		B,TESTCOUNT			;**************************************##########
+		PUSH	BC					;**************************************##########
+		JNZ		test1				; skip if ok HL <> 0000h
 		LXI		HL,messBadSELDSK
 		CALL	x_displayMessage
 		HLT							; STOP !
 		
 test1:		
+		CALL	SetUpBuffer			; put in Track Head Sector Disk .....
 		CALL	SetUpDiskLocation	; make calls to set Track Head Sector Disk and DMA
+		MVI		C,WriteAllocated	; assume its not a new physical sector
+		LDA		Sector				; get the CPM sector
+		ANI		03H					; Block size is 4
+		JNZ		test2				; skip if assumption correct
+		LXI		HL,messWriteUnAll	;**************************************##########
+		CALL	x_displayMessage	;**************************************##########
+		MVI		C,WriteUnallocated	; otherwise correct assumption
+test2:
 		CALL	WRITE				; write the data Out
-;		CALL	Setup				; set up Disk, Track and Sector
-;		
-;		CALL	READ
-;
-;		MVI		C,01H
-;		CALL	SETSEC				; point at next sector
-;		CALL	READ
-;		
-;		MVI		C,08H
-;		CALL	SETSEC				; point at next Physical sector
-;		CALL	READ
-		
+		CALL	displayPosition		;**************************************##########
+		CALL	incSector			; up the sector count
+		POP		BC					;**************************************##########		
+		DCR		B					;**************************************##########
+		PUSH	BC					;**************************************##########		
+;		JNZ		test1				;**************************************##########
+		JMP		test1
+		POP		BC					;**************************************##########
 		RET
 ;set Track Head Sector Disk and DMA
 SetUpDiskLocation:
 		LDA		Head
-		CPI		1					; is this the second head
+		ANA		A					; is this the first head
 		LDA		Sector				; get the sector
-		JZ		SetUpDiskLocation1
-		ADI		SectorCount-1		; BIOS figures out correct head
+		JZ		SetUpDiskLocation1	; skip if yes
+		ADI		MaxSector + 1		; BIOS figures out correct head
 SetUpDiskLocation1:
 		MOV		C,A					; put Sector number in B
 		CALL	SETSEC				; Call Bios to set Sector
@@ -77,12 +84,6 @@ SetUpDiskLocation1:
 		RET
 ; builds buffer of Track Head Sector Disk repeating		
 SetUpBuffer:
-		MVI		A,1
-		STA		Track
-		INR		A
-		STA		Head
-		INR		A
-		STA		Sector
 ;*********************************************************
 		LXI		HL,myBuffer			; point at buffer
 		LDA		Track
@@ -92,15 +93,17 @@ SetUpBuffer:
 		MOV		M,A					; put in Head
 		INX		HL
 		LDA		Sector
-		MOV		M,A					; put in Sector
+		ANI		11111100B			; strip the 2 lsb
+		RRC
+		RRC							; divide by four to get Physical sector
+		MOV		M,A					; put in Physical Sector
 		INX		HL
-		LDA		Disk
-		MOV		M,A					; put in Disk
+		LDA		Sector
+		MOV		M,A					; put in CPM sector
 		INX		HL
 		
 		LXI		DE,myBuffer
-;		XCHG						; DE => start of myBuffer HL = DE+4
-		MVI		B,PhySecSize -4		; number of bytes to move
+		MVI		B,CPMSecSize -4		; number of bytes to move
 SetUpBuffer1:
 		LDAX	DE
 		MOV		M,A					; move byte
@@ -110,27 +113,11 @@ SetUpBuffer1:
 		INX		HL					; bump the pointers
 		JMP		SetUpBuffer1		
 
-Setup:
-		PUSH	DE
-		PUSH	DE					; Save Disk(D) And Sector(E)
-
-		CALL	SETTRK				; Set track
-		POP		BC					; C has sector
-		CALL	SETSEC				; Set sector 01
-		POP		BC
-		MOV		C,B					; put disk in C
-		CALL	SELDSK				; select the disk A
-
-		LXI		BC,DMABuffer
-		CALL	SETDMA				; Set buffer 0080H
-		RET
-		
-
 ; fill myBuffer with 00H
 ClearMyBuffer:
 		XRA		A
 		LXI		HL,myBuffer		; Location to fill
-		MVI		B,PhySecSize		; Number of bytes to fill
+		MVI		B,CPMSecSize		; Number of bytes to fill
 		JMP		FillBuffer
 ; fill DMABuffer with 00H
 ClearDMABuffer:
@@ -141,7 +128,7 @@ FillDMABuffer:
 		MVI		A,-1				; fill Character
 FillDMABuffer1:
 		LXI		HL,DMABuffer		; Location to fill
-		MVI		B,PhySecSize		; Number of bytes to fill
+		MVI		B,CPMSecSize		; Number of bytes to fill
 ; callable here. Just set up A B and HL
 FillBuffer:
 		MOV		M,A
@@ -160,11 +147,10 @@ appInit:
 		STA		Track
 		STA		Sector
 		RET
-nextSector:
-		RET
+
 incSector:
 		LXI		HL,Sector		;
-		MVI		A,SectorCount -1
+		MVI		A,MaxSector
 		CMP		M
 		JZ		adjustSectorUp	; maxed out the sector, adjust head ...
 		
@@ -220,30 +206,41 @@ displayPosition:
 		
 ;<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>		
 		
-		
+; metrics for a 5.25 inch disk
+TrackCount		EQU		40		; Tacks/Head
+SectorCount		EQU		09		; Sectors/Track(/Head)
+HeadCount		EQU		02		; Number of heads
+CPMSecSize		EQU		0080H	; CPMs idea of a sector
+BlockSize		EQU		4		; Number of CPM sectors peer physical sector
+MaxSector		EQU		(SectorCount * BlockSize) -1
+
+;WriteAllocated			EQU		00H
+WriteDirectory			EQU		01H
+WriteUnallocated		EQU		02H
+
 ;......................		
 Disk:			DB		00H		; Disk A
 Head:			DB		00		; Head 0
 Track:			DB		00H		; Track 0000H
 Sector:			DB		00H		; Sector
-LogicalSector	DW		0000H
+;LogicalSector	DW		0000H
 
-; metrics for a 5.25 inch disk
-TrackCount		EQU		03			;40		; Tacks/Head
-SectorCount		EQU		09		; Sectors/Track(/Head)
-HeadCount		EQU		02		; Number of heads
-PhySecSize		EQU		0080H	;
-
+; Messages .......
 messBegin:		DB		'Starting the Write test.',xx_CR,xx_LF,xx_EOM	
 messOK:			DB		'the test was a success !',xx_CR,xx_LF,xx_EOM
 messTrack:		DB		'Current: Track = ',xx_EOM	
 messHead:		DB		' Head = ',xx_EOM	
 messSector:		DB		' Sector = ',xx_EOM
 messBadSELDSK:	DB		'Failed to correcty perfom Select Disk. ',xx_CR,xx_LF,xx_EOM
+messWriteUnAll:	DB		'Write Unallocated Sector. ',xx_CR,xx_LF,xx_EOM
 	
-ORG		(($+10H)/10H) * 10H
+		ORG		(($+10H)/10H) * 10H
 myBuffer:
-				DS		PhySecSize
+				DS		CPMSecSize
+myBufferEnd:
+				DS		CPMSecSize
+		ORG		(($+10H)/10H) * 10H
+				
 ;------------------------------------------
 		$Include ../Headers/debug1Header.asm
 				
