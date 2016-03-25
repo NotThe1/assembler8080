@@ -6,6 +6,10 @@ FALSE			EQU		0000H
 ON				EQU		-1		
 OFF				EQU		0000H
 
+BYTE			EQU		1		;number of bytes for "byte" type
+WORD			EQU		2		;number of bytes for "word" type
+
+
 ASCII_MASK		EQU		7FH			; Ascii mask 7 bits
 ZERO			EQU		00H			; Zero
 EndOfMessage	EQU		00H
