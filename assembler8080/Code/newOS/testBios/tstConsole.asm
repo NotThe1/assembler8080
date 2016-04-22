@@ -35,6 +35,6 @@ tstConsole:
 mess1:	DB	'tstConsole concluded !',xx_LF,xx_CR,xx_LF,xx_CR,xx_EOM
 
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

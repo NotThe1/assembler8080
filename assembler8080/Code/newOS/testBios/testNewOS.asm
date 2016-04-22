@@ -100,7 +100,7 @@ tstSetTrk1:
 		
 		RET
 
-track:	DW		0000
+;track:	DW		0000
 		
 mess11:	DB		'Set Track = ',xx_EOM
 mess12:	DB		'  SelectedTrack = ',xx_EOM
@@ -263,6 +263,6 @@ errorExit:
 ;----------------------------------------------------		
 		
 ;---------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

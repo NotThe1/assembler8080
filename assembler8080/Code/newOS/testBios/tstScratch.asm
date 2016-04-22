@@ -116,6 +116,6 @@ messSector:		DB		' Sector = ',xx_EOM
 
 	
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

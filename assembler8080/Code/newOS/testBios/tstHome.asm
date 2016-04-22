@@ -48,6 +48,6 @@ tstHome1:
 mess1:	DB		'Bios call to HOME success !',xx_CR,xx_LF,xx_EOM	
 mess2:	DB		'Bios call to HOME failed ***************',xx_CR,xx_LF,xx_EOM	
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

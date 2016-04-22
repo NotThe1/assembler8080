@@ -110,6 +110,6 @@ DEequalsHL:
 		XRA		L
 		RET				;set Z flag if equal	
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

@@ -1,6 +1,6 @@
 ;tstRead.asm
 ;
-		$Include ../Headers/osHeader.asm
+		$Include ../../Headers/osHeader.asm
 
 
 BIOS	EQU		0F600H
@@ -85,6 +85,6 @@ messOK:	DB		'the test was a success !',xx_CR,xx_LF,xx_EOM
 
 	
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

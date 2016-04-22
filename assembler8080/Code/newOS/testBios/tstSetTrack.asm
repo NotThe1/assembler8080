@@ -47,6 +47,6 @@ mess11:	DB		'Set Track = ',xx_EOM
 mess12:	DB		'  SelectedTrack = ',xx_EOM
 
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

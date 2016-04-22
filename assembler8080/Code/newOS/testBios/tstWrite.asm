@@ -1,6 +1,6 @@
 ;tstWrite.asm
 ;
-;		$Include ../Headers/osHeader.asm
+;		$Include ../../Headers/osHeader.asm
 
 TESTCOUNT	EQU		256
 BIOS	EQU		0F600H
@@ -242,6 +242,6 @@ myBufferEnd:
 		ORG		(($+10H)/10H) * 10H
 				
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:

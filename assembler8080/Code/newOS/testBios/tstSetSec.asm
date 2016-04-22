@@ -53,6 +53,6 @@ mess1:	DB		'Set Sector = ',xx_EOM
 mess2:	DB		'  SelectedSector = ',xx_EOM	
 		
 ;------------------------------------------
-		$Include ../Headers/debug1Header.asm
+		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:
