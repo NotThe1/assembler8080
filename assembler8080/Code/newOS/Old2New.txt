@@ -1,0 +1,50 @@
+Old to New Labels and Names
+
+addlist			caListSize
+alloca			caAllocVector
+
+blkshf			dpbBSH	
+blkmsk			dpbBLM	
+buffa			caDirectoryDMA
+
+cdrmaxa			caDirMaxValue
+checka			caCheckSum
+chksiz			dpbCKS	
+curdsk			currentDisk
+curreca			caSector
+curtrka			caTrack
+
+dlog			currentDisk
+dpbaddr			caDiskParamBlock
+dirmax			dpbDRM	
+dirblk			dpbDABM
+dpblist			dpbSize
+
+extmsk			dpbEXM	
+
+hlrotr			RotateHLbyC
+
+maxall			dpbDSM	
+
+offset			dpbOFF
+	
+pererr			evPermanent
+persub			erPermanent
+permsg			emPermanent
+
+roderr			evReadOnlyDisk
+rodsub			erReadOnlyDisk
+rodmsg			emReadOnlyDisk
+roferr			evReadOnlyFile
+rofsub			erReadOnlyFile
+rofmsg			emReadOnlyFile
+
+sectpt			dpbSPT
+selerr			evSelection
+selsub			efSelection
+selmsg			emSelection
+	
+trans			caSkewTable
+
+wait$err		waitB4boot
+

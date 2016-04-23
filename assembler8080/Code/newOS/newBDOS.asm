@@ -5,6 +5,7 @@
 		$Include ../Headers/osHeader.asm
 		$Include ../Headers/stdHeader.asm
 STACK_SIZE	EQU		20H			; make stak big enough
+EOD			EQU		-1			; enddir End of Directory
 ;WORD		EQU		02			; number of bytes for a word
 ;BYTE		EQU		01			; number of bytes for a byte
 
@@ -186,16 +187,26 @@ Select:
 	LHLD	loggedDisks
 	LDA		currentDisk
 	MOV		C,A
-	CALL	RotateHLbyC
+	CALL	ShiftRightHLbyC
 	PUSH	HL			; save result
 	XCHG				; send to seldsk
 	CALL	SelectDisk
 	POP		HL			; get back logged disk vector
 	CZ		errSelect
+	MOV		A,L			; get logged disks
+	RAR
+	RC					; exit if the disk already logged in
+	
+	LHLD	loggedDisks	; else log in a differenet disk
+	MOV		C,L
+	MOV		B,H			; BC has logged disk
+	CALL	SetCurrentDiskBit
+	SHLD	loggedDisks	; save result
+	JMP		XXXX
 	
 ;*****************************************************************
 ; select the disk drive given by curdsk, and fill the base addresses
-; curtrka - alloca, then fill the values of the disk parameter block
+; caTrack - caAllocVector, then fill the values of the disk parameter block
 SelectDisk:
 	LDA		currentDisk
 	MOV		C,A			; prepare for Bios Call
@@ -239,11 +250,417 @@ SelectDisk1:
 	MVI		A,TRUE
 	ORA		A			; Set Carry and Sign reset Zero
 	RET
-	
+
+;---------------
+; set a "1" value in CurrentDisk position of BC
+; return in HL
+SetCurrentDiskBit:			; set$cdisk
+	PUSH	BC			; save input parameter
+	LDA		CurrentDisk
+	MOV		C,A			; ready parameter for shift
+	LXI		H,1			; number to shift
+	CALL	ShiftLeftHLbyC ;HL = mask to integrate
+	POP		BC			; original mask
+	MOV		A,C
+	ORA		L
+	MOV		L,A
+	MOV		A,B
+	ORA		H
+	MOV		H,A			; HL = mask or rol(1,CurrentDisk)
+	RET	
+;--------------
+;set current disk to read only
+SetDiskReadOnly:		; set$ro
+	LXI		HL,ReadOnlyVector
+	MOV		C,M
+	INX		HL
+	MOV		B,M
+	CALL	SetCurrentDiskBit	; sets bit to 1
+	SHLD	ReadOnlyVector
+								; high water mark in directory goes to max
+	LHLD	dpbDRM				; directory max
+	XCHG						; DE = directory max
+	LHLD	caDirMaxValue		;HL = .Directory max value
+	MOV		M,E
+	INX		HL
+	MOV		M,D ;cdrmax = dpbDRM
+	RET	
+;----------------------- initialize the current disk
+; 
+;lowReturnStatus = false ;set to true if $ file exists
+; compute the length of the allocation vector - 2
+
+InitDisk:				; initialize
+	LHDL	dpbDSM		; get max allocation value
+	MVI		C,3			; wew want maxall/8
+						; number of bytes in alloc vector is (maxall/8)+1
+	CALL	ShiftRightHLbyC
+	INX		HL			; HL = maxall/8+1
+	MOV		B,H
+	MOV		C,L			; count down BC til zero
+	LHDL	caAllocVector ;base of allocation vector
+	;fill the allocation vector with zeros
+InitDisk0:				; initial0:
+	MVI		M,0
+	INX		H			; alloc(i)=0
+	DCX		BC			; count length down
+	MOV		A,B
+	ORA		C
+	JNZ		InitDisk0
+						; set the reserved space for the directory
+	LHLD	dpbDABM		; get the directory block
+	XCHG
+	LHLD	caAllocVector ; HL=.alloc()
+	MOV		M,E
+	INX		HL
+	MOV		M,D			; sets reserved directory blks
+						; allocation vector initialized, home disk
+	CALL	Home
+						; caDirMaxValue = 3 (scans at least one directory record)
+	LHLD	caDirMaxValue
+	MVI		M,3
+	INX		H
+	MVI		M,0
+						; caDirMaxValue = 0000
+	CALL	SetEndDirectory ;dirCounter = EOD
+						;	read directory entries and check for allocated storage
+InitDisk1:
+	MVI		C,TRUE
+	CALL	ReadDirectory
+	CALL	EndOfDirectory
+	RZ							; return if end of directory
+								; not end of directory, valid entry?
+	CALL	GetDirElementAddress ; HL = caDirectoryDMA + dirPointer
+	MVI		A,emptyDir
+	CMP		M
+	JZ		InitDisk1			; go get another item
+								; not empty, user code the same?
+	LDA		currentUserNumber
+	CMP		M
+	JNZ		InitDisk2
+								; same user code, check for '$' submit
+	INX		H
+	MOV		A,M					; first character
+	SUI		DOLLAR				; dollar file?
+	JNZ		InitDisk2
+								; dollar file found, mark in lowReturnStatus
+	DCR		A
+	STA		lowReturnStatus		; lowReturnStatus = 255
+InitDisk2:
+								; now scan the disk map for allocated blocks
+	MVI		C,1					; set to allocated
+	call scandm
+	call setcdr ;set cdrmax to dirCounter
+	jmp InitDisk1 ;for another entry
+;
+
+;-----------------------------------
+	;move to home position, then offset to start of dir
+Home:
+	CALL	bcHome			; move to track 00, sector 00 reference
+	LXI		HL,dpbOFF		; get track ofset at begining
+	MOV		C,M
+	INX		HL
+	MOV		B,M
+	CALL	bcSettrk		; select first directory position
+						
+	XRA		A				; constant zero to accumulator
+	LHLD	caTrack
+	MOV		M,A
+	INX		HL
+	MOV		M,A				; curtrk=0000
+	LHLD	caSector
+	MOV		M,A
+	INX		HL
+	MOV		M,A				; currec=0000
+	RET
+
+
 ;*****************************************************************
-RotateHLbyC:		; hlrotr rotate
+;read buffer and check condition
+ReadBuffer:					; rdbuff
+	CALL	bcRead			; current drive, track, sector, dma
+	ORA		A
+	JNZ		erPermanentNoWait
+	RET
+;*****************************************************************
+;*****************************************************************
+; set directory counter to end  -1
+SetEndDirectory:			; set$end$dir
+	LXI		HL,EOD
+	SHLD	dirCounter
+	RET
+;---------------
+SetDataDMA:					; setdata
+	LXI		HL,InitDAMAddress
+	JMP		SetDMA			; to complete the call
+;---------------
+SetDirDMA:					; setdir
+	LXI		HL,caDirectoryDMA
+;	JMP		setdma
+SetDMA:						; setdma
+	MOV		C,M
+	INX		HL
+	MOV		B,M				; parameter ready
+	JMP		bcSetdma		; call bios to set
+;---------------
+;---------------
+; return zero flag if at end of directory
+; non zero if not at end (end of dir if dirCounter = 0ffffh)
+EndOfDirectory:				; end$of$dir
+	LXI		HL,dirCounter
+	MOV		A,M				; may be 0ffh
+	INX		HL
+	CMP		M				; low(dirCounter) = high(dirCounter)?
+	RNZ						; non zero returned if different
+							; high and low the same, = 0ffh?
+	INR		A				; 0ffh becomes 00 if so
+	RET
+;---------------
+; read a directory entry into the directory buffer
+ReadDirRecord:				; rd$dir
+	CALL	SetDirDMA		; directory dma
+	CALL	ReadBuffer		;directory record loaded
+    JMP		SetDataDMA ;to data dma address
+	;ret
+;---------------
+; read next directory entry, with C=true if initializing
+ReadDirectory:				; read$dir:
+	LHLD	dpbDRM
+	XCHG					; in preparation for subtract
+	LHLD	dirCounter
+	INX		HL
+	SHLD	dirCounter		; dirCounter=dirCounter+1
+							; continue while dpbDRM >= dirCounter (dpbDRM-dirCounter no cy)
+	CALL	DEminusHL2HL	; DE-HL
+	JNC		ReadDirectory0
+							; yes, set dirCounter to end of directory
+	CALL	SetEndDirectory
+	RET
+	
+ReadDirectory0:				; read$dir0:
+							; not at end of directory, seek next element
+							; initialization flag is in C
+	LDA		dirCounter
+	ANI		dskmsk			; low(dirCounter) and dskmsk
+	MVI		B,fcbshf		; to multiply by fcb size
+ReadDirectory1:				; read$dir1:
+	ADD		A
+	DCR		B
+	JNZ		ReadDirectory1
+							; A = (low(dirCounter) and dskmsk) shl fcbshf
+	STA		dirPointer		; ready for next dir operation
+	ORA		A
+	RNZ						; return if not a new record
+	PUSH	BC				; save initialization flag C
+	CALL	SeekDir			; seek$dir seek proper record
+	CALL	ReadDirectory	; read the directory record
+	POP		BC				; recall initialization flag
+	JMP		CalculateCheckSum ; checksum the directory elt
+	;ret
+;---------
+	;seek the record containing the current dir entry
+SeekDir:					; seekdir
+	LHLD	dirCounter		; directory counter to HL
+	MVI		C,dskshf
+	CALL	ShiftRightHLbyC ; value to HL
+	SHLD	currentRecord
+	SHLD	dirRecord ;ready for seek
+	JMP		Seek
+	;ret
+
+;---------------------------
+Seek:
+	;seek the track given by currentRecord (actual record)
+	;local equates for registers
+							; arech  equ b
+							; arecl  equ c ;currentRecord = BC
+							; crech  equ d
+							; crecl  equ e ;currec  = DE
+							; ctrkh  equ h
+							; ctrkl  equ l ;curtrk  = HL
+							; tcrech equ h
+							; tcrecl equ l ;tcurrec = HL
+	;load the registers from memory
+	LXI		HL,currentRecord
+	MOV		C,M				; arecl,m
+	INX		HL
+	MOV		B,M				; arech,m
+	LHLD	caSector 
+	MOV		E,M				; crecl,m
+	INX		HL
+	MOV		D,M				; crech,m
+	LHLD	caTrack 
+	MOV		A,M
+	INX		HL
+	MOV		H,M				; ctrkh,M
+	MOV		L,A				; ctrkl,a
+	;loop while currentRecord < currec
+Seek0:
+	MOV		A,C				; a,arecl
+	SUB		E				; crecl
+	MOV		A,B				; a,arech
+	SBB		D				; crech
+	JNC		Seek1			; skip if currentRecord >= currec
+							; currec = currec - dpbSPT
+	PUSH	HL				; ctrkh
+	LHLD	dpbSPT			; sectors per track
+	MOV		A,E				; a,crecl
+	SUB		L
+	MOV		E,A				; crecl,a
+	MOV		A,D				; a,crech
+	SBB		H
+	MOV		D,A				; crech,a
+	POP		HL				; ctrkh
+							; curtrk = curtrk - 1
+	DCX		HL				; ctrkh
+	JMP		Seek0			; for another try
+	
+Seek1:
+	;look while currentRecord >= (t:=currec + dpbSPT)
+	PUSH	HL				; ctrkh
+	LHLD	dpbSPT			; sectors per track
+	DAD		D				; crech ;HL = currec+dpbSPT
+	MOV		A,C				; a,arecl
+	SUB		L				; tcrecl
+	MOV		A,B				; a,arech
+	SBB		H				; tcrech
+	JC		Seek2			; skip if t > currentRecord
+							; currec = t
+	XCHG
+							; curtrk = curtrk + 1
+	POP		HL				; ctrkh
+	INX		HL				; ctrkh
+	JMP		Seek1			; for another try
+	
+Seek2:
+	POP		HL					; ctrkh
+							; arrive here with updated values in each register
+	PUSH	BC				; arech
+	PUSH	DE				; crech
+	PUSH	HL				; ctrkh ;to stack for later
+							; stack contains (lowest) BC=currentRecord, DE=currec, HL=curtrk
+	XCHG
+	LHLD	dpbOFF			; offset tracks at beginning
+	DAD		D				; HL = curtrk+dpbOFF
+	MOV		B,H
+	MOV		C,L
+	CALL	bcSettrk		; track set up
+							; note that BC - curtrk is difference to move in bios
+	POP		DE				; recall curtrk
+	LHLD	caTrack
+	MOV		M,E
+	INX		H
+	MOV		M,D				; curtrk updated
+							; now compute sector as currentRecord-currec
+	POP		DE				; crech ;recall currec
+	LHLD	caSector
+	MOV		M,E				; m,crecl
+	INX		HL
+	MOV		M,D				; m,crech
+	POP		BC				; arech ;BC=currentRecord, DE=currec
+	MOV		A,C				; a,arecl
+	SUB		E				; crecl
+	MOV		C,A				; arecl,a
+	MOV		A,B				; a,arech
+	SBB		D				; crech
+	MOV		B,A				; arech,a
+	LHLD	caSkewTable
+	XCHG					; BC=sector#, DE=.tran
+	CALL	bcSectran		; HL = tran(sector)
+	MOV		C,L
+	MOV		B,H				; BC = tran(sector)
+	JMP		bcSetsec		; sector selected
+	;ret	
+;************* CheckSum *******************************
+; compute current checksum record
+; and update the directory element if C=true 
+; or check for = if not dirRecord < dpbCKS?
+NewCheckSum:				; newchecksum
+	MVI		C,TRUE			; drop thru
+CalculateCheckSum:			; checksum
+	LHLD dirRecord
+	XCHG
+	LHLD	dpbCKS			; size of checksum vector
+	CALL	DEminusHL2HL	; DE-HL
+	RNC						; skip checksum if past checksum vector size
+							; dirRecord < dpbCKS, so continue
+	PUSH	BC				; save init flag
+	CALL	ComputeCheckSum ; check sum value to A
+	LHLD	caCheckSum		; address of check sum vector
+	XCHG
+	LHLD	dirRecord		; value of dirRecord
+	DAD		D				; HL = .check(dirRecord)
+	POP		BC				; recall true=0ffh or false=00 to C
+	INR		C				; 0ffh produces zero flag
+	JZ		SetNewCheckSum
+							; not initializing, compare
+	CMP		M				; compute$cs=check(dirRecord)?
+	RZ						; no message if ok
+							; possible checksum error, are we beyond
+							; the end of the disk?
+	CALL	StillInDirectory
+	RNC						; no message if so
+	CALL	SetDiskReadOnly ;read/only disk set
+	RET
+	
+;initializing the checksum
+SetNewCheckSum:				; initial$cs:
+	MOV		M,A
+	RET
+;------------------
+;compute checksum for current directory buffer
+ComputeCheckSum:				; compute$cs
+	MVI		C,recordSize		; size of directory buffer
+	LHLD	caDirectoryDMA		; current directory buffer
+	XRA		A					; clear checksum value
+ComputeCheckSum0:
+	ADD		M
+	INX		H
+	DCR		C					; cs=cs+buff(recordSize-C)
+	JNZ		ComputeCheckSum0
+	RET							;with checksum in A
+;*****************************************************************
+; compute the address of a directory element at positon dirPointer in the buffer
+GetDirElementAddress:				; getdptra
+	LHLD	caDirectoryDMA
+	LDA		dirPointer
+	JMP		AddAtoHL
+;---------------------
+; return CY if entry is still in Directory
+StillInDirectory:				; compcdr
+	LHLD	dirCounter
+	XCHG						; DE = directory counter
+	LHLD	caDirMaxValue		; HL=.cdrmax
+	MOV		A,E
+	SUB		M					; low(dirCounter) - low(cdrmax)
+	INX		H					; HL = .cdrmax+1
+	MOV		A,D
+	SBB		M					; hi(dirCounter) - hig(cdrmax)
+								;condition dirCounter - cdrmax  produces cy if cdrmax>dirCounter
+	RET
+;*****************************************************************
+
+;****************** Utilities *********************************
+AddAtoHL:				; addh
+	ADD L
+	MOV L,A
+	RNC
+						; overflow to H
+	INR H
+	RET
+DEminusHL2HL:			; subdh
+	MOV		A,E
+	SUB		L
+	MOV		L,A
+	MOV		A,D
+	SBB		H
+	MOV		H,A
+	RET
+;-------------
+ShiftRightHLbyC:		; hlrotr rotate
 	INC		C
-RotateHLbyC0:
+ShiftRightHLbyC0:
 	DEC		C
 	RZ				; exit when done
 	MOV		A,H
@@ -253,8 +670,16 @@ RotateHLbyC0:
 	MOV		A,L
 	RAR		
 	MOV		L,A		; low byte
-	JMP		RotateHLbyC0	; keep going
-
+	JMP		ShiftRightHLbyC0
+	
+;-------
+ShiftLeftHLbyC:		; hlrotl
+	INC		C
+ShiftLeftHLbyC0:
+	DEC		C
+	RZ				; exit when done
+	DAD		HL
+	JMP		ShiftLeftHLbyC0
 ;*****************************************************************
 ;move data length of length C from source DE to HL
 Move:
@@ -425,6 +850,10 @@ evSelection:	DW	erSelection	;selerr select error subroutine
 evReadOnlyDisk:	DW	erReadOnlyDisk	;roderr ro disk error subroutine
 evReadOnlyFile:	DW	erReadOnlyFile	;roferr ro file error subroutine
 ;************Error Routines ******************************
+erPermanentNoWait:				; per$error
+	LXI		HL,emPermanent
+	JMP	GoToError
+
 erPermanent:					; persub report permanent error
 	LXI		HL,emPermanent
 	CALL	displayAndWait		; to report the error
@@ -468,23 +897,51 @@ emSelection:	DB	'Select$'		; selmsg
 emReadOnlyFile:	DB	'File '			; rofmsg	
 emReadOnlyDisk:	DB	'R/O$'			; rodmsg:	
 ;*****************************************************************
+;********* file control block (fcb) constants ********************
+emptyDir	EQU		0E5H		; empty empty directory entry
+lastRecordNumber	EQU		127	; lstrec last record# in extent
+recordSize	EQU		128			; recsiz record size
+fcbLength	EQU		32			; fcblen file control block size
+dirrec		EQU		recordSize/fcblen	;directory elts / record
+dskshf		EQU		2	;log2(dirrec)
+dskmsk		EQU		dirrec-1
+fcbshf		EQU		5	;log2(fcblen)
+;
+extnum		EQU		12	;extent number field
+maxext		EQU		31	;largest extent number
+ubytes		EQU		13	;unfilled bytes field
+modnum		EQU		14	;data module number
+maxmod		EQU		15	;largest module number
+fwfmsk		EQU		80h	;file write flag is high order modnum
+nameLength	EQU		15	; namlen name length
+reccnt		EQU		15	;record count field
+dskmap		EQU		16	;disk map field
+lstfcb		EQU		fcblen-1
+nxtrec		EQU		fcblen
+ranrec		EQU		nxtrec+1;random record field (2 bytes)
+;
+;	reserved file indicators
+rofile		EQU		9	;high order of first type char
+invis		EQU		10	;invisible file in dir command
+;	equ	11	;reserved
+;*****************************************************************
 ;*****************************************************************
 
 ;***common values shared between bdosi and bdos******************
-;usrcode:			DB		0	;current user number
+currentUserNumber:	DB		0	;usrcode current user number
 paramDE:			DS		2	;information address
 statusBDOSReturn:	DS		2	;address value to return
 currentDisk:		DB		0	; curdsk current disk number
-;lret	equ	statusBDOSReturn	;low(statusBDOSReturn)
+lowReturnStatus:	EQU		statusBDOSReturn	;lret low(statusBDOSReturn)
 
 ;********************* Local Variables ***************************
 ;     ************************
 ;     *** Initialized Data ***
 
-;efcb:	DB	empty	;0e5=available dir entry
-;rodsk:	DW	0	;read only disk vector
-loggedDisks:	DW	0		;dlog:	 logged-in disks
-;dmaad:	DW	tbuff	;initial dma address
+;efcb:	DB	emptyDir	;0e5=available dir entry
+ReadOnlyVector:	DW	0			; rodsk read only disk vector
+loggedDisks:	DW	0			; dlog	 logged-in disks
+InitDAMAddress:	DW	DMABuffer	; dmaad tbuff initial dma address
 
 ;     *** Current Disk attributes ****
 ; These are set upon disk select
@@ -499,7 +956,7 @@ caDirectoryDMA:	DW		0000H	;buffa pointer to directory dma address
 caDiskParamBlock:	DW	0000H	;dpbaddr current disk parameter block address
 caCheckSum:		DW		0000H	;checka current checksum vector address
 caAllocVector:	DW		0000H	;alloca current allocation vector address
-caListSize		EQU		$ - caDirectoryDMA	;addlist	equ	$-buffa	 address list size
+caListSize		EQU		$ - caDirectoryDMA	;addlist	equ	$-caDirectoryDMA	 address list size
 
 ;     ***** Disk Parameter Block *******
 ; data must be adjacent, do not insert variables
@@ -514,7 +971,7 @@ dpbDRM:			DW		0000H	;dirmax largest directory number
 dpbDABM:		DW		0000H	;dirblk reserved allocation bits for directory
 dpbCKS:			DW		0000H	;chksiz size of checksum vector
 dpbOFF:			DW		0000H	;offset offset tracks at beginning
-dpbSize			EQU		$ - dpbSPT	;dpblist	equ	$-sectpt	;size of area
+dpbSize			EQU		$ - dpbSPT	;dpblist	equ	$-dpbSPT	;size of area
 ;
 
 ;     ************************
@@ -537,11 +994,11 @@ fcbDisk:		DB		00H		;disk named in fcb
 ;rcount:	ds	byte	;record count in current fcb
 ;extval:	ds	byte	;extent number and extmsk
 ;vrecord:ds	word	;current virtual record
-;arecord:ds	word	;current actual record
+currentRecord:	DW		0000H	;arecord current actual record
 ;
 ;	local variables for directory access
-;dptr:	ds	byte	;directory pointer 0,1,2,3
-;dcnt:	ds	word	;directory counter 0,1,...,dirmax
-;drec:	ds	word	;directory record 0,1,...,dirmax/4
+dirPointer:		DB		00H		; dptr directory pointer 0,1,2,3
+dirCounter:		DW		00H		; dcnt directory counter 0,1,...,dpbDRM
+dirRecord		DW		00H		; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
 ;	
 CodeEnd:
