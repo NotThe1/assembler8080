@@ -70,12 +70,38 @@ BdosStart:
 	MOV		D,M				; get MSB of vector
 	XCHG					; Vector now in HL
 	PCHL					; move vector to Program Counter ie JMP (HL)
+;*****************************************************************
+;arrive here at end of processing to return to user
+RetCaller:			; goback
+	LDA		fResel			; get reselction flag
+	ORA		A				; is it set?
+	JZ		RetDiskMon
+	;reselection may have taken place
+	LHLD	paramDE
+	MVI		M,0
+	LDA		fcbDisk
+	ORA		A				; Disk = 0?
+	JZ		RetDiskMon		; exit if yes
 	
+	MOV		M,A
+	LDA		entryDisk		; get back original Disk
+	STA		paramE			; and select it
+	CALL	SelectCurrent	
+
+;	return from the disk monitor
+RetDiskMon:			; retmon
+	LHLD	 usersStack
+	SPHL					; Restore callers stack
+	LHLD	statusBDOSReturn
+	MOV		A,L
+	MOV		B,H				; BA = statusBDOSReturn
+	RET	
+;*****************************************************************
 ;------------------- Function Table -------------------------------
 functionTable:
 	DW		DUMMY			; Function  0 - System Reset
 	DW		DUMMY			; Function  1 - Console Input
-	DW		DUMMY			; Function  2 - Console Output
+	DW		fConsoleOut			; Function  2 - Console Output
 	DW		DUMMY			; Function  3 - Reader Input
 	DW		DUMMY			; Function  4 - Punch Output
 	DW		DUMMY			; Function  5 - List Output
@@ -120,15 +146,21 @@ functionCount	EQU	($-functionTable)/2 		; Number of  functions
 DUMMY:
 	HLT
 ;*****************************************************************
-	
-fGetIOBYTE:		; (07 - 07) get IOBYTE
+fConsoleOut:			; func2 (02 - 02) Console Input
+	CALL	TabOut
+	RET					; jmp goback
+;----------
+;return io byte	
+fGetIOBYTE:				; func7 (07 - 07) get IOBYTE
 	LDA		IOBYTE		; get the byte
 	JMP		StoreARet	; store A and return
-;
-fSetIOBYTE:		; (08 - 08)	set IOBYTE
+;----------
+;set i/o byte
+fSetIOBYTE:				; func8 (08 - 08)	set IOBYTE
 	LXI		HL,IOBYTE
 	MOV		M,C			; put passed value into IOBYTE
 	RET					; exit
+;----------
 ;
 ;
 StoreARet:			; store A and return
@@ -136,43 +168,23 @@ StoreARet:			; store A and return
 	RET					; jmp , go back
 	
 ;*****************************************************************
-;arrive here at end of processing to return to user
-RetCaller:			; goback
-	LDA		fResel			; get reselction flag
-	ORA		A				; is it set?
-	JZ		RetDiskMon
-	;reselection may have taken place
-	LHLD	paramDE
-	MVI		M,0
-	LDA		fcbDisk
-	ORA		A				; Disk = 0?
-	JZ		RetDiskMon		; exit if yes
-	
-	MOV		M,A
-	LDA		entryDisk		; get back original Disk
-	STA		paramE			; and select it
-	CALL	SelectCurrent	
-
-;	return from the disk monitor
-RetDiskMon:			; retmon
-	LHLD	 usersStack
-	SPHL					; Restore callers stack
-	LHLD	statusBDOSReturn
-	MOV		A,L
-	MOV		B,H				; BA = statusBDOSReturn
+	;expand tabs to console
+;----------------	
+TabOut:							; tabout
+	;expand tabs to console
+	MOV		A,C
+	CPI		TAB
+	JNZ		ConsoleOut			; direct to ConsoleOut if not
+								; TAB encountered, move to next TAB position
+TabOut0:						; tab0:
+	MVI		C,SPACE
+	CALL	ConsoleOut			; another blank
+	LDA		columnPosition
+	ANI		111b				; columnPosition mod 8 = 0 ?
+	JNZ		TabOut0				; back for another if not
 	RET
-;********************** data areas ******************************
-
-compcol:			DB	0			; true if computing column position
-startingColumn:		DB	0			; strtcol starting column position after read
-columnPosition:		DB	0			; column column position
-listeningToggle:	DB	0			; listcp listing toggle
-kbchar:				DB	0			; initial key char = 00
-usersStack:			DS	2			; entry stack pointer
-					DS	STACK_SIZE * 2		; stack size
-bdosStack:
-;	end of Basic I/O System
-;-----------------------------------------------------------------;*****************************************************************
+;-----------------------------------------------------------------
+;*****************************************************************
 SelectCurrent:				; curselect
 	LDA		paramE
 	LXI		HL,currentDisk
@@ -850,77 +862,30 @@ ConBreak1:				; conb1:
 	RET
 ;
 
-Conout:
-	;compute character position/write console char from C
-	;compcol = true if computing column position
-	LDA 	compcol
-	ORA		A
-	JNZ		ComputeColumn
-			;write the character, then compute the column
-			;write console character from C
-	PUSH	BC				; save the character in C
-	CALL	ConBreak		; check for screen stop function
-	POP		BC				; get the characte
-	PUSH	BC				; recall/save character
-	CALL	bcConout		; externally, to console
-	POP		BC
-	PUSH	BC				; recall/save character
-			;may be copying to the list device
-	LDA		listeningToggle
-	ORA		A
-	CNZ		bcList			;	to printer, if so
-	POP		BC				; recall the character
-ComputeColumn:				;compout:
-	MOV		A,C				; recall the character
-			;and compute column position
-	LXI		HL,columnPosition ;A = char, HL = .columnPosition
-	CPI		RUBOUT
-	RZ						; no column change if nulls
-	INR		M				; column = column + 1
-	CPI		SPACE
-	RNC						 ;return if graphic
-			;not graphic, reset column position
-	DCR		M				; column = column - 1
-	MOV		A,M
-	ORA		A
-	RZ						 ;return if at zero
-			;not at zero, may be backspace or end line
-	MOV		A,C ;character back to A
-	CPI		CTRL_H
-	JNZ		NotBackSpace
-			;backspace character
-	DCR		M				; column = column - 1
-	RET
-	
-NotBackSpace:			; notbacksp:  not a backspace character  eol?
-	CPI		LF
-	RNZ					; return if not
-			;end of line, column = 0
-	MVI		M,0			; column = 0
-	RET
+
 ;
 ;display #, CR, LF for CTRL_X, CTRL_U, CTRL_R functions
-;then move to startingColumn (starting column)
+;then move to startingColumn (starting columnPosition)
 showHashCRLF:			; crlfp:
 	MVI		C,HASH_TAG
-	CALL	Conout
+	CALL	ConsoleOut
 	CALL	showCRLF
-			;column = 0, move to position startingColumn
+			;columnPosition = 0, move to position startingColumn
 showHashCRLF0:			; crlfp0:
 	LDA		columnPosition
 	LXI		HL,startingColumn
 	CMP		M
-	RNC						; stop when column reaches startingColumn
+	RNC						; stop when columnPosition reaches startingColumn
 	MVI		C,SPACE
-	CALL	Conout			; display blank
+	CALL	ConsoleOut			; display blank
 	JMP		showHashCRLF0
 ;
 showCRLF:				;crlf:
 	;carriage return line feed sequence
 	MVI		C,CR
-	CALL	Conout
+	CALL	ConsoleOut
 	MVI		C,LF
-	JMP		Conout
+	JMP		ConsoleOut
 	;ret
 ;
 Print:
@@ -935,20 +900,53 @@ Print:
 	POP		BC
 	JMP		Print
 ;----------------
-TabOut:
-	;expand tabs to console
-	MOV		A,C
-	CPI		TAB
-	JNZ		Conout ;direct to conout if not
-		;TAB encountered, move to next TAB position
-TabOut0:			; tab0:
-	MVI		C,SPACE
-	CALL	Conout ;another blank
-	LDA		columnPosition
-	ANI		111b ;column mod 8 = 0 ?
-	JNZ		TabOut0 ;back for another if not
+; compute character position/write console char from C
+; compcol = true if computing column position
+ConsoleOut:						; conout
+	LDA		compcol
+	ORA		A
+	JNZ		ConsoleOut1
+								; write the character, then compute the columnPosition
+								; write console character from C
+	PUSH	BC
+	CALL	ConBreak			; check for screen stop function
+	POP		BC
+	PUSH	BC					; recall/save character
+	CALL	bcConout			; externally, to console
+	POP		BC
+	PUSH	BC					; recall/save character
+								; may be copying to the list device
+	LDA		listeningToggle
+	ORA		A
+	CNZ		bcList				; to printer, if so
+	POP		BC					; recall the character
+ConsoleOut1:
+	MOV		A,C					; recall the character
+								; and compute column position
+	LXI		HL,columnPosition	; A = char, HL = .columnPosition
+	CPI		RUBOUT
+	RZ							; no columnPosition change if nulls
+	INR		M					; columnPosition = columnPosition + 1
+	CPI		SPACE
+	RNC							; return if graphic
+								;	not graphic, reset columnPosition position
+	DCR		M					; columnPosition = columnPosition - 1
+	MOV		A,M
+	ORA		A
+	RZ							; return if at zero
+								; not at zero, may be backspace or end line
+	MOV		A,C					; character back to A
+	CPI		CTRL_H
+	JNZ		NotBackSpace
+								; backspace character
+	DCR		M					; columnPosition = columnPosition - 1
 	RET
-	
+NotBackSpace:					; notbacksp:  not a backspace character  eol?
+	CPI		LF
+	RNZ							; return if not
+								; end of line, columnPosition = 0
+	MVI		M,0					; columnPosition = 0
+	RET
 ;************Error message World*************************
 errSelect:		; sel$error  report selection error
 	LXI		HL,evSelection
@@ -1117,5 +1115,18 @@ currentRecord:	DW		0000H	;arecord current actual record
 dirPointer:		DB		00H		; dptr directory pointer 0,1,2,3
 dirCounter:		DW		00H		; dcnt directory counter 0,1,...,dpbDRM
 dirRecord:		DW		00H		; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
+
+;********************** data areas ******************************
+compcol:			DB	0			; true if computing column position
+startingColumn:		DB	0			; strtcol starting column position after read
+columnPosition:		DB	0			; column column position
+listeningToggle:	DB	0			; listcp listing toggle
+kbchar:				DB	0			; initial key char = 00
+usersStack:			DS	2			; entry stack pointer
+					DS	STACK_SIZE * 2		; stack size
+bdosStack:
+;	end of Basic I/O System
+;-----------------------------------------------------------------;*****************************************************************
+
 ;	
 CodeEnd:
