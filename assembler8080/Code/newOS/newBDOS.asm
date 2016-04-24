@@ -33,7 +33,7 @@ CodeStart:
 	DB		0,0,0,0,0,0
 ; Enter here from the user's program with function number in c,
 ;	and information address in d,e
-BDOSEntry:
+;BDOSEntry:
 	JMP	BdosStart	;past parameter block
 	
 BdosStart:
@@ -80,8 +80,8 @@ functionTable:
 	DW		DUMMY			; Function  4 - Punch Output
 	DW		DUMMY			; Function  5 - List Output
 	DW		DUMMY			; Function  6 - Direct Console I/O
-	DW		DUMMY			; Function  7 - Get I/O Byte
-	DW		DUMMY			; Function  8 - Set I/O Byte
+	DW		fGetIOBYTE		; Function  7 - Get I/O Byte
+	DW		fSetIOBYTE		; Function  8 - Set I/O Byte
 	DW		DUMMY			; Function  9 - Print String
 	DW		DUMMY			; Function  A - Read Console String
 	DW		DUMMY			; Function  B - Get Console Status
@@ -136,19 +136,7 @@ StoreARet:			; store A and return
 	RET					; jmp , go back
 	
 ;*****************************************************************
-;********************** data areas ******************************
-
-compcol:			DB	0	; true if computing column position
-startingColumn:		DB	0	; strtcol starting column position after read
-columnPosition:		DB	0	; column column position
-listeningToggle:	DB	0	; listcp listing toggle
-kbchar:				DB	0	; initial key char = 00
-usersStack:			DS	2	;entry stack pointer
-;	ds	ssize*2	;stack size
-bdosStack:
-;	end of Basic I/O System
-;-----------------------------------------------------------------
-	;arrive here at end of processing to return to user
+;arrive here at end of processing to return to user
 RetCaller:			; goback
 	LDA		fResel			; get reselction flag
 	ORA		A				; is it set?
@@ -173,7 +161,18 @@ RetDiskMon:			; retmon
 	MOV		A,L
 	MOV		B,H				; BA = statusBDOSReturn
 	RET
-;*****************************************************************
+;********************** data areas ******************************
+
+compcol:			DB	0			; true if computing column position
+startingColumn:		DB	0			; strtcol starting column position after read
+columnPosition:		DB	0			; column column position
+listeningToggle:	DB	0			; listcp listing toggle
+kbchar:				DB	0			; initial key char = 00
+usersStack:			DS	2			; entry stack pointer
+					DS	STACK_SIZE * 2		; stack size
+bdosStack:
+;	end of Basic I/O System
+;-----------------------------------------------------------------;*****************************************************************
 SelectCurrent:				; curselect
 	LDA		paramE
 	LXI		HL,currentDisk
@@ -202,8 +201,8 @@ Select:
 	MOV		B,H			; BC has logged disk
 	CALL	SetCurrentDiskBit
 	SHLD	loggedDisks	; save result
-	JMP		XXXX
-	
+	JMP		InitDisk
+	; RET
 ;*****************************************************************
 ; select the disk drive given by curdsk, and fill the base addresses
 ; caTrack - caAllocVector, then fill the values of the disk parameter block
@@ -235,12 +234,12 @@ SelectDisk:
 	
 	LHLD	caDiskParamBlock
 	XCHG				; DE is source
-	LXI		dptSPT		; start of Disk Parameter Table
-	MVI		C,dptSize
+	LXI		HL,dpbSPT	; start of Disk Parameter Block
+	MVI		C,dpbSize
 	CALL	Move		; load the table
-	LHLD	dptDSM		; max entry number
+	LHLD	dpbDSM		; max entry number
 	MOV		A,H			; if 00 then < 255
-	LXI		single		; point a the sing byte entry flag
+	LXI		HL,single		; point at the single byte entry flag
 	MVI		M,TRUE		; assume its less than 255
 	ORA		A			; assumtion confirmed ?
 	JZ		SelectDisk1	; skip if yes
@@ -252,11 +251,11 @@ SelectDisk1:
 	RET
 
 ;---------------
-; set a "1" value in CurrentDisk position of BC
+; set a "1" value in currentDisk position of BC
 ; return in HL
 SetCurrentDiskBit:			; set$cdisk
 	PUSH	BC			; save input parameter
-	LDA		CurrentDisk
+	LDA		currentDisk
 	MOV		C,A			; ready parameter for shift
 	LXI		H,1			; number to shift
 	CALL	ShiftLeftHLbyC ;HL = mask to integrate
@@ -266,7 +265,7 @@ SetCurrentDiskBit:			; set$cdisk
 	MOV		L,A
 	MOV		A,B
 	ORA		H
-	MOV		H,A			; HL = mask or rol(1,CurrentDisk)
+	MOV		H,A			; HL = mask or rol(1,currentDisk)
 	RET	
 ;--------------
 ;set current disk to read only
@@ -349,12 +348,119 @@ InitDisk1:
 InitDisk2:
 								; now scan the disk map for allocated blocks
 	MVI		C,1					; set to allocated
-	call scandm
-	call setcdr ;set cdrmax to dirCounter
-	jmp InitDisk1 ;for another entry
+	CALL	ScanDiskMap
+	CALL	SetDirectoryEntry	; set DirMaxVAlue to dirCounter
+	JMP		InitDisk1			; for another entry
 ;
+;-------------Scan the disk map for unallocated entry-----------------------------------
+; scan the disk map addressed by dptr for non-zero entries.  The allocation
+; vector entry corresponding to a non-zero entry is set to the value of C (0,1)
+ScanDiskMap:					; scandm
+	CALL	GetDirElementAddress ; HL = buffa + dptr
+								 ; HL addresses the beginning of the directory entry
+	LXI		DE,diskMap
+	DAD		D					; hl now addresses the disk map
+	PUSH	BC					; save the 0/1 bit to set
+	MVI		C,fcbLength-diskMap+1 ; size of single byte disk map + 1
+	
+ScanDiskMap0:					; loop once for each disk map entry
+	POP		DE					; recall bit parity
+	DCR		C
+	RZ							; exit when done
+
+	PUSH	DE					; replace bit parity
+	LDA		single				; single entry flag
+	ORA		A
+	JZ		ScanDiskMap1		; skip if two byte value
+								; single byte scan operation
+	PUSH	BC					; save counter
+	PUSH	HL					; save map address
+	MOV		C,M
+	MVI		B,0					; BC=block#
+	JMP ScanDiskMap2
+	
+ScanDiskMap1:					; two byte scan operation
+	DCR		C					; count for double byte
+	PUSH	BC					; save counter
+	MOV		C,M
+	INX		HL
+	MOV		B,M					; BC=block#
+	PUSH	HL					; save map address
+ScanDiskMap2:					; arrive here with BC=block#, E=0/1
+	MOV		A,C
+	ORA		B					; skip if = 0000
+	CNZ		SetAllocBit			; bit set to 0/1 its in C
+	POP		HL
+	INX		HL					; to next bit position
+	POP		BC					; recall counter
+	JMP		ScanDiskMap0		; for another item
+;
+;-----------------------------------
+;given allocation vector position BC, return with byte
+;containing BC shifted so that the least significant
+;bit is in the low order accumulator position.  HL is
+;the address of the byte for possible replacement in
+;memory upon return, and D contains the number of shifts
+;required to place the returned value back into position
+GetAllocBit:					; getallocbit
+	MOV		A,C
+	ANI		111b
+	INR		A
+	MOV		E,A
+	MOV		D,A
+								; d and e both contain the number of bit positions to shift
+	MOV		A,C
+	RRC
+	RRC
+	RRC
+	ANI		11111b
+	MOV		C,A					; C shr 3 to C
+	MOV		A,B
+	ADD		A
+	ADD		A
+	ADD		A
+	ADD		A
+	ADD		A					; B shl 5
+	ORA		C
+	MOV		C,A					; bbbccccc to C
+	MOV		A,B
+	RRC
+	RRC
+	RRC
+	ANI		11111b
+	MOV		B,A					; BC shr 3 to BC
+	LHLD	caAllocVector		; base address of allocation vector
+	DAD		B
+	MOV		A,M					; byte to A, hl = .alloc(BC shr 3)
+								 ;now move the bit to the low order position of A
+GetAllocBitl:
+	RLC
+	DCR		E
+	JNZ		GetAllocBitl
+	RET
 
 ;-----------------------------------
+; BC is the bit position of ALLOC to set or reset.  The
+; value of the bit is in register E.
+SetAllocBit:					; setallocbit
+	PUSH	DE
+	CALL	GetAllocBit			; shifted val A, count in D
+	ANI		11111110b			; mask low bit to zero (may be set)
+	POP		BC
+	ORA		C					; low bit of C is masked into A
+	JMP		RotateAndReplace	; to rotate back into proper position
+	;ret
+;-----------------------------------
+; byte value from ALLOC is in register A, with shift count
+; in register C (to place bit back into position), and
+; target ALLOC position in registers HL, rotate and replace
+RotateAndReplace:				; rotr
+	RRC
+	DCR		D
+	JNZ		RotateAndReplace	; back into position
+	MOV		M,A					; back to ALLOC
+	RET
+	;-----------------------------------
 	;move to home position, then offset to start of dir
 Home:
 	CALL	bcHome			; move to track 00, sector 00 reference
@@ -627,11 +733,22 @@ GetDirElementAddress:				; getdptra
 	LDA		dirPointer
 	JMP		AddAtoHL
 ;---------------------
+;if not still in directory set max value
+SetDirectoryEntry:					; setcdr:
+	CALL	StillInDirectory
+	RC								; return if yes
+									; otherwise, HL = DirMaxValue+1, DE = directoryCount
+	INX		D
+	MOV		M,D
+	DCX		H
+	MOV		M,E
+	RET
+;---------------------
 ; return CY if entry is still in Directory
 StillInDirectory:				; compcdr
 	LHLD	dirCounter
 	XCHG						; DE = directory counter
-	LHLD	caDirMaxValue		; HL=.cdrmax
+	LHLD	caDirMaxValue		; HL=caDirMaxValue
 	MOV		A,E
 	SUB		M					; low(dirCounter) - low(cdrmax)
 	INX		H					; HL = .cdrmax+1
@@ -902,10 +1019,10 @@ emptyDir	EQU		0E5H		; empty empty directory entry
 lastRecordNumber	EQU		127	; lstrec last record# in extent
 recordSize	EQU		128			; recsiz record size
 fcbLength	EQU		32			; fcblen file control block size
-dirrec		EQU		recordSize/fcblen	;directory elts / record
+dirrec		EQU		recordSize/fcbLength	;directory elts / record
 dskshf		EQU		2	;log2(dirrec)
 dskmsk		EQU		dirrec-1
-fcbshf		EQU		5	;log2(fcblen)
+fcbshf		EQU		5	;log2(fcbLength)
 ;
 extnum		EQU		12	;extent number field
 maxext		EQU		31	;largest extent number
@@ -915,9 +1032,9 @@ maxmod		EQU		15	;largest module number
 fwfmsk		EQU		80h	;file write flag is high order modnum
 nameLength	EQU		15	; namlen name length
 reccnt		EQU		15	;record count field
-dskmap		EQU		16	;disk map field
-lstfcb		EQU		fcblen-1
-nxtrec		EQU		fcblen
+diskMap		EQU		16	; dskmap disk map field
+lstfcb		EQU		fcbLength-1
+nxtrec		EQU		fcbLength
 ranrec		EQU		nxtrec+1;random record field (2 bytes)
 ;
 ;	reserved file indicators
@@ -999,6 +1116,6 @@ currentRecord:	DW		0000H	;arecord current actual record
 ;	local variables for directory access
 dirPointer:		DB		00H		; dptr directory pointer 0,1,2,3
 dirCounter:		DW		00H		; dcnt directory counter 0,1,...,dpbDRM
-dirRecord		DW		00H		; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
+dirRecord:		DW		00H		; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
 ;	
 CodeEnd:
