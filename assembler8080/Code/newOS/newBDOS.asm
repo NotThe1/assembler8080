@@ -10,23 +10,23 @@ EOD			EQU		-1			; enddir End of Directory
 ;BYTE		EQU		01			; number of bytes for a byte
 
 ;	bios access constants
-bcBoot		EQU	BIOSEntry+3*0	;cold boot function
-bcWboot		EQU	BIOSEntry+3*1	;warm boot function
-bcConst		EQU	BIOSEntry+3*2	;console status function
-bcConin		EQU	BIOSEntry+3*3	;console input function
-bcConout	EQU	BIOSEntry+3*4	;console output function
-bcList		EQU	BIOSEntry+3*5	;list output function
-bcPunch		EQU	BIOSEntry+3*6	;punch output function
-bcReader	EQU	BIOSEntry+3*7	;reader input function
-bcHome		EQU	BIOSEntry+3*8	;disk home function
-bcSeldsk	EQU	BIOSEntry+3*9	;select disk function
-bcSettrk	EQU	BIOSEntry+3*10	;set track function
-bcSetsec	EQU	BIOSEntry+3*11	;set sector function
-bcSetdma	EQU	BIOSEntry+3*12	;set dma function
-bcRead		EQU	BIOSEntry+3*13	;read disk function
-bcWrite		EQU	BIOSEntry+3*14	;write disk function
-bcListst	EQU	BIOSEntry+3*15	;list status function
-bcSectran	EQU	BIOSEntry+3*16	;sector translate
+bcBoot		EQU	BIOSEntry+3*0	; bootf		cold boot function
+bcWboot		EQU	BIOSEntry+3*1	; wbootf	warm boot function
+bcConst		EQU	BIOSEntry+3*2	; constf	console status function
+bcConin		EQU	BIOSEntry+3*3	; coninf	console input function
+bcConout	EQU	BIOSEntry+3*4	; conoutf	console output function
+bcList		EQU	BIOSEntry+3*5	; listf		list output function
+bcPunch		EQU	BIOSEntry+3*6	; punchf	punch output function
+bcReader	EQU	BIOSEntry+3*7	; readerf	reader input function
+bcHome		EQU	BIOSEntry+3*8	; homef		disk home function
+bcSeldsk	EQU	BIOSEntry+3*9	; seldskf	select disk function
+bcSettrk	EQU	BIOSEntry+3*10	; settrkf	set track function
+bcSetsec	EQU	BIOSEntry+3*11	; setsecf	set sector function
+bcSetdma	EQU	BIOSEntry+3*12	; setdmaf	set dma function
+bcRead		EQU	BIOSEntry+3*13	; readf		read disk function
+bcWrite		EQU	BIOSEntry+3*14	; writef	write disk function
+bcListst	EQU	BIOSEntry+3*15	; liststf	list status function
+bcSectran	EQU	BIOSEntry+3*16	; sectran	sector translate
 		
 CodeStart:
 	ORG		BDOSBase
@@ -100,16 +100,16 @@ RetDiskMon:			; retmon
 ;------------------- Function Table -------------------------------
 functionTable:
 	DW		DUMMY			; Function  0 - System Reset
-	DW		DUMMY			; Function  1 - Console Input
-	DW		fConsoleOut			; Function  2 - Console Output
+	DW		fConsoleIn		; Function  1 - Console Input
+	DW		fConsoleOut		; Function  2 - Console Output
 	DW		DUMMY			; Function  3 - Reader Input
 	DW		DUMMY			; Function  4 - Punch Output
 	DW		DUMMY			; Function  5 - List Output
-	DW		DUMMY			; Function  6 - Direct Console I/O
+	DW		fDirectConIO	; Function  6 - Direct Console I/O
 	DW		fGetIOBYTE		; Function  7 - Get I/O Byte
 	DW		fSetIOBYTE		; Function  8 - Set I/O Byte
-	DW		DUMMY			; Function  9 - Print String
-	DW		DUMMY			; Function  A - Read Console String
+	DW		fPrintString	; Function  9 - Print String
+	DW		fReadString		; Function  A - Read Console String
 	DW		DUMMY			; Function  B - Get Console Status
 diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		DUMMY			; Function  C - Return Version Number
@@ -146,9 +146,31 @@ functionCount	EQU	($-functionTable)/2 		; Number of  functions
 DUMMY:
 	HLT
 ;*****************************************************************
-fConsoleOut:			; func2 (02 - 02) Console Input
+;return console character with echo
+fConsoleIn:					; func1 (01 - 01) Console In
+	CALL	ConsoleInWithEcho
+	JMP		StoreARet
+;----------
+; write console character with TAB expansion
+fConsoleOut:				; func2 (02 - 02) Console Out
 	CALL	TabOut
-	RET					; jmp goback
+	RET						; jmp goback
+;----------
+;direct console i/o - read if 0ffh
+fDirectConIO:				; func6 (06 - 06) get Direct Console Out
+	MOV		A,C
+	INR		A
+	JZ		fDirectConIn	; 0ffh => 00h, means input mode
+							; direct output function
+	CALL	bcConout
+	RET						; jmp goback
+fDirectConIn:
+	CALL	bcConst			; status check
+	ORA		A
+	JZ		RetDiskMon		; skip, return 00 if not ready
+							; character is ready, get it
+	CALL	bcConin			; to A
+	JMP		StoreARet
 ;----------
 ;return io byte	
 fGetIOBYTE:				; func7 (07 - 07) get IOBYTE
@@ -161,15 +183,221 @@ fSetIOBYTE:				; func8 (08 - 08)	set IOBYTE
 	MOV		M,C			; put passed value into IOBYTE
 	RET					; exit
 ;----------
-;
-;
-StoreARet:			; store A and return
+;write line until $ encountered
+fPrintString:			; func9 (09 - 09)	 Print Dollar terminated String
+	LHLD	paramDE
+	MOV		C,L
+	MOV		B,H					; BC=string address
+	CALL	Print				; out to console
+	RET							; jmp goback
+;----------
+;read Console until $ encountered
+fReadString:			; func10 (10 - 0A)	read Dollar terminated String from console
+	CALL	read
+	RET 						; jmp goback
+
+;----------
+;----------
+; store A and return
+StoreARet:				; sta$ret
 	STA		statusBDOSReturn
 	RET					; jmp , go back
 	
 ;*****************************************************************
-	;expand tabs to console
-;----------------	
+;----------------
+;read to paramDE address (max length, current length, buffer)
+ReadString:						; read
+	LDA		columnPosition
+	STA		startingColumn ;save start for ctl-x, ctl-h
+	LHDL	paramDE
+	MOV		C,M
+	INX		H
+	PUSH	HL
+	MVI		B,0
+						; B = current buffer length,
+						; C = maximum buffer length,
+						; HL= next to fill - 1
+ReadNext:						; readnx:
+						; read next character, BC, HL active
+	PUSH	BC
+	PUSH	HL			; blen, cmax, HL saved
+ReadNext0:
+	CALL	ConIn		; next char in A
+	ANI		ASCII_MASK	; mask parity bit
+	POP		HL
+	POP		BC			; reactivate counters
+	CPI		CR
+	JZ		EndRead		; end of line?
+	CPI		LF
+	JZ		EndRead		; also end of line
+	CPI		CTRL_H
+	JNZ		NotCtntl_H	; backspace?
+						; do we have any characters to back over?
+	MOV		A,B
+	ORA		A
+	JZ		paramDE
+						; characters remain in buffer, backup one
+	DCR		B			; remove one character
+	LDA		columnPosition
+	STA		compcol		; col > 0
+						; compcol > 0 marks repeat as length compute
+	JMP		LineLengthOrRepeat ; uses same code as repeat
+NotCtntl_H:
+						; not a backspace
+	CPI		RUBOUT
+	JNZ		NotRubout	; RUBOUT char?
+						; RUBOUT encountered, RUBOUT if possible
+	MOV		A,B
+	ORA		A
+	JZ		ReadNext	; skip if len=0
+						; buffer has characters, resend last char
+	MOV		A,M
+	DCR		B
+	DCX		HL			; A = LAST CHAR
+						; BLEN=BLEN-1, NEXT TO FILL - 1 DECREMENTED
+	JMP ReadEcho1		; act like this is an echo
+;
+NotRubout:
+						; not a RUBOUT character, check end line
+	CPI		CTRL_E
+	JNZ		NotCtntl_E	; physical end line?
+						; yes, save active counters and force eol
+	PUSH	BC
+	PUSH	HL
+	CALL	showCRLF
+	XRA		A
+	STA		startingColumn ; start position = 00
+	JMP		ReadNext0		; for another character
+NotCtntl_E:				; note
+						; not end of line, list toggle?
+	CPI		CTRL_P
+	JNZ		NotCtntl_P	; skip if not CTRL_P
+						; list toggle - change parity
+	PUSH	HL			; save next to fill - 1
+	LXI		HL,listeningToggle	; HL=.listeningToggle flag
+	MVI		A,1
+	SUB		M				; True-listeningToggle
+	MOV		M,A			; listeningToggle = not listeningToggle
+	POP		HL
+	JMP		ReadNext	;for another char
+NotCtntl_P:				; notp:
+						; not a CTRL_P, line delete?
+	CPI		CTRL_X
+	JNZ		NotCtntl_X
+	POP		HL			; discard start position
+						; loop while columnPosition > startingColumn
+GoBack:					; backx:
+	LDA		startingColumn
+	LXI		HL,columnPosition
+	CMP		M
+	JNC		ReadString	; start again
+	DCR		M			; columnPosition = columnPosition - 1
+	CALL	BackUp		; one position
+	JMP		GoBack
+NotCtntl_X:					; notx:
+						; not a control x, control u?
+						; not control-X, control-U?
+	CPI		CTRL_U
+	JNZ		NotCtntl_U	; skip if not
+			;delete line (CTRL_U)
+	call crlfp ;physical eol
+	POP	HL ;discard starting position
+	jmp ReadString ;to start all over
+NotCtntl_U:				; notu:
+			;not line delete, repeat line?
+	CPI CTRL_R
+	JNZ notr
+LineLengthOrRepeat:
+			;repeat line, or compute line len (CTRL_H)
+			;if compcol > 0
+	PUSH	BC
+	call crlfp ;save line length
+	POP	BC
+	POP	HL
+	PUSH	HL
+	PUSH	BC
+			;bcur, cmax active, beginning buff at HL
+rep0:
+	MOV a,b
+	ora a
+	JZ rep1 ;count len to 00
+	inx h
+	MOV c,m ;next to print
+	dcr b
+	PUSH	BC
+	PUSH	HL ;count length down
+	call ctlout ;character echoed
+	POP	HL
+	POP	BC ;recall remaining count
+	JMP rep0 ;for the next character
+rep1:
+			;end of repeat, recall lengths
+			;original BC still remains pushed
+	PUSH	HL ;save next to fill
+	LDA compcol
+	ora a ;>0 if computing length
+	JZ ReadNext0 ;for another char if so
+			;columnPosition position computed for CTRL_H
+	lxi h,columnPosition
+	sub m ;diff > 0
+	STA compcol ;count down below
+			;move back compcol-columnPosition spaces
+backsp:
+			;move back one more space
+	call BackUp ;one space
+	lxi h,compcol
+	dcr m
+	JNZ backsp
+	JMP ReadNext0 ;for next character
+notr:
+			;not a CTRL_R, place into buffer
+ReadEcho:
+	inx h
+	MOV m,a ;character filled to mem
+	inr b ;blen = blen + 1
+ReadEcho1:
+			;look for a random control character
+	PUSH	BC
+	PUSH	HL ;active values saved
+	MOV c,a ;ready to print
+	call ctlout ;may be up-arrow C
+	POP	HL
+	POP	BC
+	MOV a,m ;recall char
+	CPI CTRL_C ;set flags for reboot test
+	MOV a,b ;move length to A
+	JNZ notc ;skip if not a control c
+	CPI 1 ;control C, must be length 1
+	JZ reboot ;reboot if blen = 1
+			;length not one, so skip reboot
+notc:
+			;not reboot, are we at end of buffer?
+	cmp c
+	jc paramDE ;go for another if not
+EndRead:
+			;end of read operation, store blen
+	POP	HL
+	MOV m,b ;M(current len) = B
+	mvi c,CR
+	JMP conout ;return carriage
+	;ret
+;------------------
+;back-up one screen position
+BackUp:							; backup
+ 	CALL	PutCntl_H
+	MVI		C,SPACE
+	CALL	bcConout
+;	JMP PutCntl_H
+;send CTRL_H to console without affecting column count	
+PutCntl_H:						; pctlh
+	MVI		C,CTRL_H
+	JMP		bcConout
+	;ret	
+;----------------------------------------------------------------
+;
+
+
+;expand tabs to console	
 TabOut:							; tabout
 	;expand tabs to console
 	MOV		A,C
@@ -184,7 +412,8 @@ TabOut0:						; tab0:
 	JNZ		TabOut0				; back for another if not
 	RET
 ;-----------------------------------------------------------------
-;*****************************************************************
+;***************** Disks ****************************
+;-----------------------------------------------------------------
 SelectCurrent:				; curselect
 	LDA		paramE
 	LXI		HL,currentDisk
@@ -824,8 +1053,8 @@ Move0:
 	
 ;********** Console Routines***********************
 ;********** Console IN Routines********************
-ConIn:
-	;read console character to A
+;read console character to A
+ConIn:							; conin
 	LXI		HL,kbchar
 	MOV		A,M
 	MVI		M,0
@@ -835,8 +1064,33 @@ ConIn:
 	JMP		bcConin ;get character externally
 	;ret
 ;
+;----------------
+;echo character if graphic CR, LF, TAB, or backspace
+EchoNonGraphicCharacter:		; echoc
+	CPI		CR
+	RZ							; carriage return?
+	CPI		LF
+	RZ							; line feed?
+	CPI		TAB
+	RZ							; TAB?
+	CPI		CTRL_H
+	RZ							; backspace?
+	CPI		SPACE
+	RET							; carry set if not graphic
+;----------------
+;read character with echo
+ConsoleInWithEcho:				; conech
+	CALL	ConIn
+	CALL	EchoNonGraphicCharacter
+	RC							; return if graphic character
+								; character must be echoed before return
+	PUSH	PSW
+	MOV		C,A
+	CALL	TabOut
+	POP		PSW
+	RET							; with character in A
 ;********** Console OUT Routines*******************
-ConBreak:			;conbrk for character ready
+ConBreak:						; conbrk for character ready
 	LDA		kbchar
 	ORA		A
 	JNZ		ConBreak1 			; skip if active kbchar
@@ -888,17 +1142,19 @@ showCRLF:				;crlf:
 	JMP		ConsoleOut
 	;ret
 ;
-Print:
-	;print message until M(BC) = '$'
+;-------------
+;print message until M(BC) = '$'
+Print:								; print
 	LDAX	BC
 	CPI		DOLLAR
-	RZ					 ; stop on $
+	RZ								 ; stop on $
 	INX		BC
 	PUSH	BC
 	MOV		C,A
 	CALL	TabOut
 	POP		BC
 	JMP		Print
+
 ;----------------
 ; compute character position/write console char from C
 ; compcol = true if computing column position
@@ -989,7 +1245,7 @@ erReadOnlyFile:					;rofsub report read/only file
 ;
 waitB4boot:						; wait$err wait for response before boot
 	CALL	displayAndWait
-jmp WarmBoot
+JMP WarmBoot
 
 displayAndWait:			; errflg:
 	;report error to console, message address in HL
@@ -1044,7 +1300,7 @@ invis		EQU		10	;invisible file in dir command
 
 ;***common values shared between bdosi and bdos******************
 currentUserNumber:	DB		0	;usrcode current user number
-paramDE:			DS		2	;information address
+paramDE:			DS		2	;ParamsDE information address
 statusBDOSReturn:	DS		2	;address value to return
 currentDisk:		DB		0	; curdsk current disk number
 lowReturnStatus:	EQU		statusBDOSReturn	;lret low(statusBDOSReturn)
