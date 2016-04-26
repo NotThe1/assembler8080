@@ -4,6 +4,8 @@
 ; TODO ------
 		$Include ../Headers/osHeader.asm
 		$Include ../Headers/stdHeader.asm
+		
+VERSION		EQU		20H			; dvers version 2.0
 STACK_SIZE	EQU		20H			; make stak big enough
 EOD			EQU		-1			; enddir End of Directory
 ;WORD		EQU		02			; number of bytes for a word
@@ -99,7 +101,7 @@ RetDiskMon:			; retmon
 ;*****************************************************************
 ;------------------- Function Table -------------------------------
 functionTable:
-	DW		DUMMY			; Function  0 - System Reset
+	DW		bcBoot			; Function  0 - System Reset
 	DW		fConsoleIn		; Function  1 - Console Input
 	DW		fConsoleOut		; Function  2 - Console Output
 	DW		DUMMY			; Function  3 - Reader Input
@@ -112,8 +114,8 @@ functionTable:
 	DW		fReadString		; Function  A - Read Console String
 	DW		fGetConsoleStatus	; Function  B - Get Console Status
 diskf		EQU		($-functionTable)/2 		; disk functions
-	DW		DUMMY			; Function  C - Return Version Number
-	DW		DUMMY			; Function  D - Reset Disk System
+	DW		fGetVersion		; Function  C - Return Version Number
+	DW		fResetSystem	; Function  D - Reset Disk System
 	DW		DUMMY			; Function  E - Select Disk
 	DW		DUMMY			; Function  F - Open File
 	DW		DUMMY			; Function 10 - Close File
@@ -132,7 +134,7 @@ diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		DUMMY			; Function 1D - Get Read/Only Vector
 	DW		DUMMY			; Function 1E - Set File Attributes
 	DW		DUMMY			; Function 1F - Get ADDR (Disk Parameters)
-	DW		DUMMY			; Function 20 - Set/Get User Code
+	DW		fGetSetUserNumber	; Function 20 - Set/Get User Code
 	DW		DUMMY			; Function 21 - Read Random
 	DW		DUMMY			; Function 22 - Write Random
 	DW		DUMMY			; Function 23 - Compute File Size
@@ -197,12 +199,29 @@ fPrintString:			; func9 (09 - 09)	 Print Dollar terminated String
 fReadString:			; func10 (10 - 0A)	read String from console
 	CALL	ReadString
 	RET 						; jmp goback
-
+;*****************************************************************
 ;----------
-;check console status	; func11 (11 - 01)	read Dollar terminated String from console
-fGetConsoleStatus:
+;check console status
+fGetConsoleStatus:		; func11 (11 - 01)	read Dollar terminated String from console
 	CALL	ConBreak
 	JMP		StoreARet
+;----------
+;get/set user code
+; IN - (E) = FF its a get else user Number(0-15)
+; OUT - (A) Current user number or no value
+
+fGetSetUserNumber:			; func32 (32 - 20)	Get or set User code
+    LDA		paramE
+	CPI		0FFH
+	JNZ		SetUserNumber
+							; interrogate user code instead
+	LDA		currentUserNumber
+	STA		lowReturnStatus ;lowReturnStatus=currentUserNumber
+	RET						; jmp goback
+SetUserNumber:				; setusrcode
+	ANI		0FH
+	STA		currentUserNumber
+	RET					; jmp goback
 ;----------
 ; store A and return
 StoreARet:				; sta$ret
@@ -433,6 +452,18 @@ TabOut0:						; tab0:
 	RET
 ;-----------------------------------------------------------------
 ;***************** Disks ****************************
+;reset disk system - initialize to disk 0
+fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
+ 	LXI		HL,0
+	SHLD	ReadOnlyVector
+	SHLD	loggedDisks
+	XRA		A
+	STA		currentDisk			; note that usrcode remains unchanged
+	LXI		HL,DMABuffer
+	SHLD	InitDAMAddress		; InitDAMAddress = DMABuffer
+    CALL	SetDataDMA			; to data dma address
+	JMP		Select
+	;ret ;jmp goback
 ;-----------------------------------------------------------------
 SelectCurrent:				; curselect
 	LDA		paramE
@@ -443,7 +474,7 @@ SelectCurrent:				; curselect
 	MOV		M,A
 	JMP		Select
 ;*****************************************************************
-Select:
+Select:						; select
 	LHLD	loggedDisks
 	LDA		currentDisk
 	MOV		C,A
@@ -1135,8 +1166,6 @@ ConBreak1:				; conb1:
 	MVI		A,TRUE
 	RET
 ;
-
-
 ;
 ;display #, CR, LF for CTRL_X, CTRL_U, CTRL_R functions
 ;then move to startingColumn (starting columnPosition)
@@ -1223,6 +1252,13 @@ NotBackSpace:					; notbacksp:  not a backspace character  eol?
 								; end of line, columnPosition = 0
 	MVI		M,0					; columnPosition = 0
 	RET
+	
+;********************************************************
+;return version number
+fGetVersion:					; func12 (12 - 0C)	 Get Verson 
+	MVI		A,VERSION
+	STA		lowReturnStatus ;lowReturnStatus = VERSION (high = 00)
+	RET		;jmp goback
 ;************Error message World*************************
 errSelect:		; sel$error  report selection error
 	LXI		HL,evSelection
@@ -1323,7 +1359,7 @@ currentUserNumber:	DB		0	;usrcode current user number
 paramDE:			DS		2	;ParamsDE information address
 statusBDOSReturn:	DS		2	;address value to return
 currentDisk:		DB		0	; curdsk current disk number
-lowReturnStatus:	EQU		statusBDOSReturn	;lret low(statusBDOSReturn)
+lowReturnStatus		EQU		statusBDOSReturn	;lret low(statusBDOSReturn)
 
 ;********************* Local Variables ***************************
 ;     ************************

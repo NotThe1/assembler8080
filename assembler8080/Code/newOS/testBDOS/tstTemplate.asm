@@ -1,9 +1,9 @@
 ;tstTemplate.asm
 ;
 
-
-BIOS	EQU		0F600H
-;SETTRK	EQU		BIOS + ( 3 * 0AH)
+;$Include ../../Headers/stdHeader.asm
+BIOS		EQU		0F600H
+BDOSEntry	EQU		0E806H
 
 CodeStart:
 		ORG		0100H

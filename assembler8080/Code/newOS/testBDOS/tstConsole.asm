@@ -2,7 +2,7 @@
 ;
 
 $Include ../../Headers/stdHeader.asm
-BIOS	EQU		0F600H
+BIOS		EQU		0F600H
 BDOSEntry	EQU		0E806H
 
 ;SETTRK	EQU		BIOS + ( 3 * 0AH)
