@@ -110,7 +110,7 @@ functionTable:
 	DW		fSetIOBYTE		; Function  8 - Set I/O Byte
 	DW		fPrintString	; Function  9 - Print String
 	DW		fReadString		; Function  A - Read Console String
-	DW		DUMMY			; Function  B - Get Console Status
+	DW		fGetConsoleStatus	; Function  B - Get Console Status
 diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		DUMMY			; Function  C - Return Version Number
 	DW		DUMMY			; Function  D - Reset Disk System
@@ -191,12 +191,18 @@ fPrintString:			; func9 (09 - 09)	 Print Dollar terminated String
 	CALL	Print				; out to console
 	RET							; jmp goback
 ;----------
-;read Console until $ encountered
-fReadString:			; func10 (10 - 0A)	read Dollar terminated String from console
-	CALL	read
+;read String from Console until limit or CR is reached
+;In - (DE) = limit 
+;Out - (DE+1) = count of chars read (DE+2) = characters read
+fReadString:			; func10 (10 - 0A)	read String from console
+	CALL	ReadString
 	RET 						; jmp goback
 
 ;----------
+;check console status	; func11 (11 - 01)	read Dollar terminated String from console
+fGetConsoleStatus:
+	CALL	ConBreak
+	JMP		StoreARet
 ;----------
 ; store A and return
 StoreARet:				; sta$ret
@@ -209,7 +215,7 @@ StoreARet:				; sta$ret
 ReadString:						; read
 	LDA		columnPosition
 	STA		startingColumn ;save start for ctl-x, ctl-h
-	LHDL	paramDE
+	LHLD	paramDE
 	MOV		C,M
 	INX		H
 	PUSH	HL
@@ -235,7 +241,7 @@ ReadNext0:
 						; do we have any characters to back over?
 	MOV		A,B
 	ORA		A
-	JZ		paramDE
+	JZ		ReadNext
 						; characters remain in buffer, backup one
 	DCR		B			; remove one character
 	LDA		columnPosition
@@ -277,109 +283,109 @@ NotCtntl_E:				; note
 	LXI		HL,listeningToggle	; HL=.listeningToggle flag
 	MVI		A,1
 	SUB		M				; True-listeningToggle
-	MOV		M,A			; listeningToggle = not listeningToggle
+	MOV		M,A				; listeningToggle = not listeningToggle
 	POP		HL
-	JMP		ReadNext	;for another char
-NotCtntl_P:				; notp:
-						; not a CTRL_P, line delete?
+	JMP		ReadNext		;for another char
+NotCtntl_P:					; notp:
+							; not a CTRL_P, line delete?
 	CPI		CTRL_X
 	JNZ		NotCtntl_X
-	POP		HL			; discard start position
-						; loop while columnPosition > startingColumn
-GoBack:					; backx:
+	POP		HL				; discard start position
+							; loop while columnPosition > startingColumn
+GoBack:						; backx:
 	LDA		startingColumn
 	LXI		HL,columnPosition
 	CMP		M
-	JNC		ReadString	; start again
-	DCR		M			; columnPosition = columnPosition - 1
-	CALL	BackUp		; one position
+	JNC		ReadString		; start again
+	DCR		M				; columnPosition = columnPosition - 1
+	CALL	BackUp			; one position
 	JMP		GoBack
 NotCtntl_X:					; notx:
-						; not a control x, control u?
-						; not control-X, control-U?
+							; not a control x, control u?
+							; not control-X, control-U?
 	CPI		CTRL_U
-	JNZ		NotCtntl_U	; skip if not
-			;delete line (CTRL_U)
-	call crlfp ;physical eol
-	POP	HL ;discard starting position
-	jmp ReadString ;to start all over
-NotCtntl_U:				; notu:
-			;not line delete, repeat line?
-	CPI CTRL_R
-	JNZ notr
+	JNZ		NotCtntl_U		; skip if not
+							; delete line (CTRL_U)
+	CALL	showHashCRLF	; physical eol
+	POP		HL				; discard starting position
+	JMP		ReadString		; to start all over
+NotCtntl_U:					; notu:
+							; not line delete, repeat line?
+	CPI		CTRL_R
+	JNZ		NotCtntl_R
 LineLengthOrRepeat:
-			;repeat line, or compute line len (CTRL_H)
-			;if compcol > 0
+							; repeat line, or compute line len (CTRL_H)
+							; if compcol > 0
 	PUSH	BC
-	call crlfp ;save line length
-	POP	BC
-	POP	HL
+	CALL	showHashCRLF	; save line length
+	POP		BC
+	POP		HL
 	PUSH	HL
 	PUSH	BC
-			;bcur, cmax active, beginning buff at HL
-rep0:
-	MOV a,b
-	ora a
-	JZ rep1 ;count len to 00
-	inx h
-	MOV c,m ;next to print
-	dcr b
+							; bcur, cmax active, beginning buff at HL
+Repeat:						; rep0:
+	MOV		A,B
+	ORA		A
+	JZ		Repeat1			; count len to 00
+	INX		HL
+	MOV		C,M				; next to print
+	DCR		B
 	PUSH	BC
-	PUSH	HL ;count length down
-	call ctlout ;character echoed
-	POP	HL
-	POP	BC ;recall remaining count
-	JMP rep0 ;for the next character
-rep1:
-			;end of repeat, recall lengths
-			;original BC still remains pushed
-	PUSH	HL ;save next to fill
-	LDA compcol
-	ora a ;>0 if computing length
-	JZ ReadNext0 ;for another char if so
-			;columnPosition position computed for CTRL_H
-	lxi h,columnPosition
-	sub m ;diff > 0
-	STA compcol ;count down below
-			;move back compcol-columnPosition spaces
-backsp:
-			;move back one more space
-	call BackUp ;one space
-	lxi h,compcol
-	dcr m
-	JNZ backsp
-	JMP ReadNext0 ;for next character
-notr:
-			;not a CTRL_R, place into buffer
+	PUSH	HL				; count length down
+	CALL	CaretCout		; character echoed
+	POP		HL
+	POP		BC				; recall remaining count
+	JMP		Repeat			; for the next character
+Repeat1:					; rep1:
+							; end of repeat, recall lengths
+							; original BC still remains pushed
+	PUSH	HL				; save next to fill
+	LDA		compcol
+	ORA		A				; >0 if computing length
+	JZ		ReadNext0		; for another char if so
+							; columnPosition position computed for CTRL_H
+	LXI		HL,columnPosition
+	SUB		M				; diff > 0
+	STA		compcol			; count down below
+							; move back compcol-columnPosition spaces
+BackSpace:					; backsp:
+							; move back one more space
+	CALL	BackUp			; one space
+	LXI		HL,compcol
+	DCR		M
+	JNZ		BackSpace
+	JMP		ReadNext0		; for next character
+NotCtntl_R:					; notr:
+							; not a CTRL_R, place into buffer
 ReadEcho:
-	inx h
-	MOV m,a ;character filled to mem
-	inr b ;blen = blen + 1
+	INX		HL
+	MOV		M,A				; character filled to mem
+	INR		B				; blen = blen + 1
 ReadEcho1:
-			;look for a random control character
+							; look for a random control character
 	PUSH	BC
-	PUSH	HL ;active values saved
-	MOV c,a ;ready to print
-	call ctlout ;may be up-arrow C
-	POP	HL
-	POP	BC
-	MOV a,m ;recall char
-	CPI CTRL_C ;set flags for reboot test
-	MOV a,b ;move length to A
-	JNZ notc ;skip if not a control c
-	CPI 1 ;control C, must be length 1
-	JZ reboot ;reboot if blen = 1
-			;length not one, so skip reboot
-notc:
-			;not reboot, are we at end of buffer?
-	cmp c
-	jc paramDE ;go for another if not
-EndRead:
-			;end of read operation, store blen
-	POP	HL
-	MOV m,b ;M(current len) = B
-	mvi c,CR
-	JMP conout ;return carriage
+	PUSH	HL				; active values saved
+	MOV		C,A				; ready to print
+	CALL	CaretCout		; may be up-arrow C
+	POP		HL
+	POP		BC
+	MOV		A,M				; recall char
+	CPI		CTRL_C			; set flags for reboot test
+	MOV		A,B				; move length to A
+	JNZ		NotCtntl_C		; skip if not a control c
+	CPI		1				; control C, must be length 1
+	JZ		WarmBoot		; reboot if blen = 1
+							; length not one, so skip reboot
+NotCtntl_C:					; notc:
+							; not reboot, are we at end of buffer?
+	CMP		C
+	JC		ReadNext			; go for another if not paramDE
+EndRead:					; readen
+							; end of read operation, store blen
+	POP		HL
+	MOV		M,B				; M(current len) = B
+	MVI		C,CR
+	JMP		ConsoleOut ;return carriage
 	;ret
 ;------------------
 ;back-up one screen position
@@ -397,6 +403,20 @@ PutCntl_H:						; pctlh
 ;
 
 
+;------------------
+;send C character with possible preceding up-arrow
+CaretCout:						; ctlout
+	MOV		A,C
+	CALL	EchoNonGraphicCharacter	; cy if not graphic (or special case)
+	JNC		TabOut				; skip if graphic, TAB, CR, LF, or CTRL_H
+								; send preceding up arrow
+	PUSH	PSW
+	MVI		C,CARET
+	CALL	ConsoleOut			; up arrow
+	POP		PSW
+	ORI		40H					; becomes graphic letter
+	MOV		C,A					; ready to print
+								;(drop through to tabout)
 ;expand tabs to console	
 TabOut:							; tabout
 	;expand tabs to console

@@ -24,14 +24,18 @@ CodeStart:
 		HLT
 ;*************************************;
 testStringIO:
+		LXI		DE,messPrintString
+;		LXI		DE,consoleBuffer
+		MVI		C,09
+		CALL	BDOSEntry
+
+		LXI		HL,messageString
+		CALL	x_displayMessage
+		
 		LXI		DE,consoleBuffer
 		MVI		C,0AH
 		CALL	BDOSEntry
 
-;		LXI		DE,messPrintString
-		LXI		DE,consoleBuffer
-		MVI		C,09
-		CALL	BDOSEntry
 		RET
 ;----------------------		
 testDirectConsole:
@@ -105,8 +109,11 @@ messOK:		DB		xx_CR,xx_LF,'the test was a success !',xx_CR,xx_LF,xx_EOM
 messIn1:	DB		xx_CR,xx_LF,'Type Characters Terminate with CONTRL_Z ',xx_CR,xx_LF,xx_EOM
 messDirectOut:	DB	CR,LF,'Direct Console Out',CR,LF,DOLLAR	
 messPrintString:	DB	CR,LF,'This is a BDOS Print String',CR,LF,DOLLAR
+messageString:	DB	CR,LF,'Enter a string. Max 15 chars. or end with an enter',CR,LF,xx_EOM
 
-consoleBuffer:	DS	80	
+consoleBuffer:
+			DB	15,0
+			DS	80	
 	
 
 	
