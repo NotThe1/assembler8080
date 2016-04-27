@@ -31,9 +31,9 @@ DefaultDiskBuffer:
 							; also filled with the command line from CCP
 	
 
-CodeStart:
 	ORG		BIOSEntry		; Assemble code at BIOS address		
 		; BIOS jum Vector
+CodeStart:
 		
 	JMP	BOOT			; 00  Not Yet Checked
 WarmBootEntry:
@@ -313,18 +313,6 @@ CommunicationOutput:
 DummyOutput:
 		RET						; Dummy always discards the data
 ;---------------------------------------------------------------------------
-		
-DisplayMessage:
-	MOV		A,M					; get next message byte
-	ORA		A					; terminator (a = 0)?
-	RZ							; Yes, thes return to caller
-	
-	MOV		C,A					; prepare for output
-	PUSH	HL					; save message pointer
-	CALL	CONOUT				; go to main console output routine	*******
-	POP		H
-	INX		H 					; point at next character
-	JMP		DisplayMessage		; loop till done
 
 ;---------------------------------------------------------------------------
 ;	Console Status  BIOS 02

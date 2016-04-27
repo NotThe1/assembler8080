@@ -130,7 +130,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 	public void passTwo(File sourceFile) {
 		Matcher matcher;
-		String line= null;
+//		String line= null;
 		String rawLine = null;
 		String sourceLine = null;
 		
@@ -180,7 +180,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 					passOneList.add(new PassOne(lineNumber, currentPC, symbol, comment));
 				}//
 				saveMemoryImage(currentPC, memImage);
-				String logMessage = String.format("%04d: %04X     %-10s %-20s%n", lineNumber, currentPC, memImage,
+				String logMessage = String.format("%04d: %04X  %-10s %-20s%n", lineNumber, currentPC, memImage,
 						rawLine);
 				txtListing.append(logMessage);
 				if (cbSaveToFile.isSelected()) {
@@ -189,7 +189,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 
 				
 			}// while
-	
+			scannerPassTwo.close();
 			
 			
 			
@@ -428,6 +428,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		// symbolTable.passOneDone();
 		SymbolTable.passOneDone();
 		instructionCounter.reset();
+		scannerPassOne.close();
 	}// buildTheSymbolTable
 
 	public void passZero(File sourceFile) {
@@ -1138,6 +1139,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 		lblListing.setFont(new Font("Courier New", Font.BOLD, 16));
 		lblListing.setForeground(Color.BLUE);
 		scrollListing.setColumnHeaderView(lblListing);
+		txtSource.setTabSize(3);
+		txtListing.setTabSize(3);
 
 	}// appInit
 		// --------------------------------------------------------------------------------//
@@ -1209,6 +1212,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		splitPane.setLeftComponent(scrollSource);
 
 		txtSource = new JTextArea();
+	
 		scrollSource.setViewportView(txtSource);
 
 		scrollListing = new JScrollPane();

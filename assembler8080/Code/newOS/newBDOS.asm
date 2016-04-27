@@ -30,8 +30,8 @@ bcWrite		EQU	BIOSEntry+3*14	; writef	write disk function
 bcListst	EQU	BIOSEntry+3*15	; liststf	list status function
 bcSectran	EQU	BIOSEntry+3*16	; sectran	sector translate
 		
-CodeStart:
 	ORG		BDOSBase
+CodeStart:
 	DB		0,0,0,0,0,0
 ; Enter here from the user's program with function number in c,
 ;	and information address in d,e
