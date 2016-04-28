@@ -1139,8 +1139,8 @@ public class ASM implements ActionListener, AdjustmentListener {
 		lblListing.setFont(new Font("Courier New", Font.BOLD, 16));
 		lblListing.setForeground(Color.BLUE);
 		scrollListing.setColumnHeaderView(lblListing);
-		txtSource.setTabSize(3);
-		txtListing.setTabSize(3);
+		txtSource.setTabSize(4);
+		txtListing.setTabSize(4);
 
 	}// appInit
 		// --------------------------------------------------------------------------------//

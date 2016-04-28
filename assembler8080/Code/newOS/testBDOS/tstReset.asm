@@ -1,7 +1,7 @@
 ;tstReset.asm
 ;
 
-;$Include ../../Headers/stdHeader.asm
+;$Include$$ ../../Headers/stdHeader.asm
 BIOS		EQU		0F600H
 BDOSEntry	EQU		0E806H
 
