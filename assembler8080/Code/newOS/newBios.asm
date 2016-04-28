@@ -1238,7 +1238,7 @@ WBOOT:
 	LXI		D,BootControlPart1
 	CALL	WarmBootRead
 	
-	LXi		D,BootControlPart2
+	LXI		D,BootControlPart2
 	CALL	WarmBootRead
 	JMP		EnterCPM
 	

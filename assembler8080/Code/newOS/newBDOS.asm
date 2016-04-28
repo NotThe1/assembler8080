@@ -116,7 +116,7 @@ functionTable:
 diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		fGetVersion		; Function  C - Return Version Number
 	DW		fResetSystem	; Function  D - Reset Disk System
-	DW		DUMMY			; Function  E - Select Disk
+	DW		fSelectDisk		; Function  E - Select Disk
 	DW		DUMMY			; Function  F - Open File
 	DW		DUMMY			; Function 10 - Close File
 	DW		DUMMY			; Function 11 - Search For First
@@ -127,7 +127,7 @@ diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		DUMMY			; Function 16 - Make File
 	DW		DUMMY			; Function 17 - Rename File
 	DW		DUMMY			; Function 18 - Return Login Vector
-	DW		DUMMY			; Function 19 - Return Current Disk
+	DW		fGetCurrentDisk	; Function 19 - Return Current Disk
 	DW		DUMMY			; Function 1A - Set DMA address
 	DW		DUMMY			; Function 1B - Get ADDR (ALLOC)
 	DW		DUMMY			; Function 1C - Write Protect Disk
@@ -202,9 +202,10 @@ fReadString:			; func10 (10 - 0A)	read String from console
 ;*****************************************************************
 ;----------
 ;check console status
-fGetConsoleStatus:		; func11 (11 - 01)	read Dollar terminated String from console
+fGetConsoleStatus:			; func11 (11 - 01)	read Dollar terminated String from console
 	CALL	ConBreak
 	JMP		StoreARet
+
 ;----------
 ;get/set user code
 ; IN - (E) = FF its a get else user Number(0-15)
@@ -465,6 +466,19 @@ fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
 	JMP		Select
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
+;select disk in (E) ParamsDE
+; IN - (E) disk number -- 0=A  1=B ...15=P
+fSelectDisk:				; func14 (14 - 0E)	Select Current Disk
+	JMP		SelectCurrent
+	;ret ;jmp goba
+;-----------------------------------------------------------------
+;return selected disk number
+;OUT - A current disk -- 0=A  1=B ...15=P
+fGetCurrentDisk:			; func25 (14 - 0E)	Get Current Disk
+	LDA		currentDisk
+	STA		lowReturnStatus
+	RET		;jmp goback
+;-----------------------------------------------------------------
 SelectCurrent:				; curselect
 	LDA		paramE
 	LXI		HL,currentDisk
@@ -474,11 +488,11 @@ SelectCurrent:				; curselect
 	MOV		M,A
 	JMP		Select
 ;*****************************************************************
-Select:						; select
+Select:						; select  - Login Drive
 	LHLD	loggedDisks
 	LDA		currentDisk
 	MOV		C,A
-	CALL	ShiftRightHLbyC
+	CALL	ShiftRightHLbyC	; see if we already have drive logged in
 	PUSH	HL			; save result
 	XCHG				; send to seldsk
 	CALL	SelectDisk
@@ -582,14 +596,14 @@ SetDiskReadOnly:		; set$ro
 ; compute the length of the allocation vector - 2
 
 InitDisk:				; initialize
-	LHDL	dpbDSM		; get max allocation value
+	LHLD	dpbDSM		; get max allocation value
 	MVI		C,3			; wew want maxall/8
 						; number of bytes in alloc vector is (maxall/8)+1
 	CALL	ShiftRightHLbyC
 	INX		HL			; HL = maxall/8+1
 	MOV		B,H
 	MOV		C,L			; count down BC til zero
-	LHDL	caAllocVector ;base of allocation vector
+	LHLD	caAllocVector ;base of allocation vector
 	;fill the allocation vector with zeros
 InitDisk0:				; initial0:
 	MVI		M,0
@@ -1068,9 +1082,9 @@ DEminusHL2HL:			; subdh
 	RET
 ;-------------
 ShiftRightHLbyC:		; hlrotr rotate
-	INC		C
+	INR		C
 ShiftRightHLbyC0:
-	DEC		C
+	DCR		C
 	RZ				; exit when done
 	MOV		A,H
 	ORA		A		; reset carry bit
@@ -1083,16 +1097,16 @@ ShiftRightHLbyC0:
 	
 ;-------
 ShiftLeftHLbyC:		; hlrotl
-	INC		C
+	INR		C
 ShiftLeftHLbyC0:
-	DEC		C
+	DCR		C
 	RZ				; exit when done
 	DAD		HL
 	JMP		ShiftLeftHLbyC0
 ;*****************************************************************
 ;move data length of length C from source DE to HL
 Move:
-	INC		C		; housekeeping
+	INR		C		; housekeeping
 Move0:
 	DCR		C
 	RZ				; exit if done
@@ -1435,7 +1449,7 @@ columnPosition:		DB	0			; column column position
 listeningToggle:	DB	0			; listcp listing toggle
 kbchar:				DB	0			; initial key char = 00
 usersStack:			DS	2			; entry stack pointer
-					DS	STACK_SIZE * 2		; stack size
+stackBottom:		DS	STACK_SIZE * 2		; stack size
 bdosStack:
 ;	end of Basic I/O System
 ;-----------------------------------------------------------------;*****************************************************************
