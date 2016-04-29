@@ -12,13 +12,27 @@ CodeStart:
 		LXI		HL, messBegin
 		CALL	x_displayMessage
 		
+;		CALL	TwoDrives
 		CALL	test
 ;		
 		LXI		HL, messOK
 		CALL	x_displayMessage
 		HLT
-;		
+	;
+TwoDrives:
+		MVI		E,1
+		MVI		C,0EH
+		CALL	BDOSEntry	; set  disk B
+
+		MVI		E,0
+		MVI		C,0EH
+		CALL	BDOSEntry	; set  disk A
+		RET
+
+		
+		;		
 test:
+	
 		MVI		B,04H		; max disk Number + 1
 test1:
 		DCR		B
@@ -27,6 +41,12 @@ test1:
 		MOV		E,B
 		MVI		C,0EH
 		CALL	BDOSEntry	; set the disk
+		
+		MVI		C,01FH
+		CALL	BDOSEntry	; get the Disk Parameter Block
+		
+		CALL	x_displayHL	; display the DPB
+		CALL	x_CRLF
 		
 		MVI		C,019H
 		CALL	BDOSEntry	; get current disk

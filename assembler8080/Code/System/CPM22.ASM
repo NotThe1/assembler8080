@@ -4267,7 +4267,7 @@ CheckSumTable:
 ;*
 ;**************************************************************
 ;
-BIOSEntry	Equ	0F600H		; start of bios
+BIOSEntry			EQU		0F600H		; start of bios
 
 biosBoot			EQU		BIOSEntry + 000H	;  0
 fcSystemReset		EQU		BIOSEntry + 003H	;  1
@@ -4291,4 +4291,4 @@ biosSectorTranslate	EQU		BIOSEntry + 030H	; 16 (10)
 ;******************   E N D   O F   C P / M   *****************
 ;*
 CodeEnd:
-		END
+		

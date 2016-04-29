@@ -133,7 +133,7 @@ diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		DUMMY			; Function 1C - Write Protect Disk
 	DW		DUMMY			; Function 1D - Get Read/Only Vector
 	DW		DUMMY			; Function 1E - Set File Attributes
-	DW		DUMMY			; Function 1F - Get ADDR (Disk Parameters)
+	DW		fGetDiskParamBlock	; Function 1F - Get ADDR (Disk Parameters)
 	DW		fGetSetUserNumber	; Function 20 - Set/Get User Code
 	DW		DUMMY			; Function 21 - Read Random
 	DW		DUMMY			; Function 22 - Write Random
@@ -207,10 +207,16 @@ fGetConsoleStatus:			; func11 (11 - 01)	read Dollar terminated String from conso
 	JMP		StoreARet
 
 ;----------
+;return address of disk parameter block
+; OUT - (HL) Disk Parameter Black for current drive
+fGetDiskParamBlock:			; func31 (31 - 1F)
+	LHLD	caDiskParamBlock
+	SHLD	statusBDOSReturn
+	RET		;jmp goback
+;----------
 ;get/set user code
 ; IN - (E) = FF its a get else user Number(0-15)
 ; OUT - (A) Current user number or no value
-
 fGetSetUserNumber:			; func32 (32 - 20)	Get or set User code
     LDA		paramE
 	CPI		0FFH
@@ -866,7 +872,7 @@ ReadDirectory1:				; read$dir1:
 	RNZ						; return if not a new record
 	PUSH	BC				; save initialization flag C
 	CALL	SeekDir			; seek$dir seek proper record
-	CALL	ReadDirectory	; read the directory record
+	CALL	ReadDirRecord	; read the directory record
 	POP		BC				; recall initialization flag
 	JMP		CalculateCheckSum ; checksum the directory elt
 	;ret
@@ -1393,16 +1399,19 @@ InitDAMAddress:	DW	DMABuffer	; dmaad tbuff initial dma address
 caDirMaxValue:	DW		0000H	;cdrmaxa pointer to cur dir max value
 caTrack:		DW		0000H	;curtrka current track address
 caSector:		DW		0000H	;curreca current record address
+caListSizeStart:
 caDirectoryDMA:	DW		0000H	;buffa pointer to directory dma address
 caDiskParamBlock:	DW	0000H	;dpbaddr current disk parameter block address
 caCheckSum:		DW		0000H	;checka current checksum vector address
 caAllocVector:	DW		0000H	;alloca current allocation vector address
-caListSize		EQU		$ - caDirectoryDMA	;addlist	equ	$-caDirectoryDMA	 address list size
+caListSizeEnd:
+caListSize		EQU		caListSizeEnd - caListSizeStart	;addlist	equ	$-caDirectoryDMA	 address list size
+;caListSize		EQU		$ - caDirectoryDMA	;addlist	equ	$-caDirectoryDMA	 address list size
 
 ;     ***** Disk Parameter Block *******
 ; data must be adjacent, do not insert variables
 ; dpb - Disk Parameter Block
-
+dpbStart:
 dpbSPT:			DW		0000H	;sectpt sectors per track
 dpbBSH:			DB		0000H	;blkshf block shift factor
 dpbBLM:			DB		00H		;blkmsk block mask
@@ -1412,7 +1421,8 @@ dpbDRM:			DW		0000H	;dirmax largest directory number
 dpbDABM:		DW		0000H	;dirblk reserved allocation bits for directory
 dpbCKS:			DW		0000H	;chksiz size of checksum vector
 dpbOFF:			DW		0000H	;offset offset tracks at beginning
-dpbSize			EQU		$ - dpbSPT	;dpblist	equ	$-dpbSPT	;size of area
+dpbEnd:
+dpbSize			EQU		dpbEnd - dpbStart	;dpblist	equ	$-dpbSPT	;size of area
 ;
 
 ;     ************************

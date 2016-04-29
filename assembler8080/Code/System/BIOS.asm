@@ -17,7 +17,7 @@ EndOfMessage	EQU	00H
 VERSION		EQU		'0A'		;Equates for the sign-on Screen
 MONTH		EQU		'08'		; '08'
 DAY			EQU		'25'		; '09'
-Year		EQU		'45'		; '15'
+YEAR		EQU		'45'		; '15'
 
 MemorySize	EQU 64
 
@@ -178,7 +178,7 @@ InitializePort:
 InitializeComplete:
 	MVI		A,01H				; set up for terminal to be console
 	STA		IOBYTE				; save in Page 0
-	LXI		H,SignonMessage
+	LXI		H,SignOnMessage
 	CALL	DisplayMessage		; display the signon message
 	
 	XRA		A					; Set default disk to A: (0)
@@ -283,7 +283,7 @@ LISTST:
 	CALL	GetListStatus	; return  A = 0 or non-zero	
 	ORA		A				; set flags
 	RZ						; exit if not ready
-	MVI		a,0FFH			; else set retuen value for ok
+	MVI		A,0FFH			; else set retuen value for ok
 	RET	
 	; exit
 GetListStatus:
@@ -769,7 +769,7 @@ Floppy5SkewTable:			; each physical sector contains four
 	DB		40,41,42,43,44,45,46,47,48,49
 	DB		50,51,52,53,54,55,56,57,58,59
 	DB		60,61,62,63,64,65,66,67,68,69
-	Db		70,71
+	DB		70,71
 							
 ;	,		Physical 128b 	Logical 128b	Physical 512-byte
 ;	DB		00,01,02,03		;00,01,02,03				0	)
@@ -1382,7 +1382,7 @@ WBOOT:
 	LXI		D,BootControlPart1
 	CALL	WarmBootRead
 	
-	LXi		D,BootControlPart2
+	LXI		D,BootControlPart2
 	CALL	WarmBootRead
 	JMP		EnterCPM
 	
