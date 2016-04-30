@@ -37,16 +37,46 @@ test:
 test1:
 		DCR		B
 		RM					; exit of done (B = -1)
-		PUSH	BC			; save disk number
+; show the disK		
+		LXI		HL,messPart1
+		CALL	x_displayMessage
+		MOV		A,B
+		CALL	x_showRegA
+		LXI		HL,messPart2
+		CALL	x_displayMessage
+		
+; set the disk		
+		PUSH	BC				; save disk number
 		MOV		E,B
 		MVI		C,0EH
-		CALL	BDOSEntry	; set the disk
+		CALL	BDOSEntry		; set the disk
 		
+; get the FCB		
+		LXI		HL,messDPB
+		CALL	x_displayMessage
 		MVI		C,01FH
-		CALL	BDOSEntry	; get the Disk Parameter Block
-		
-		CALL	x_displayHL	; display the DPB
+		CALL	BDOSEntry		; get the Disk Parameter Block
+		CALL	x_displayHL		; display the DPB
 		CALL	x_CRLF
+		
+; get the Logged Vector
+		LXI		HL,messLoginV
+		CALL	x_displayMessage
+		MVI		C,018H
+		CALL	BDOSEntry		; get the login Vector
+		CALL	x_displayHL		; display the Vector
+		CALL	x_CRLF
+		
+; get the Allocation vector address
+		LXI		HL,messAlloc
+		CALL	x_displayMessage
+		MVI		C,01BH
+		CALL	BDOSEntry		; get the Allocation Vector address
+		CALL	x_displayHL		; display the address
+		CALL	x_CRLF
+
+
+
 		
 		MVI		C,019H
 		CALL	BDOSEntry	; get current disk
@@ -62,8 +92,13 @@ test1:
 
 
 messBegin:	DB		'Starting the test.',xx_CR,xx_LF,xx_EOM	
-messOK:	DB		'the test was a success !',xx_CR,xx_LF,xx_EOM	
-messBAD:	DB		'the test was a FAILURE !',xx_CR,xx_LF,xx_EOM	
+messOK:		DB		'the test was a success !',xx_CR,xx_LF,xx_EOM	
+messBAD:	DB		'the test was a FAILURE !',xx_CR,xx_LF,xx_EOM
+messPart1:	DB		'Disk ',xx_EOM
+messPart2:	DB		':',xx_CR,xx_LF,xx_EOM
+messDPB:	DB		'   DPB: ',xx_EOM
+messLoginV:	DB		'   loggedDrives: ',xx_EOM
+messAlloc:	DB		'   Allocation Address: ',xx_EOM
 
 	
 ;------------------------------------------

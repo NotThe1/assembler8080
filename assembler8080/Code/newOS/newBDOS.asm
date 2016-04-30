@@ -101,48 +101,48 @@ RetDiskMon:			; retmon
 ;*****************************************************************
 ;------------------- Function Table -------------------------------
 functionTable:
-	DW		bcBoot			; Function  0 - System Reset
-	DW		fConsoleIn		; Function  1 - Console Input
-	DW		fConsoleOut		; Function  2 - Console Output
-	DW		DUMMY			; Function  3 - Reader Input
-	DW		DUMMY			; Function  4 - Punch Output
-	DW		DUMMY			; Function  5 - List Output
-	DW		fDirectConIO	; Function  6 - Direct Console I/O
-	DW		fGetIOBYTE		; Function  7 - Get I/O Byte
-	DW		fSetIOBYTE		; Function  8 - Set I/O Byte
-	DW		fPrintString	; Function  9 - Print String
-	DW		fReadString		; Function  A - Read Console String
+	DW		bcBoot				; Function  0 - System Reset
+	DW		fConsoleIn			; Function  1 - Console Input
+	DW		fConsoleOut			; Function  2 - Console Output
+	DW		DUMMY				; Function  3 - Reader Input
+	DW		DUMMY				; Function  4 - Punch Output
+	DW		DUMMY				; Function  5 - List Output
+	DW		fDirectConIO		; Function  6 - Direct Console I/O
+	DW		fGetIOBYTE			; Function  7 - Get I/O Byte
+	DW		fSetIOBYTE			; Function  8 - Set I/O Byte
+	DW		fPrintString		; Function  9 - Print String
+	DW		fReadString			; Function  A - Read Console String
 	DW		fGetConsoleStatus	; Function  B - Get Console Status
 diskf		EQU		($-functionTable)/2 		; disk functions
-	DW		fGetVersion		; Function  C - Return Version Number
-	DW		fResetSystem	; Function  D - Reset Disk System
-	DW		fSelectDisk		; Function  E - Select Disk
-	DW		DUMMY			; Function  F - Open File
-	DW		DUMMY			; Function 10 - Close File
-	DW		DUMMY			; Function 11 - Search For First
-	DW		DUMMY			; Function 12 - Search for Next
-	DW		DUMMY			; Function 13 - Delete File
-	DW		DUMMY			; Function 14 - Read Sequential
-	DW		DUMMY			; Function 15 - Write Sequential
-	DW		DUMMY			; Function 16 - Make File
-	DW		DUMMY			; Function 17 - Rename File
-	DW		DUMMY			; Function 18 - Return Login Vector
-	DW		fGetCurrentDisk	; Function 19 - Return Current Disk
-	DW		DUMMY			; Function 1A - Set DMA address
-	DW		DUMMY			; Function 1B - Get ADDR (ALLOC)
-	DW		DUMMY			; Function 1C - Write Protect Disk
-	DW		DUMMY			; Function 1D - Get Read/Only Vector
-	DW		DUMMY			; Function 1E - Set File Attributes
+	DW		fGetVersion			; Function  C - Return Version Number
+	DW		fResetSystem		; Function  D - Reset Disk System
+	DW		fSelectDisk			; Function  E - Select Disk
+	DW		DUMMY				; Function  F - Open File
+	DW		DUMMY				; Function 10 - Close File
+	DW		DUMMY				; Function 11 - Search For First
+	DW		DUMMY				; Function 12 - Search for Next
+	DW		DUMMY				; Function 13 - Delete File
+	DW		DUMMY				; Function 14 - Read Sequential
+	DW		DUMMY				; Function 15 - Write Sequential
+	DW		DUMMY				; Function 16 - Make File
+	DW		DUMMY				; Function 17 - Rename File
+	DW		fGetLoginVector		; Function 18 - Return Login Vector
+	DW		fGetCurrentDisk		; Function 19 - Return Current Disk
+	DW		fSetDMA				; Function 1A - Set DMA address
+	DW		fGetAllocAddr		; Function 1B - Get ADDR (ALLOC)
+	DW		DUMMY				; Function 1C - Write Protect Disk
+	DW		DUMMY				; Function 1D - Get Read/Only Vector
+	DW		DUMMY				; Function 1E - Set File Attributes
 	DW		fGetDiskParamBlock	; Function 1F - Get ADDR (Disk Parameters)
 	DW		fGetSetUserNumber	; Function 20 - Set/Get User Code
-	DW		DUMMY			; Function 21 - Read Random
-	DW		DUMMY			; Function 22 - Write Random
-	DW		DUMMY			; Function 23 - Compute File Size
-	DW		DUMMY			; Function 24 - Set Random Record
-	DW		DUMMY			; Function 25 - Reset Drive
-	DW		DUMMY			; Function 26 - Access Drive (not supported)
-	DW		DUMMY			; Function 27 - Free Drive (not supported)
-	DW		DUMMY			; Function 28 - Write random w/Fill
+	DW		DUMMY				; Function 21 - Read Random
+	DW		DUMMY				; Function 22 - Write Random
+	DW		DUMMY				; Function 23 - Compute File Size
+	DW		fGetLoginVector		; Function 24 - Set Random Record
+	DW		DUMMY				; Function 25 - Reset Drive
+	DW		DUMMY				; Function 26 - Access Drive (not supported)
+	DW		DUMMY				; Function 27 - Free Drive (not supported)
+	DW		DUMMY				; Function 28 - Write random w/Fill
 functionCount	EQU	($-functionTable)/2 		; Number of  functions
 
 DUMMY:
@@ -207,13 +207,6 @@ fGetConsoleStatus:			; func11 (11 - 01)	read Dollar terminated String from conso
 	JMP		StoreARet
 
 ;----------
-;return address of disk parameter block
-; OUT - (HL) Disk Parameter Black for current drive
-fGetDiskParamBlock:			; func31 (31 - 1F)
-	LHLD	caDiskParamBlock
-	SHLD	statusBDOSReturn
-	RET		;jmp goback
-;----------
 ;get/set user code
 ; IN - (E) = FF its a get else user Number(0-15)
 ; OUT - (A) Current user number or no value
@@ -229,13 +222,13 @@ SetUserNumber:				; setusrcode
 	ANI		0FH
 	STA		currentUserNumber
 	RET					; jmp goback
-;----------
+
+;*****************************************************************
 ; store A and return
 StoreARet:				; sta$ret
 	STA		statusBDOSReturn
 	RET					; jmp , go back
 	
-;*****************************************************************
 ;----------------
 ;read to paramDE address (max length, current length, buffer)
 ReadString:						; read
@@ -468,23 +461,57 @@ fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
 	STA		currentDisk			; note that usrcode remains unchanged
 	LXI		HL,DMABuffer
 	SHLD	InitDAMAddress		; InitDAMAddress = DMABuffer
-    CALL	SetDataDMA			; to data dma address
+    CALL	SetDataDMA			; to data dma address 
 	JMP		Select
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
-;select disk in (E) ParamsDE
+;select disk in (E) paramDE
 ; IN - (E) disk number -- 0=A  1=B ...15=P
 fSelectDisk:				; func14 (14 - 0E)	Select Current Disk
 	JMP		SelectCurrent
 	;ret ;jmp goba
 ;-----------------------------------------------------------------
+;return the login vector
+;OUT - (HL) loggedDisks
+fGetLoginVector:			; func24: (24 - 18) Return login Vector
+	LHLD	loggedDisks
+	SHLD	statusBDOSReturn
+	RET						; jmp goback
+;-----------------------------------------------------------------
 ;return selected disk number
 ;OUT - A current disk -- 0=A  1=B ...15=P
-fGetCurrentDisk:			; func25 (14 - 0E)	Get Current Disk
+fGetCurrentDisk:			; func25 (25 - 19)	Get Current Disk
 	LDA		currentDisk
 	STA		lowReturnStatus
 	RET		;jmp goback
 ;-----------------------------------------------------------------
+;set the subsequent dma address to paramDE
+;IN - (HL) value to set as DMA
+fSetDMA:					; func26 (25 - 1A) Set Dma Address
+	LHLD	paramDE
+	SHLD	InitDAMAddress	; InitDAMAddress = paramDE
+    JMP		SetDataDMA		; to data dma address
+	;ret ;jmp goback
+;
+
+;-----------------------------------------------------------------
+;return the Allocation Vector Address
+;OUT - (HL) Allocation Vector Address
+fGetAllocAddr:				; func27 (27 - 1B) Get Allocation Vector Address
+	LHLD	caAllocVector
+	SHLD	statusBDOSReturn
+	RET ;jmp goback
+
+
+;-----------------------------------------------------------------
+;return address of disk parameter block
+; OUT - (HL) Disk Parameter Black for current drive
+fGetDiskParamBlock:			; func31 (31 - 1F)
+	LHLD	caDiskParamBlock
+	SHLD	statusBDOSReturn
+	RET		;jmp goback
+;-----------------------------------------------------------------
+
 SelectCurrent:				; curselect
 	LDA		paramE
 	LXI		HL,currentDisk
@@ -518,7 +545,7 @@ Select:						; select  - Login Drive
 ;*****************************************************************
 ; select the disk drive given by curdsk, and fill the base addresses
 ; caTrack - caAllocVector, then fill the values of the disk parameter block
-SelectDisk:
+SelectDisk:				; selectdisk
 	LDA		currentDisk
 	MOV		C,A			; prepare for Bios Call
 	CALL	bcSeldsk
@@ -888,7 +915,7 @@ SeekDir:					; seekdir
 	;ret
 
 ;---------------------------
-Seek:
+Seek:						; seek
 	;seek the track given by currentRecord (actual record)
 	;local equates for registers
 							; arech  equ b
@@ -896,15 +923,16 @@ Seek:
 							; crech  equ d
 							; crecl  equ e ;currec  = DE
 							; ctrkh  equ h
-							; ctrkl  equ l ;curtrk  = HL
+							; ctrkl  equ l ;curtrk  = HL  
 							; tcrech equ h
 							; tcrecl equ l ;tcurrec = HL
 	;load the registers from memory
+	
 	LXI		HL,currentRecord
 	MOV		C,M				; arecl,m
 	INX		HL
 	MOV		B,M				; arech,m
-	LHLD	caSector 
+	LHLD	caSector 		; physical record
 	MOV		E,M				; crecl,m
 	INX		HL
 	MOV		D,M				; crech,m
@@ -913,6 +941,9 @@ Seek:
 	INX		HL
 	MOV		H,M				; ctrkh,M
 	MOV		L,A				; ctrkl,a
+;(BC) - Record Count
+;(DE) - Current Sector
+;(HL) - Current Track
 	;loop while currentRecord < currec
 Seek0:
 	MOV		A,C				; a,arecl
@@ -1378,7 +1409,7 @@ invis		EQU		10	;invisible file in dir command
 currentUserNumber:	DB		0	;usrcode current user number
 paramDE:			DS		2	;ParamsDE information address
 statusBDOSReturn:	DS		2	;address value to return
-currentDisk:		DB		0	; curdsk current disk number
+currentDisk:		DB		-1	; curdsk current disk number
 lowReturnStatus		EQU		statusBDOSReturn	;lret low(statusBDOSReturn)
 
 ;********************* Local Variables ***************************
