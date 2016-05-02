@@ -892,7 +892,7 @@ ReadDirectory0:				; read$dir0:
 							; initialization flag is in C
 	LDA		dirCounter
 	ANI		dskmsk			; low(dirCounter) and dskmsk
-	MVI		B,fcbshf		; to multiply by fcb size
+	MVI		B,fcbshf			; to multiply by fcb size to get the correct index in dir record
 ReadDirectory1:				; read$dir1:
 	ADD		A
 	DCR		B
@@ -911,7 +911,7 @@ ReadDirectory1:				; read$dir1:
 	;seek the record containing the current dir entry
 SeekDir:					; seekdir
 	LHLD	dirCounter		; directory counter to HL
-	MVI		C,dskshf
+	MVI		C,dskshf		; 4 entries per CP/M sector ?
 	CALL	ShiftRightHLbyC ; value to HL
 	SHLD	currentRecord
 	SHLD	dirRecord ;ready for seek

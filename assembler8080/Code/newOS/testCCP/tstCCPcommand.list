@@ -1,0 +1,262 @@
+0001: 0000              ;tstCCPcommand.asm 
+0002: 0000              ;                  
+0003: 0000                                 
+0004: 0000              ;Include ../../Headers/stdHeader.asm
+0005: 0000              BIOS		EQU		0F600H  
+0006: 0000              BDOSEntry	EQU		0E806H
+0007: 0000              CCPEntry	EQU		0E000H
+0008: 0000                                 
+0009: 0000              CodeStart:         
+0010: 0000              		ORG		0100H       
+0011: 0100                                 
+0012: 0100  310001      		LXI		SP, $		     
+0013: 0103  212701      		LXI		HL, messBegin
+0014: 0106  CD5A02      		CALL	x_displayMessage
+0015: 0109              		                 
+0016: 0109  CD2601      		CALL	test        
+0017: 010C  1E00        		MVI		E,000H	; set e = 0 for disk A
+0018: 010E  0E0E        		MVI		C,0EH       
+0019: 0110  CD06E8      		CALL		BDOSEntry		; select disk A
+0020: 0113              		                 
+0021: 0113  0E19        		MVI		C,019H      
+0022: 0115  CD06E8      		CALL		BDOSEntry		; get selected disk into A
+0023: 0118  4F          		MOV		C,A			; move it to c before calling CCP
+0024: 0119  320400      		STA		0004H		; shove it into page 0
+0025: 011C  CD00E0      		CALL		CCPEntry   
+0026: 011F              ;		                
+0027: 011F  213C01      		LXI		HL, messOK  
+0028: 0122  CD5A02      		CALL	x_displayMessage
+0029: 0125  76          		HLT              
+0030: 0126              ;		                
+0031: 0126              test:              
+0032: 0126  C9          		RET              
+0033: 0127                                 
+0034: 0127                                 
+0035: 0127  5374617274696E672074686520746573742E0D0A00  messBegin:	DB		'Starting the test.',xx_CR,xx_LF,xx_EOM	
+0036: 013C  7468652074657374207761732061207375636365737320210D0A00  messOK:	DB		'the test was a success !',xx_CR,xx_LF,xx_EOM	
+0037: 0157                                 
+0038: 0157              	                  
+0039: 0157              ;------------------------------------------
+0040: 0157              		$Include ../../Headers/debug1Header.asm
+0040: 0157              ;<<<<<<<<<<<<<<<<<<<<<<<   Include  >>>>>>>>>>>>>>>>
+0042: 0157              ; debug1Header.asm 
+0043: 0157              ;                  
+0044: 0157              ;                  
+0045: 0157              ; x_displayMessage - (HL) points to 00 terminated string
+0046: 0157              ; x_CRLF - Print CR LF
+0047: 0157              ;                  
+0048: 0157              ;	Display Ascii values of :
+0049: 0157              ; x_showAddress1 - (HL) address
+0050: 0157              ; x_showAddress2 - (HL) address
+0051: 0157              ; x_showRegA     - (A) 
+0052: 0157              ; x_displayHL		  HL value to display
+0053: 0157                                 
+0054: 0157                                 
+0055: 0157                                 
+0056: 0157              ;BIOS	EQU		0F600H  
+0057: 0157              xx_EOM		EQU		00H   
+0058: 0157              xx_LF		EQU		0AH    
+0059: 0157              xx_CR		EQU		0DH    
+0060: 0157                                 
+0061: 0157              xx_BIOS	EQU		0F600H
+0062: 0157              xx_CONOUT	EQU	xx_BIOS + (3 * 4)
+0063: 0157                                 
+0064: 0157              		ORG		(($+0100H)/0100H) * 0100H
+0065: 0200                                 
+0066: 0200                                 
+0067: 0200              ;--------------Show address1 & Show Address2-------------
+0068: 0200              ; will display the address and contenets pointed to by HL.
+0069: 0200              ; x_showAddress1 -  displays: abcd = nn		
+0070: 0200              ; x_showAddress2 -  displays: abcd = nnmm		
+0071: 0200                                 
+0072: 0200              x_showAddress1:    
+0073: 0200  F5          		PUSH	AF          
+0074: 0201  C5          		PUSH	BC          
+0075: 0202  D5          		PUSH	DE          
+0076: 0203  E5          		PUSH	HL          
+0077: 0204              		                 
+0078: 0204  CD2102      		CALL	xx_SA0      
+0079: 0207  CD8202      		CALL	xx_CRLF     
+0080: 020A  C39102      		JMP		xx_FullExit		; restore registers and return
+0081: 020D              		                 
+0082: 020D              x_showAddress2:    
+0083: 020D  F5          		PUSH	AF          
+0084: 020E  C5          		PUSH	BC          
+0085: 020F  D5          		PUSH	DE          
+0086: 0210  E5          		PUSH	HL          
+0087: 0211              		                 
+0088: 0211  E5          		PUSH	HL          
+0089: 0212  CD2102      		CALL	xx_SA0      
+0090: 0215  E1          		POP		HL          
+0091: 0216  23          		INX		HL          
+0092: 0217  7E          		MOV		A,M         
+0093: 0218  CD3502      		CALL	x_showRegA  
+0094: 021B  CD8202      		CALL	xx_CRLF     
+0095: 021E  C39102      		JMP		xx_FullExit		; restore registers and return
+0096: 0221                                 
+0097: 0221              xx_SA0:            
+0098: 0221  E5          		PUSH	HL          
+0099: 0222  CD6D02      		CALL	x_displayHL 
+0100: 0225  213102      		LXI		HL,xx_MEQUALS
+0101: 0228  CD5A02      		CALL	x_displayMessage
+0102: 022B  E1          		POP		HL          
+0103: 022C  7E          		MOV		A,M         
+0104: 022D  CD3502      		CALL	x_showRegA  
+0105: 0230  C9          		RET              
+0106: 0231              ;                  
+0107: 0231              xx_MEQUALS:        
+0108: 0231  203D2000    		DB ' = ',xx_EOM  
+0109: 0235                                 
+0110: 0235              ;--------------Show address1 & Show Address2-------------
+0111: 0235                                 
+0112: 0235              ;--------------             x_showRegA        -------------
+0113: 0235                                 
+0114: 0235              ;	Display the contents of A
+0115: 0235              x_showRegA:        
+0116: 0235  F5          		PUSH	AF          
+0117: 0236  C5          		PUSH	BC          
+0118: 0237  D5          		PUSH	DE          
+0119: 0238  E5          		PUSH	HL          
+0120: 0239              		                 
+0121: 0239  F5          		PUSH	PSW         
+0122: 023A  CD4A02      		CALL	xx_SRA1     
+0123: 023D              ;		MOV		E,A        
+0124: 023D  CD8C02      		CALL	xx_PCHAR    
+0125: 0240  F1          		POP		PSW         
+0126: 0241  CD4E02      		CALL	xx_SRA2     
+0127: 0244              ;		MOV		E,A        
+0128: 0244  CD8C02      		CALL	xx_PCHAR    
+0129: 0247  C39102      		JMP		xx_FullExit		; restore registers and return
+0130: 024A                                 
+0131: 024A              xx_SRA1:           
+0132: 024A  0F          		RRC              
+0133: 024B  0F          		RRC              
+0134: 024C  0F          		RRC              
+0135: 024D  0F          		RRC              
+0136: 024E              xx_SRA2:           
+0137: 024E  E60F        		ANI		0FH         
+0138: 0250  FE0A        		CPI		0AH         
+0139: 0252  FA5702      		JM		xx_SRA3      
+0140: 0255  C607        		ADI		7           
+0141: 0257              xx_SRA3:           
+0142: 0257  C630        		ADI		30H         
+0143: 0259  C9          		RET              
+0144: 025A              ;--------------             x_showRegA        -------------
+0145: 025A                                 
+0146: 025A              ;--------------         x_displayMessage      -------------
+0147: 025A              ; Display Message (HL) points to 00 terminated string
+0148: 025A              x_displayMessage:  
+0149: 025A  F5          		PUSH	AF          
+0150: 025B  C5          		PUSH	BC          
+0151: 025C  D5          		PUSH	DE          
+0152: 025D  E5          		PUSH	HL          
+0153: 025E              xx_DM:             
+0154: 025E  7E          		MOV		A,M					; get next message byte
+0155: 025F  B7          		ORA		A					; terminator (a = 0)?
+0156: 0260  CA9102      		JZ		xx_FullExit			; restore registers and return
+0157: 0263              	                  
+0158: 0263  4F          		MOV		C,A					; prepare for output
+0159: 0264  E5          		PUSH	HL					; save message pointer
+0160: 0265  CD0CF6      		CALL	xx_CONOUT				; go to main console output routine	*******
+0161: 0268  E1          		POP		H           
+0162: 0269  23          		INX		H 					; point at next character
+0163: 026A  C35E02      		JMP		xx_DM				; loop till done
+0164: 026D              ;--------------         x_displayMessage      -------------
+0165: 026D              ;--------------           x_displayHL          -------------
+0166: 026D              x_displayHL:       
+0167: 026D  E5          		PUSH	HL          
+0168: 026E  7C          		MOV		A,H         
+0169: 026F  CD3502      		CALL	x_showRegA  
+0170: 0272  E1          		POP		HL          
+0171: 0273  7D          		MOV		A,L         
+0172: 0274  CD3502      		CALL	x_showRegA  
+0173: 0277  C9          		RET              
+0174: 0278              ;--------------           x_displayHL          -------------
+0175: 0278                                 
+0176: 0278              ;--------------              x_CRLF           -------------
+0177: 0278              x_CRLF:            
+0178: 0278  F5          		PUSH	AF          
+0179: 0279  C5          		PUSH	BC          
+0180: 027A  D5          		PUSH	DE          
+0181: 027B  E5          		PUSH	HL          
+0182: 027C  CD8202      		CALL	xx_CRLF				; call routine
+0183: 027F  C39102      		JMP		xx_FullExit			; restore registers and return
+0184: 0282                                 
+0185: 0282              ;--------------              x_CRLF           -------------
+0186: 0282                                 
+0187: 0282              ;--------------              xx_CRLF           -------------
+0188: 0282              xx_CRLF:           
+0189: 0282  218902      		LXI		HL,xx_MCRLF 
+0190: 0285  CD5A02      		CALL	x_displayMessage
+0191: 0288  C9          		RET              
+0192: 0289              xx_MCRLF:          
+0193: 0289  0D0A00      		DB	xx_CR,xx_LF,xx_EOM
+0194: 028C              ;--------------              xx_CRLF           -------------
+0195: 028C                                 
+0196: 028C              ;--------------             xx_PCHAR           -------------
+0197: 028C              ;CHARACTER OUTPUT ROUTINE
+0198: 028C              ;                  
+0199: 028C              xx_PCHAR:          
+0200: 028C  4F          		MOV		C,A         
+0201: 028D  CD0CF6      		CALL	xx_CONOUT   
+0202: 0290  C9          		RET		            
+0203: 0291              ;--------------             xx_PCHAR           -------------
+0204: 0291                                 
+0205: 0291                                 
+0206: 0291              ;                  
+0207: 0291              ;-------------------- xx_FullExit ---------------------
+0208: 0291              ; restores all the registeres and returns
+0209: 0291              ; should be called by a JMP Statement
+0210: 0291              xx_FullExit:       
+0211: 0291  E1          		POP		HL          
+0212: 0292  D1          		POP		DE          
+0213: 0293  C1          		POP		BC          
+0214: 0294  F1          		POP		AF          
+0215: 0295  C9          		RET              
+0216: 0296                                 
+0217: 0296              ;=========================
+0217: 0296              ;<<<<<<<<<<<<<<<<<<<<<<<   Include  >>>>>>>>>>>>>>>>
+0219: 0296              				               
+0220: 0296              CodeEnd:           
+
+
+
+
+                                    Xref
+
+
+0000	0000	$                             		  0064,
+
+0006	E806	BDOSEntry                     		  0019,  0022,
+0005	F600	BIOS                          		
+
+0007	E000	CCPEntry                      		  0025,
+0220	0296	CodeEnd                       		
+0009	0000	CodeStart                     		
+
+0035	0127	messBegin                     		  0013,
+0036	013C	messOK                        		  0027,
+
+0031	0126	test                          		  0016,
+
+0177	0278	x_CRLF                        		
+0166	026D	x_displayHL                   		  0099,
+0148	025A	x_displayMessage              		  0014,  0028,  0101,  0190,
+0072	0200	x_showAddress1                		
+0082	020D	x_showAddress2                		
+0115	0235	x_showRegA                    		  0093,  0104,  0169,  0172,
+0061	F600	xx_BIOS                       		  0062,
+0062	F60C	xx_CONOUT                     		  0160,  0201,
+0059	000D	xx_CR                         		  0035,  0036,  0193,
+0188	0282	xx_CRLF                       		  0079,  0094,  0182,
+0153	025E	xx_DM                         		  0163,
+0057	0000	xx_EOM                        		  0035,  0036,  0108,  0193,
+0210	0291	xx_FullExit                   		  0080,  0095,  0129,  0156,  0183,
+0058	000A	xx_LF                         		  0035,  0036,  0193,
+0192	0289	xx_MCRLF                      		  0189,
+0107	0231	xx_MEQUALS                    		  0100,
+0199	028C	xx_PCHAR                      		  0124,  0128,
+0097	0221	xx_SA0                        		  0078,  0089,
+0131	024A	xx_SRA1                       		  0122,
+0136	024E	xx_SRA2                       		  0126,
+0141	0257	xx_SRA3                       		  0139,
