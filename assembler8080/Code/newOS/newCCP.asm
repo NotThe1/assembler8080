@@ -29,7 +29,10 @@ fGetCurrentDisk	EQU		19H			; cself	- Return Current Disk
 fSetDMA			EQU		1AH			; dmaf	- Set DMA address
 fGetSetUserNumber	EQU		20H			; userf	- Set/Get User Code
 
-diskAddress:		EQU		0004H		; diska	 disk address for current disk
+systemFile		EQU		0AH			;sysfile System File Flag Location
+roFile			EQU		09H			;rofile Read Only Flag Location
+
+;diskAddress		EQU		0004H		; diska CurDisk	 disk address for current disk
 		
 	ORG		CCPEntry
 CodeStart:
@@ -57,7 +60,7 @@ CcpStart:							; ccpstart
 	POP		BC						; recall user code and disk number
 	MOV		A,C
 	ANI		0FH						; disk number in accumulator
-	STA		diskAddress				; clears low memory user code nibble
+	STA		CurDisk				; clears low memory user code nibble
 	CALL		SelectDisk				; proper disk is selected, now check sub files
 									; check for initial command
 	LDA		CommandLength
@@ -170,7 +173,7 @@ NotSubmitFile:						; nosub:	no submit file
 	MVI		C,fReadString
 	LXI		DE,MaxBufferLength
 	CALL		BDOSE
-	CALL		SetDiskAddress			; no control c, so restore diskAddress
+	CALL		SetDiskAddress			; no control c, so restore CurDisk
 	
 NoRead:								; noread enter here from submit file
 									; set the last character to zero for later scans
@@ -235,6 +238,22 @@ DiskRead:							; diskread
 	MVI		C,fReadSeq
 	JMP		BDOSsetFlags
 ;-----------------------------
+;search for the file given by d,e
+SearchForFirst:						; search
+	MVI		C,fSearchFirst
+	JMP		BDOSandIncA
+;-----
+;search for commandFCB file
+Searc4CmdFcbFile:						; searchcom
+	LXI		DE,commandFCB
+	JMP		SearchForFirst
+;-----------------------------
+;search for the next occurrence of the file given by d,e
+SearchForNext:							; searchn
+	MVI		C,fSearchNext
+	JMP		BDOSandIncA
+
+;-----------------------------
 ;set dma address to d,e
 SetDMA:								; setdma
 	MVI		C,fSetDMA
@@ -249,7 +268,7 @@ BDOSsetFlags:						; bdos$cond
 ;-----------------------------
 ;call BDOS  - increment result - store in directory count
 BDOSandIncA:						; bdos$inr
-	JMP		BDOSE
+	CALL		BDOSE
 	STA		directoryCount
 	INR		A
 	RET
@@ -290,13 +309,13 @@ SaveUser:							; saveuser
 	ADD		A						; rotate left
 	LXI		HL,currentDisk
 	ORA		M						; msn 4b=user - lsn 4b=disk
-	STA		diskAddress				; stored away in memory for later
+	STA		CurDisk				; stored away in memory for later
 	RET
 ;-----------------------------
-; set diskAddress to current disk
+; set CurDisk to current disk
 SetDiskAddress:						; setdiska
 	LDA		currentDisk
-	STA		diskAddress				; user/disk
+	STA		CurDisk				; user/disk
 	RET
 ;-----------------------------
 ;equivalent to fillfcb(0)
@@ -470,7 +489,8 @@ intrinsicFunctionNames:					; intvec
 	DB		'SAVE'
 	DB		'REN '
      DB		'USER'
-IntrinsicFunctionCount	EQU	($-intrinsicFunctionNames)/4	; intlen
+IntrinsicFunctionCount	EQU	6
+;IntrinsicFunctionCount	EQU	($-intrinsicFunctionNames)/4	; intlen
 ;intlen EQU ($-intrinsicFunctionNames)/4  ;intrinsic function length
 serialNumber: DB 0,0,0,0,0,0	; serial
 
@@ -512,9 +532,14 @@ IntrinsicFunction4:						; intrin3 try next intrinsic
 ;*****************************************************************
 ;************************ Utilities ******************************
 ;*****************************************************************
+;-----------------------------
+PrintSpace:							; blank
+	MVI		A,SPACE
+	JMP		PrintSaveBC
+;-----------------------------
 CrLf:								; crlf
 	MVI		A,CR
-	CALL	PrintSaveBC
+	CALL		PrintSaveBC
 	MVI		A,LF
 	JMP		PrintSaveBC	
 ;-----------------------------
@@ -546,6 +571,13 @@ PrintStringNull:						; prin0
 	POP		HL							; character printed
 	JMP		PrintStringNull ;for 
 ;-----------------------------
+;print no file message
+PrintNoFile:							;nofile
+	LXI		BC,msgNoFile
+	JMP		PrintCrLfStringNull
+	
+msgNoFile: DB 'NO FILE',0	
+;-----------------------------
 ;move 3 characters from h,l to d,e addresses
 CopyHL2DE3:							; movename
 	MVI		B,3
@@ -564,6 +596,14 @@ AddA2HL:								; addh
 	MOV		L,A
 	RNC
 	INR		 H
+	RET
+;-----------------------------
+;buff + a + c to h,l followed by fetch
+GetByteAtAandCandDMA:					; addhcf
+	LXI		HL,DMABuffer				; 0080H
+	ADD		C
+	CALL		AddA2HL
+	MOV		A,M
 	RET
 ;-----------------------------
 ;convert character in register A to upper case
@@ -600,26 +640,198 @@ CommandError2:						; comerr1 print question mark,and delete sub file
 	CALL		CrLf
 	CALL		DeleteSubmitFile
 	JMP		Ccp					; restart with next command
+;--------------------------------------------------------
+;reset disk 
+ResetDisk:						; resetdisk
+	LDA		selectedDisk
+	ORA		A
+	RZ							; no action if not selected
+	DCR		A
+	LXI		HL,currentDisk
+	CMP		M
+	RZ							; same disk
+	LDA		currentDisk
+	JMP		SelectDisk
+;--------------------------------------------------------
+;reset disk before end of command check
+ResetDiskAtCmdEnd:					; retcom
+	CALL		ResetDisk
+;end of intrinsic command
+EndCommand:						; endcom
+	CALL		FillFCB0				; to check for garbage at end of line
+	LDA		commandFCB + 1
+	SUI		SPACE
+	LXI		HL,selectedDisk
+	ORA		M
+								; 0 in accumulator if no disk selected, and blank fcb
+	JNZ		CommandError
+	JMP		Ccp
 ;*****************************************************************
-;************************ CCP Commands ******************************
+;************************ CCP Commands ***************************
 ;*****************************************************************
+
+;******************** Directory Listing ***************************
+;Directory Listing
 ccpDirectory:						; direct directory search
-	HLT
+;	LXI		DE,messCmdDIR
+;	JMP		CcpTemp				; send message and go ack for more
+	CALL		FillFCB0				; commandFCB gets file name
+	CALL		SetDisk4Cmd			; change disk drives if requested
+	LXI		HL,commandFCB+1
+	MOV		A,M					; may be empty request
+	CPI		SPACE
+	JNZ		ccpDir2				; skip fill of ??? if not blank
+								; set commandFCB to all ??? for current disk
+	MVI		B,11					; length of fill ????????.???
+ccpDir1:									; dir0:
+	MVI		M,QMARK
+	INX		HL
+	DCR		B
+	JNZ		ccpDir1
+								; not a blank request, must be in commandFCB
+ccpDir2:							; dir1:
+	MVI		E,0
+	PUSH		DE					; E counts directory entries
+	CALL		Searc4CmdFcbFile		; first one has been found
+	CZ		PrintNoFile			; not found message
+ccpDir3:									; dir2:
+	JZ		ccpDirEnd
+								; found, but may be system file
+	LDA		directoryCount			; get the location of the element
+	RRC
+	RRC
+	RRC
+	ANI		1100000B
+	MOV		C,A
+								; c contains base index into buff for dir entry
+	MVI		A,systemFile			; System File Location in FCB
+	CALL		GetByteAtAandCandDMA	; value to A
+	RAL
+	JC		ccpDir7				; skip if system file c holds index into buffer
+								;  another fcb found, new line?
+	POP		DE
+	MOV		A,E
+	INR		E
+	PUSH		D
+								; e=0,1,2,3,...new line if mod 4 = 0
+	ANI		11B
+	PUSH		PSW ;and save the test
+	JNZ		ccpDirHeader ;header on current line
+	CALL		CrLf
+	PUSH		BC
+	CALL		GetSelectedDrive
+	POP		BC
+								; current disk in A
+	ADI		ASCII_A	
+	CALL		PrintSaveBC
+	MVI		A,COLON
+	CALL		PrintSaveBC
+	JMP		ccpDirHeader1			; skip current line hdr
+ccpDirHeader:						; dirhdr0:
+	CALL		PrintSpace			; after last one
+	MVI		A,COLON
+	CALL		PrintSaveBC
+ccpDirHeader1:						; dirhdr1:
+	CALL		PrintSpace
+								; compute position of name in buffer
+	MVI		B,1					; start with first character of name
+ccpDir4:							; dir3:
+	MOV		A,B
+	CALL		GetByteAtAandCandDMA	; buff+a+c fetched
+	ANI		ASCII_MASK			; mask flags
+								; may delete trailing blanks
+	CPI		SPACE
+	JNZ		ccpDir5				; check for blank type
+	POP		PSW
+	PUSH		PSW					; may be 3rd item
+	CPI		3
+	JNZ		ccpDirSpace			; place blank at end if not
+	MVI		A,9
+	CALL		GetByteAtAandCandDMA	; first char of type
+	ANI		ASCII_MASK
+	CPI		SPACE
+	JZ		ccpDir6
+								; not a blank in the file type field
+ccpDirSpace:						; dirb:
+	MVI		A,SPACE				; restore trailing filename chr
+ccpDir5:									; dir4:
+	CALL		PrintSaveBC			; char printed
+	INR		B
+	MOV		A,B
+	CPI		12
+	JNC		ccpDir6
+								; check for break between names
+	CPI		9
+	JNZ		ccpDir4				; for another char
+	
+	CALL		PrintSpace			; print a blank between names
+	JMP		ccpDir4
+
+ccpDir6:									; dir5 end of current entry
+	POP		PSW					; discard the directory counter (mod 4)
+ccpDir7:									; dir6:
+	CALL		CheckForConsoleChar		; check for interrupt at keyboard
+	JNZ		ccpDirEnd				; abort directory search
+	CALL		SearchForNext
+	JMP		ccpDir3				; for another entry
+ccpDirEnd:						; endir end of directory scan
+	POP		DE					; discard directory counter
+	JMP		ResetDiskAtCmdEnd
+;
+
+;*****************************************************************
 ccpErase:							; erase file erase
-	HLT
+	LXI		DE,messCmdERA
+	JMP		CcpTemp				; send message and go ack for more
+;*****************************************************************
 ccpType:							; type type file
-	HLT
+	LXI		DE,messCmdTYPE
+	JMP		CcpTemp				; send message and go ack for more
+;*****************************************************************
 ccpSave:							; save save memory image
-	HLT
+	LXI		DE,messCmdSAV
+	JMP		CcpTemp				; send message and go ack for more
+;*****************************************************************
 ccpRename:						; rename file rename
-	HLT
+	LXI		DE,messCmdREN
+	JMP		CcpTemp				; send message and go ack for more
+;*****************************************************************
 ccpUser:							; user user number
-	HLT
+	LXI		DE,messCmdUSER
+	JMP		CcpTemp				; send message and go ack for more
+;*****************************************************************
 ccpUserFunction:					; userfunc user-defined function
-	HLT
-
-
-
+	LXI		DE,messCmdUF
+	JMP		CcpTemp				; send message and go ack for more
+;----------------------------------------------------------
+CcpTemp:
+			MVI	C,09H
+			CALL	BDOSE		; print String at (DE)
+			LXI	SP,Stack		; reset the stack pointer
+			JMP	Ccp			; go back for more
+			
+messCmdDIR:	DB	CR,LF,'Directory Command',CR,LF,DOLLAR
+messCmdERA:	DB	CR,LF,'Erase Command',CR,LF,DOLLAR
+messCmdTYPE:	DB	CR,LF,'Type Command',CR,LF,DOLLAR
+messCmdSAV:	DB	CR,LF,'Save Command',CR,LF,DOLLAR
+messCmdREN:	DB	CR,LF,'Rename Command',CR,LF,DOLLAR
+messCmdUSER:	DB	CR,LF,'User Command',CR,LF,DOLLAR
+messCmdUF:	DB	CR,LF,'User Function Command',CR,LF,DOLLAR
+;*****************************************************************
+;*****************************************************************
+;change disks for this command, if requested
+SetDisk4Cmd:						; setdisk
+	XRA		A
+	STA		commandFCB			; clear disk name from fcb
+	LDA		selectedDisk
+	ORA		A
+	RZ							; no action if not specified
+	DCR		A
+	LXI		HL,currentDisk
+	CMP		M
+	RZ		;already selected
+	JMP		SelectDisk
+;*****************************************************************
 
 ;*****************************************************************
 ;************************ Data Area ******************************

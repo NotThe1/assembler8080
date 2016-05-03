@@ -119,7 +119,7 @@ diskf		EQU		($-functionTable)/2 		; disk functions
 	DW		fSelectDisk			; Function  E - Select Disk
 	DW		fOpenFile			; Function  F - Open File
 	DW		DUMMY				; Function 10 - Close File
-	DW		DUMMY				; Function 11 - Search For First
+	DW		fFindFirst			; Function 11 - Search For First
 	DW		DUMMY				; Function 12 - Search for Next
 	DW		DUMMY				; Function 13 - Delete File
 	DW		DUMMY				; Function 14 - Read Sequential
@@ -1103,6 +1103,7 @@ StillInDirectory:				; compcdr
 								;condition dirCounter - cdrmax  produces cy if cdrmax>dirCounter
 	RET
 ;*****************************************************************
+
 ;*****************************************************************
 ;********************** File  Routines ***************************
 ;*****************************************************************
@@ -1116,6 +1117,37 @@ fOpenFile:						; func15: (15 - 0F) Open File
 	JMP		OpenFile
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
+;search for first occurrence of a file
+; In - (DE)	FCB Address
+; OUT - (A)		Directory Code
+;			0-3 = success ; 0FFH = File Not Found
+fFindFirst:						; func17: (17 - 11) Search for first
+	MVI		C,0					; length assuming '?' true
+	LHLD		paramDE
+	MOV		A,M
+	CPI		QMARK				; no reselect if ?
+	JZ		QMarkSelect			; skip reselect if so
+			
+	CALL		ClearModuleNum			; module number zeroed
+	CALL		Reselect
+	MVI		C,nameLength
+QMarkSelect:						; qselect:
+	CALL		Search4DirElement
+	JMP		CopyDirEntryToUser		; copy directory entry to user
+	;ret ;jmp goback
+;-----------------------------------------------------------------
+;search for next occurrence of a file name
+; OUT - (A)		Directory Code
+;			0-3 = success ; 0FFH = File Not Found
+fFindNext:						; func18: (18 - 12) Search for next
+	LHLD		searchAddress
+	SHLD		paramDE
+	CALL		Reselect
+	CALL		Search4NextDirElement
+	JMP		CopyDirEntryToUser		; copy directory entry to user
+;-----------------------------------------------------------------
+;*****************************************************************
+
 ;clear the module number field for user open/make (S2)
 ClearModuleNum:			; clrmodnum
 	CALL	GetModuleNum
@@ -1332,6 +1364,16 @@ CompareExtents:					; compext
 	RET
 
 ;---------------------
+;copy the directory entry to the user buffer
+CopyDirEntryToUser:					; dir$to$user
+	LHLD		caDirectoryDMA
+	XCHG							; source is directory buffer
+	LHLD		InitDAMAddress			; destination is user dma address
+	MVI		C,recordSize			; copy entire record
+	JMP		Move
+	;ret
+;---------------------
+;---------------------
 ;*****************************************************************
 ;************************ Utilities ******************************
 ;*****************************************************************
@@ -1375,7 +1417,7 @@ ShiftLeftHLbyC0:
 	JMP		ShiftLeftHLbyC0
 ;*****************************************************************
 ;move data length of length C from source DE to HL
-Move:
+Move:					; move
 	INR		C		; housekeeping
 Move0:
 	DCR		C
