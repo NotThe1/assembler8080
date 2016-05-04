@@ -29,8 +29,9 @@ fGetCurrentDisk	EQU	19H			; cself	- Return Current Disk
 fSetDMA		EQU	1AH			; dmaf	- Set DMA address
 fGetSetUserNumber	EQU	20H			; userf	- Set/Get User Code
                                                   
-systemFile	EQU	0AH			;sysfile System File Flag Location
-roFile		EQU	09H			;rofile Read Only Flag Location
+systemFile	EQU	0AH			; sysfile System File Flag Location
+roFile		EQU	09H			; rofile Read Only Flag Location
+END_OF_FILE	EQU	1AH			; eofile end of file 
                                                   
 ;diskAddress	EQU	0004H			; diska CurDisk	 disk address for current disk
 	                                        
@@ -222,6 +223,13 @@ GetSelectedDrive:					; cselect
 OpenFile:						; open
 	MVI	C,fOpenFile
 	JMP	BDOSandIncA	
+;--------
+;open file for Command FCB
+OpenFile4CmdFCB:					; openc
+	XRA	A
+	STA	currentRecord			; clear next record to read
+	LXI	DE,commandFCB
+	JMP	OpenFile
 ;-----------------------------
 ;close the file given by d,e
 CloseFile:					; close
@@ -237,6 +245,11 @@ DeleteFile:					; delete
 DiskRead:						; diskread
 	MVI	C,fReadSeq
 	JMP	BDOSsetFlags
+;-----------
+;read next record from Command FCB
+DiskReadCmdFCB:					; diskreadc
+	LXI	DE,commandFCB
+	JMP	DiskRead
 ;-----------------------------
 ;search for the file given by d,e
 SearchForFirst:					; search
@@ -258,7 +271,6 @@ SearchForNext:					; searchn
 SetDMA:						; setdma
 	MVI	C,fSetDMA
 	JMP	BDOSE
-;-----------------------------
 ;-----------------------------
 ; call BDOS and set Flags
 BDOSsetFlags:					; bdos$cond
@@ -598,7 +610,7 @@ AddA2HL:						; addh
 	INR	 H
 	RET
 ;-----------------------------
-;buff + a + c to h,l followed by fetch
+;DMABuffer + a + c to h,l followed by fetch
 GetByteAtAandCandDMA:				; addhcf
 	LXI	HL,DMABuffer			; 0080H
 	ADD	C
@@ -616,6 +628,22 @@ UpCase:						; translate
 	RET					; translated to upper case
 ;-----------------------------
 ;-----------------------------
+;*****************************************************************
+;************************ Utilities ******************************
+;*****************************************************************
+;print the read error message
+PrintReadError:					; readerr
+	LXI	BC,msgReadErr
+	JMP	PrintCrLfStringNull
+msgReadErr:					; rdmsg:
+	DB 'READ ERROR',0	
+;-------------
+;-----------------------------
+;-----------------------------
+;-----------------------------
+
+
+;*****************************************************************
 ;-----------------------------
 ;error in command string
 ;starting at position;'fillFCBStart' and ending with first delimiter
@@ -703,7 +731,7 @@ ccpDir3:						; dir2:
 	RRC
 	ANI	1100000B
 	MOV	C,A
-						; c contains base index into buff for dir entry
+						; c contains base index into DMABuffer for dir entry
 	MVI	A,systemFile			; System File Location in FCB
 	CALL	GetByteAtAandCandDMA		; value to A
 	RAL
@@ -713,8 +741,7 @@ ccpDir3:						; dir2:
 	MOV	A,E
 	INR	E
 	PUSH	DE				; save dir entry count
-						; e=0,1,2,3,...new line if mod 4 = 0
-	ANI	11B
+	ANI	11B				; e=0,1,2,3,...new line if mod 4 = 0
 	PUSH	PSW				; and save the test
 	JNZ	ccpDirHeader			; header on current line
 						; print the header drive with Colon ie A:
@@ -738,7 +765,7 @@ ccpDirHeader1:					; dirhdr1:
 	MVI	B,1				; start with first character of name
 ccpDir4:						; dir3:
 	MOV	A,B
-	CALL	GetByteAtAandCandDMA		; buff+a+c fetched
+	CALL	GetByteAtAandCandDMA		; DMABuffer+a+c fetched
 	ANI	ASCII_MASK			; mask flags
 						; may delete trailing blanks
 	CPI	SPACE
@@ -786,8 +813,47 @@ ccpErase:						; erase file erase
 	JMP	CcpTemp				; send message and go ack for more
 ;*****************************************************************
 ccpType:						; type type file
-	LXI	DE,messCmdTYPE
-	JMP	CcpTemp				; send message and go ack for more
+;	LXI	DE,messCmdTYPE
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	FillFCB0
+	JNZ	CommandError			; don't allow ?'s in file name
+	CALL	SetDisk4Cmd
+	CALL	OpenFile4CmdFCB			; open the file
+	JZ	ccpTypeError			; zero flag indicates not found
+						; file opened, read 'til eof
+	CALL	CrLf
+	LXI	HL,bufferPointer
+	MVI	M,255 ;read first buffer
+ccpType1:						; type0 loop on bufferPointer
+	LXI	HL,bufferPointer
+	MOV	A,M
+	CPI	128				; end buffer
+	JC	ccpType2
+	PUSH	HL				; carry if 0,1,...,127
+						; read another buffer full
+	CALL	DiskReadCmdFCB
+	POP	HL				; recover address of bufferPointer
+	JNZ	ccpTypeEOF			; hard end of file
+	XRA	A
+	MOV	M,A				; bufferPointer = 0
+ccpType2:						; type1 read character at bufferPointer and print
+	INR	M				; bufferPointer = bufferPointer + 1
+	LXI	HL,DMABuffer
+	CALL	AddA2HL				; h,l addresses char
+	MOV	A,M
+	CPI	END_OF_FILE
+	JZ	ResetDiskAtCmdEnd
+	CALL	PrintChar
+	CALL	CheckForConsoleChar
+	JNZ	ResetDiskAtCmdEnd			; abort if break
+	JMP	ccpType1				; for another character
+ccpTypeEOF:					; typeof end of file, check for errors
+	DCR	A
+	JZ	ResetDiskAtCmdEnd
+	CALL	PrintReadError
+ccpTypeError:					; typerr:
+	CALL	ResetDisk
+	JMP	CommandError
 ;*****************************************************************
 ccpSave:						; save save memory image
 	LXI	DE,messCmdSAV
@@ -844,18 +910,18 @@ submitFlag:	DB	00H			; submit 00 if no submit file, ff if submitting
 submitFCB:	DB	00H			; subfcb file name is $$$
 ;	db	'SUB',0,0				; file type is sub
 subModuleNumber:	DB	00H			; submod module number
-subRecordCount:	DB	000H			; subrc record count filed
+subRecordCount:	DB	00H			; subrc record count filed
 ;	ds	16				; disk map
-subCurrentRecord:	DB	000H			; subcr current record to read
+subCurrentRecord:	DB	00H			; subcr current record to read
 ;;                                                
 ;;	command file control block              
 commandFCB:	DS	32			; comfcb fields filled in later
-;comrec:	ds	1				; current record to read/write
-directoryCount:	DB	000H			; dcnt disk directory count (used for error codes)
-currentDisk:	DB	000H			; cdisk current disk
-selectedDisk:	DB	000H			; sdisk selected disk for current operation
+currentRecord:	DB	00H			; comrec  current record to read/write
+directoryCount:	DB	00H			; dcnt disk directory count (used for error codes)
+currentDisk:	DB	00H			; cdisk current disk
+selectedDisk:	DB	00H			; sdisk selected disk for current operation
 ;						; none=0, a=1, b=2 ...
-;bptr:	ds	1				; buffer pointer
+bufferPointer:	DB	00H			; bptr  buffer pointer
 
 ;----------------------------
 MaxBufferLength:	DB	127			; maxlen max buffer length
