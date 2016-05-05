@@ -34,7 +34,7 @@ bcSectran	EQU	BIOSEntry+3*16			; sectran	sector translate
 CodeStart:
 	DB	0,0,0,0,0,0
 ; Enter here from the user's program with function number in c,
-;	and information address in d,e
+; and information address in d,e
 ;BDOSEntry:
 	JMP	BdosStart				;past parameter block
 	
@@ -122,7 +122,7 @@ diskf	EQU	($-functionTable)/2			; disk functions
 	DW	fFindFirst			; Function 11 - Search For First
 	DW	fFindNext				; Function 12 - Search for Next
 	DW	DUMMY				; Function 13 - Delete File
-	DW	DUMMY				; Function 14 - Read Sequential
+	DW	fReadSeq				; Function 14 - Read Sequential
 	DW	DUMMY				; Function 15 - Write Sequential
 	DW	DUMMY				; Function 16 - Make File
 	DW	DUMMY				; Function 17 - Rename File
@@ -904,7 +904,7 @@ ReadDirectory1:					; read$dir1:
 	;ret
 ;---------
 	;seek the record containing the current dir entry
-SeekDir:						; seekdir
+SeekDir:						; seekdir seek$dir
 	LHLD	dirCounter			; directory counter to HL
 	MVI	C,dskshf				; 4 entries per CP/M sector ?
 	CALL	ShiftRightHLbyC ; value to HL
@@ -1121,6 +1121,19 @@ SetFcbVariables:					; getfcb
 	ANA	M				; fcb(extnum) and dpbEXM
 	STA	extval				; save extent number
 	RET
+;---------------------
+;set variables from currently addressed fcb
+PutFcbVariables:					; setfcb
+	CALL	GetFcbAddress			; addresses to DE, HL
+	LDA	seqReadFlag
+	MOV	C,A				; =1 if sequential i/o
+	LDA	vrecord
+	ADD	C
+	MOV	M,A				; fcb(nxtrec)=vrecord+seqReadFlag
+	XCHG
+	LDA	rcount
+	MOV	M,A				; fcb(reccnt)=rcount
+	RET
 ;*****************************************************************
 
 ;*****************************************************************
@@ -1170,7 +1183,7 @@ fFindNext:					; func18: (18 - 12) Search for next
 ;OUT - (A) 00 = success and data available. else no read and no data
 fReadSeq:						; func20: (20 - 14) Search for next
 	CALL	Reselect
-	CALL	seqdiskread
+	CALL	ReadSeq
 	RET					; jmp goback
 ;-----------------------------------------------------------------
 ;*****************************************************************
@@ -1199,7 +1212,7 @@ ReadSeq:						; seqdiskread
 	STA	seqReadFlag			; set flag for seqential read
 ;---
 ; read the disk
-DiskRead:
+DiskRead:						; diskread
 	MVI	A,TRUE
 	STA	readModeFlag			; read mode flag = true (OpenNextExt)
 						; read the next record from the current fcb
@@ -1222,16 +1235,16 @@ DiskRead:
 	JNZ	DiskEOF				; stop at eof
 RecordOK:						; recordok:
 						; arrive with fcb addressing a record to read
-	CALL	index
-						;error 2 if reading unwritten data
-				;(returns 1 to be compatible with 1.4)
-	CALL	allocated ;arecord=0000?
+	CALL	GetBlockNumber
+						; error 2 if reading unwritten data
+						; (returns 1 to be compatible with 1.4)
+	CALL	IsAllocated			; currentRecord=0000?
 	JZ	DiskEOF
-				;record has been allocated, read it
-	CALL	atran ;arecord now a disk address
-	CALL	seek ;to proper track,sector
-	CALL	rdbuff ;to dma address
-	CALL	setfcb ;replace parameters
+						; record has been allocated, read it
+	CALL	SetActualRecordAdd			; currentRecord now a disk address
+	CALL	Seek				; to proper track,sector
+	CALL	ReadBuffer			; to dma address
+	CALL	PutFcbVariables			; replace parameters
 	RET
 DiskEOF:						; diskeof:
 	JMP	SetLowReturnTo1			; lowReturnStatus = 1
@@ -1295,7 +1308,7 @@ OpenNextExt2:					; open$reel1:
 	CALL	OpenFileCopyFCB
 OpenNextExt3:					; open$reel2:
 	CALL	SetFcbVariables			; set parameters
-	XRA	a
+	XRA	A
 	STA	lowReturnStatus			; lowReturnStatus = 0
 	RET					; with lowReturnStatus = 0
 	
@@ -1441,7 +1454,7 @@ CloseDirEntryError:					; mergerr:
 ;-----------------------------------------------------------------
 ;enter from CloseDirEntry to seek and copy current element
 SeekCopy:						; seek$copy
-	CALl	seekDir				; to the directory element
+	CALL	SeekDir				; to the directory element
 	JMP	WriteDir				; write the directory element
 	;ret
 ;-----------------------------------------------------------------
@@ -1494,11 +1507,35 @@ Merge:						; mergezero
 ;-----------------------------------------------------------------
 ;compute disk block number from current fcb
 GetBlockNumber:					; index
-	CALL	dm$position ;0...15 in register A
-	MOV	c,a
-	MVI	b,0
-	CALL	getdm ;value to HL
-	SHLD	arecord
+	CALL	ComputeDmPosition			; 0...15 in register A
+	MOV	C,A
+	MVI	B,0
+	CALL	GetDiskMapValue			; value to HL
+	SHLD	currentRecord
+	RET
+;-----------------------------------------------------------------
+;is  block allocated
+IsAllocated:					; allocated
+	LHLD	currentRecord
+	MOV	A,L
+	ORA	H
+	RET
+;-----------------------------------------------------------------
+;compute actual record address
+SetActualRecordAdd:					; atran
+	LDA	dpbBSH				; shift count to reg A
+	LHLD	currentRecord
+SetActualRecordAdd1:				; atran0:
+	DAD	HL
+	DCR	A
+	JNZ	SetActualRecordAdd1			; shl(currentRecord,dpbBSH)
+	LDA	dpbBLM				; get block mask
+	MOV	C,A				; mask value to C
+	LDA	vrecord
+	ANA	C				; masked value in A
+	ORA	L
+	MOV	L,A				; to HL
+	SHLD	currentRecord			; currentRecord=HL or (vrecord and dpbBLM)
 	RET
 ;-----------------------------------------------------------------
 
@@ -1750,10 +1787,66 @@ CopyDir:						; copy$dir
 	CALL	Move				; data moved
 ;enter from close to seek and copy current element
 SeekAndCopy:					; seek$copy:
-	CALL	seekDir				; seek$dir ;to the directory element
+	CALL	SeekDir				; seek$dir ;to the directory element
 	JMP	WriteDir				; write the directory element
 	;ret
-
+;---------------------
+;compute disk map position for vrecord to HL
+ComputeDmPosition:					; dm$position
+	LXI	HL,dpbBSH				; get block shift value
+	MOV	C,M				; shift count to C
+	LDA	vrecord				; current virtual record to A
+ComputeDmPosition1:					; dmpos0:
+	ORA	A
+	RAR
+	DCR	C
+	JNZ	ComputeDmPosition1
+						; A = shr(vrecord,dpbBSH) = vrecord/2**(sect/block)
+	MOV	B,A				; save it for later addition
+	MVI	A,8
+	SUB	M				; 8-dpbBSH to accumulator
+	MOV	C,A				; extent shift count in register c
+	LDA	extval				; extent value ani extmsk
+ComputeDmPosition2:					; dmpos1:
+						; dpbBSH = 3,4,5,6,7, C=5,4,3,2,1
+						; shift is 4,3,2,1,0
+	DCR	C
+	JZ	ComputeDmPosition3
+	ORA	A
+	RAL
+	JMP	ComputeDmPosition2
+ComputeDmPosition3:					; dmpos2:
+						; arrive here with A = shl(ext and extmsk,7-dpbBSH)
+	ADD	B 				; add the previous shr(vrecord,dpbBSH) value
+						; A is one of the following values, depending upon alloc
+						; bks dpbBSH
+						; 1k   3     v/8 + extval * 16
+						; 2k   4     v/16+ extval * 8
+						; 4k   5     v/32+ extval * 4
+						; 8k   6     v/64+ extval * 2
+						; 16k  7     v/128+extval * 1
+	RET 					; with disk map position in A
+;---------------------
+;return disk map value from position given by BC
+GetDiskMapValue:					; getdm
+	LHLD	paramDE				; base address of file control block
+	LXI	DE,diskMap
+	DAD	DE				; HL =.diskmap
+	DAD	BC				; index by a single byte value
+	LDA	single				; single byte/map entry?
+	ORA	A
+	JZ	GetDiskMapValue1 			; get disk map single byte
+	MOV	L,M
+	MVI	H,0
+	RET					; with HL=00bb
+GetDiskMapValue1:					; getdmd:
+	DAD	BC				; HL=.fcb(dm+i*2)
+						; double precision value returned
+	MOV	E,M
+	INX	HL
+	MOV	D,M
+	XCHG
+	RET
 ;---------------------
 ;---------------------
 ;*****************************************************************
@@ -1973,10 +2066,10 @@ errSelect:					; sel$error  report selection error
 	JMP	GoToError
 
 errReadOnlyDisk:					; rod$error
-	LXI	hl,evReadOnlyDisk
+	LXI	HL,evReadOnlyDisk
 	JMP	GoToError
 errReadOnlyFile:					; rof$error
-	LXI	hl,evReadOnlyFile
+	LXI	HL,evReadOnlyFile
 	JMP	GoToError
 errPermanent:					; per$error
 	LXI	HL,evPermanent
@@ -2131,7 +2224,7 @@ caSkewTable:	DW	0000H			; tranv address of translate vector
 fcbCopiedFlag:	DB	00H			; fcb$copied set true if CopyFCB called
 readModeFlag:	DB	00H			; rmf read mode flag for OpenNextExt
 directoryFlag:	DB	00H			; dirloc directory flag in rename, etc.
-seqReadFlag	DB	00H			; seqio  1 if sequential i/o
+seqReadFlag:	DB	00H			; seqio  1 if sequential i/o
 ;dminx:	ds	byte	; local for diskwrite
 searchLength:	DB	00H			; searchl search length
 searchAddress:	DW	0000H			; searcha search address
