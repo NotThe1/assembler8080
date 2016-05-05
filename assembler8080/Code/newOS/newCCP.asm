@@ -197,6 +197,11 @@ ReadCommand2:					; readcom1 end of scan, h,l address end of command
 	SHLD	commandAddress			; ready to scan to zero
 	RET
 ;----------------------------------------------------------------
+
+;----------------------------------------------------------------
+;----------------------------------------------------------------
+;----------------------------------------------------------------
+;----------------------------------------------------------------
 ;return current user code in A
 GetUser:						; getuser
 	MVI	E,0FFH				; drop through to setuser
@@ -219,7 +224,7 @@ GetSelectedDrive:					; cselect
 	MVI	C,fGetCurrentDisk
 	JMP	BDOSE
 ;-----------------------------
-;open the file given by d,e
+;open the file given by (DE)
 OpenFile:						; open
 	MVI	C,fOpenFile
 	JMP	BDOSandIncA	
@@ -231,15 +236,20 @@ OpenFile4CmdFCB:					; openc
 	LXI	DE,commandFCB
 	JMP	OpenFile
 ;-----------------------------
-;close the file given by d,e
+;close the file given by (DE)
 CloseFile:					; close
 	MVI	C,fCloseFile
 	JMP	BDOSandIncA
 ;-----------------------------
-;delete the file given by d,e
+;delete the file given by (DE)
 DeleteFile:					; delete
 	MVI	C,fDeleteFile
 	JMP	BDOSE
+;-----------------------------
+;make the file given by (DE)
+MakeFile:						; make
+	MVI	C,fMakeFile
+	JMP	BDOSandIncA
 ;-----------------------------
 ;read the next record from the file given by d,e
 DiskRead:						; diskread
@@ -250,6 +260,11 @@ DiskRead:						; diskread
 DiskReadCmdFCB:					; diskreadc
 	LXI	DE,commandFCB
 	JMP	DiskRead
+;-----------------------------
+;write the next record to the file given by (DE)
+DiskWrite:					; diskwrite
+	MVI	C,fWriteSeq
+	JMP	BDOSsetFlags
 ;-----------------------------
 ;search for the file given by d,e
 SearchForFirst:					; search
@@ -265,8 +280,16 @@ Searc4CmdFcbFile:					; searchcom
 SearchForNext:					; searchn
 	MVI	C,fSearchNext
 	JMP	BDOSandIncA
-
 ;-----------------------------
+; rename a file give bu (DE)
+RenameFile:					; renam
+	MVI	C,fRenameFile
+	JMP	BDOSE
+;-----------------------------
+;set default buffer dma address
+SetDefaultDMA:					; setdmabuff
+	LXI	D,DMABuffer
+;---------
 ;set dma address to d,e
 SetDMA:						; setdma
 	MVI	C,fSetDMA
@@ -492,6 +515,54 @@ NextDelimiter:					; delim
 	RZ
 	RET					; delimiter not found
 ;-----------------------------
+; get number from the command line
+GetNumberFromCmdLine:				; getnumber
+	CALL	FillFCB0				; should be number
+	LDA	selectedDisk
+	ORA	A
+	JNZ	CommandError			; cannot be prefixed
+						; convert the byte value in commandFCB to binary
+	LXI	HL,commandFCB + 1
+	LXI	BC,11				;(b=0, c=11)
+						; value accumulated in b, c counts name length to zero
+GetNumericValue:					; conv0:
+	MOV	A,M
+	CPI	SPACE
+	JZ	GetNumericValue1
+						; more to scan, convert char to binary and add
+	INX	HL
+	SUI	ASCII_ZERO
+	CPI	10
+	JNC	CommandError			; valid?
+	MOV	D,A				; save value
+	MOV	A,B				; mult by 10
+	ANI	11100000B
+	JNZ	CommandError
+	MOV	A,B				; recover value
+	RLC
+	RLC
+	RLC					; *8
+	ADD	B
+	JC	CommandError
+	ADD	B
+	JC	CommandError			; *8+*2 = *10
+	ADD	D
+	JC	CommandError ;+digit
+	MOV	B,A
+	DCR	C
+	JNZ	GetNumericValue			; for another digit
+	RET
+GetNumericValue1:					; conv1 end of digits, check for all blanks
+	MOV	A,M
+	CPI	SPACE
+	JNZ	CommandError ;blanks?
+	INX	HL
+	DCR	C
+	JNZ	GetNumericValue1
+	MOV	A,B ;recover value
+	RET
+;-----------------------------
+;-----------------------------
 ;-----------------------------
 ;intrinsic function names four characters each
 intrinsicFunctionNames:					; intvec
@@ -629,7 +700,7 @@ UpCase:						; translate
 ;-----------------------------
 ;-----------------------------
 ;*****************************************************************
-;************************ Utilities ******************************
+;************************ Error messages ******************************
 ;*****************************************************************
 ;print the read error message
 PrintReadError:					; readerr
@@ -856,12 +927,127 @@ ccpTypeError:					; typerr:
 	JMP	CommandError
 ;*****************************************************************
 ccpSave:						; save save memory image
-	LXI	DE,messCmdSAV
-	JMP	CcpTemp				; send message and go ack for more
+;	LXI	DE,messCmdSAV
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	GetNumberFromCmdLine		; value to register a
+	PUSH	PSW				; save it for later
+						; should be followed by a file to save the memory image
+	CALL	FillFCB0
+	JNZ	CommandError			; cannot be ambiguous
+	CALL	SetDisk4Cmd			; may be a disk change
+	LXI	DE,commandFCB
+	PUSH	DE
+	CALL	DeleteFile			; existing file removed
+	POP 	DE
+	CALL	MakeFile				; create a new file on disk
+	JZ	ccpSaveError			; no directory space
+	XRA	A
+	STA	currentRecord			; clear next record field
+	POP	PSW				; #pages to write is in a, change to #sectors
+	MOV	L,A
+	MVI	H,0
+	DAD	H
+	
+	LXI	DE,TPA				; h,l is sector count, d,e is load address
+ccpSave1:						; save0 check for sector count zero
+	MOV	A,H
+	ORA	L
+	JZ	ccpSave2				; may be completed
+	DCX	HL				; sector count = sector count - 1
+	PUSH	HL				; save it for next time around
+	LXI	HL,128
+	DAD	DE
+	PUSH	HL				; next dma address saved
+	CALL	SetDMA				; current dma address set
+	LXI	DE,commandFCB
+	CALL	DiskWrite
+	POP	DE
+	POP	HL				; dma address, sector count
+	JNZ	ccpSaveError			; may be disk full case
+	JMP	ccpSave1				; for another sector
+
+ccpSave2:						; save1 end of dump, close the file
+	LXI	DE,commandFCB
+	CALL	CloseFile
+	INR	A				; 255 becomes 00 if error
+	JNZ	ccpSaveExit			; for another command
+ccpSaveError:					; saverr must be full or read only disk
+	LXI	BC,msgNoSpace
+	CALL	PrintCrLfStringNull
+ccpSaveExit:					; retsave:
+	CALL	SetDefaultDMA			; reset dma buffer
+	JMP	ResetDiskAtCmdEnd
+	
+msgNoSpace:					; fullmsg:
+	DB 'NO SPACE',0
 ;*****************************************************************
 ccpRename:					; rename file rename
-	LXI	DE,messCmdREN
-	JMP	CcpTemp				; send message and go ack for more
+;	LXI	DE,messCmdREN
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	FillFCB0
+	JNZ	CommandError			; must be unambiguous
+	LDA	selectedDisk
+	PUSH	PSW				; save for later compare
+	CALL	SetDisk4Cmd			; disk selected
+	CALL	Searc4CmdFcbFile			; is new name already there?
+	JNZ	ccpRenameError3
+						; file doesn't exist, move to second half of fcb
+	LXI	HL,commandFCB
+	LXI	DE,commandFCB + 16
+	MVI	B,16
+	CALL	CopyHL2DEforB
+						; check for = or left arrow
+	LHLD	commandAddress
+	XCHG
+	CALL	NextNonBlankChar
+	CPI	EQUAL_SIGN
+	JZ	ccpRename1			; ok if =
+	CPI	LEFT_ARROW			; la
+	JNZ	ccpRenameError2
+ccpRename1:					; ren1 
+	XCHG
+	INX	HL
+	SHLD	commandAddress			; past delimiter
+						; proper delimiter found
+	CALL	FillFCB0
+	JNZ	ccpRenameError2
+						; check for drive conflict
+	POP	PSW
+	MOV	B,A				; previous drive number
+	LXI	HL,selectedDisk
+	MOV	A,M
+	ORA	A
+	JZ	ccpRename2
+						; drive name was specified.  same one?
+	CMP	B
+	MOV	M,B
+	JNZ	ccpRenameError2
+ccpRename2:					; ren2:
+	MOV	M,B				; store the name in case drives switched
+	XRA	A
+	STA	commandFCB
+	CALL	Searc4CmdFcbFile			; is old file there?
+	JZ	ccpRenameError1
+
+						; everything is ok, rename the file
+	LXI	DE,commandFCB
+	CALL	RenameFile
+	JMP	ResetDiskAtCmdEnd
+
+ccpRenameError1:					; renerr1 no file on disk
+	CALL	PrintNoFile
+	JMP	ResetDiskAtCmdEnd
+ccpRenameError2:					; renerr2  ambigous reference/name conflict
+	CALL	ResetDisk
+	JMP	CommandError
+ccpRenameError3:					; renerr3 file already exists
+	LXI	BC,msgFileExists
+	CALL	PrintCrLfStringNull
+	JMP	ResetDiskAtCmdEnd
+	
+msgFileExists:					; renmsg:
+	DB	'FILE EXISTS',0
+
 ;*****************************************************************
 ccpUser:						; user user number
 	LXI	DE,messCmdUSER

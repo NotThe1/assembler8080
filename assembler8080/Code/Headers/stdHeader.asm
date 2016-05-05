@@ -49,6 +49,7 @@ EQUAL_SIGN	EQU	3DH			; Equal Sign
 GREATER_THAN	EQU	3EH			; Greater Than >
 QMARK		EQU	3FH			; Question Mark
 UNDER_SCORE	EQU	5FH			; under score _
+LEFT_ARROW	EQU	5FH			; Left Arrow ?
 RUBOUT		EQU	7FH			; Delete Key
 
 

@@ -118,14 +118,14 @@ diskf	EQU	($-functionTable)/2			; disk functions
 	DW	fResetSystem			; Function  D - Reset Disk System
 	DW	fSelectDisk			; Function  E - Select Disk
 	DW	fOpenFile				; Function  F - Open File
-	DW	DUMMY				; Function 10 - Close File
+	DW	fCloseFile			; Function 10 - Close File
 	DW	fFindFirst			; Function 11 - Search For First
 	DW	fFindNext				; Function 12 - Search for Next
-	DW	DUMMY				; Function 13 - Delete File
+	DW	fDeleteFile			; Function 13 - Delete File
 	DW	fReadSeq				; Function 14 - Read Sequential
-	DW	DUMMY				; Function 15 - Write Sequential
-	DW	DUMMY				; Function 16 - Make File
-	DW	DUMMY				; Function 17 - Rename File
+	DW	fWriteSeq				; Function 15 - Write Sequential
+	DW	fMakeFile				; Function 16 - Make File
+	DW	fRenameFile			; Function 17 - Rename File
 	DW	fGetLoginVector			; Function 18 - Return Login Vector
 	DW	fGetCurrentDisk			; Function 19 - Return Current Disk
 	DW	fSetDMA				; Function 1A - Set DMA address
@@ -634,10 +634,10 @@ SetDiskReadOnly:					; set$ro
 
 InitDisk:						; initialize
 	LHLD	dpbDSM				; get max allocation value
-	MVI	C,3				; wew want maxall/8
-						; number of bytes in alloc vector is (maxall/8)+1
+	MVI	C,3				; we want dpbDSM/8
+						; number of bytes in alloc vector is (dpbDSM/8)+1
 	CALL	ShiftRightHLbyC
-	INX	HL				; HL = maxall/8+1
+	INX	HL				; HL = dpbDSM/8+1
 	MOV	B,H
 	MOV	C,L				; count down BC til zero
 	LHLD	caAllocVector ;base of allocation vector
@@ -1143,11 +1143,16 @@ PutFcbVariables:					; setfcb
 ; IN  - (DE)	FCB Address
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fOpenFile:					; func15: (15 - 0F) Open File
+fOpenFile:					; 
 	CALL	ClearModuleNum			; clear the module number
 	CALL	Reselect				; do we need to reselect disk?
 	JMP	OpenFile
 	;ret ;jmp goback
+;-----------------------------------------------------------------
+;close file
+fCloseFile:					; func16: (16 - 10) Close File
+	CALL	Reselect
+	JMP	CloseDirEntry
 ;-----------------------------------------------------------------
 ;search for first occurrence of a file
 ; In - (DE)	FCB Address
@@ -1178,15 +1183,67 @@ fFindNext:					; func18: (18 - 12) Search for next
 	CALL	Search4NextDirElement
 	JMP	CopyDirEntryToUser			; copy directory entry to user
 ;-----------------------------------------------------------------
+;search for next occurrence of a file name
+; OUT - (A)	Directory Code
+;delete a file
+fDeleteFile:					; func18: (19 - 13) Delete File
+	CALL	Reselect
+	CALL	DeleteFile
+	JMP	DirLocationToReturnLoc
+;-----------------------------------------------------------------
 ;read sequential 
 ;IN  - (DE) FCB address
 ;OUT - (A) 00 = success and data available. else no read and no data
-fReadSeq:						; func20: (20 - 14) Search for next
+fReadSeq:						; func20: (20 - 14) read sequential
 	CALL	Reselect
 	CALL	ReadSeq
 	RET					; jmp goback
 ;-----------------------------------------------------------------
+;write sequential 
+;IN  - (DE) FCB address
+;OUT - (A) 00 = success and data available. else no read and no data
+fWriteSeq:					; func21 (21 - 15) write sequention
+	CALL	Reselect
+	CALL	DiskWriteSeq
+	RET	;jmp goback
+
+;-----------------------------------------------------------------
+; Make file 
+; In - (DE)	FCB Address
+; OUT - (A)	Directory Code
+;	0-3 = success ; 0FFH = File Not Found
+fMakeFile:						; func22 (22 - 16) Make file
+	CALL	ClearModuleNum
+	CALL	Reselect
+	JMP	MakeNewFile
+	;ret ;jmp goback
+;-----------------------------------------------------------------
+; Rename file 
+; In - (DE)	FCB Address
+; OUT - (A)	Directory Code
+;	0-3 = success ; 0FFH = File Not Found
+fRenameFile:						; func23 (23 - 17) Rename File
+	CALL	Reselect
+	CALL	Rename
+	JMP	DirLocationToReturnLoc
+
+;-----------------------------------------------------------------
+;-----------------------------------------------------------------
 ;*****************************************************************
+;-----------------------------------------------------------------
+;check current directory element for read/only status
+CheckRODirectory:					; check$rodir
+	CALL	GetDirElementAddress		; address of element
+;	JMP	CheckROFile
+;------------
+;check current buff(dptr) or fcb(0) for r/o status
+CheckROFile:					; check$rofile
+	LXI	DE,rofile
+	DAD	DE				; offset to ro bit
+	MOV	A,M
+	RAL
+	RNC					; return if not set
+	JMP	 errReadOnlyFile			; exit to read only disk message
 ;-----------------------------------------------------------------
 ;check for write protected disk
 CheckWrite:					; check$write
@@ -1248,6 +1305,151 @@ RecordOK:						; recordok:
 	RET
 DiskEOF:						; diskeof:
 	JMP	SetLowReturnTo1			; lowReturnStatus = 1
+	;ret
+;-----------------------------------------------------------------
+;sequential disk write
+DiskWriteSeq:					; seqdiskwrite
+	MVI	A,1
+	STA seqReadFlag
+;--------
+;disk write
+DiskWrite:					; diskwrite
+	MVI	A,FALSE
+	STA	readModeFlag
+						; write record to currently selected file
+	CALL	CheckWrite			; in case write protected
+	LHLD	paramDE				; HL = .fcb(0)
+	CALL	CheckROFile			; may be a read-only file
+	CALL	SetFcbVariables			; to set local parameters
+	LDA	vrecord
+	CPI	lastRecordNumber + 1		; vrecord-128
+						; skip if vrecord > lastRecordNumber
+	JC	DiskWrite1
+						; vrecord = 128, cannot open next extent
+	CALL	SetLowReturnTo1
+	RET					; lowReturnStatus = 1
+DiskWrite1:					; diskwr0:
+						; can write the next record, so continue
+	CALL	GetBlockNumber
+	CALL	IsAllocated
+	MVI	C,0				; marked as normal write operation for WriteBuffer
+	JNZ	DiskWrite3
+						; not allocated
+						; the argument to getblock is the starting
+						; position for the disk search, and should be
+						; the last allocated block for this file, or
+						; the value 0 if no space has been allocated
+	CALL	ComputeDmPosition
+	STA	diskMapIndex			; save for later
+	LXI	BC,0000h				; may use block zero
+	ORA	A
+	JZ	FirstBlock			; skip if no previous block
+						; previous block exists at A
+	MOV	C,A
+	DCX	BC				; previous block # in BC
+	CALL	GetDiskMapValue			; previous block # to HL
+	MOV	B,H
+	MOV	C,L				; BC=prev block#
+FirstBlock:					; nopblock:
+						; BC = 0000, or previous block #
+	CALL	GetClosestBlock			; block # to HL
+						; arrive here with block# or zero
+	MOV	A,L
+	ORA	H
+	JNZ	BlockOK
+						; cannot find a block to allocate
+	MVI	A,2
+	STA	lowReturnStatus
+	RET					; lowReturnStatus=2
+	
+BlockOK:						; blockok:
+						; allocated block number is in HL
+	SHLD	currentRecord
+	XCHG					; block number to DE
+	LHLD	paramDE
+	LXI	BC,diskMap
+	DAD	BC				; HL=.fcb(diskMap)
+	LDA	single
+	ORA	A				; set flags for single byte dm
+	LDA	diskMapIndex			; recall dm index
+	JZ	Allocate16Bit			; skip if allocating word
+						; else allocate using a byte value
+	CALL	AddAtoHL
+	MOV	M,E				; single byte alloc
+	JMP	DiskWrite2			; to continue
+Allocate16Bit:					; allocwd:
+						; allocate a word value
+	MOV	C,A
+	MVI	B,0				; double(diskMapIndex)
+	DAD	BC
+	DAD	BC				; HL=.fcb(diskMapIndex*2)
+	MOV	M,E
+	INX	HL
+	MOV	M,D				; double wd
+DiskWrite2:					; diskwru:
+						; disk write to previously unallocated block
+	MVI	C,2				; marked as unallocated write
+DiskWrite3:					; diskwr1:
+						; continue the write operation of no allocation error
+						; C = 0 if normal write, 2 if to prev unalloc block
+	LDA	lowReturnStatus
+	ORA	A
+	RNZ					; stop if non zero returned value
+	PUSH	BC				; save write flag
+	CALL	SetActualRecordAdd			; currentRecord set
+	CALL	Seek				; to proper file position
+	POP	BC
+	PUSH	BC				; restore/save write flag (C=2 if new block)
+	CALL	WriteBuffer			; written to disk
+	POP	BC				; C = 2 if a new block was allocated, 0 if not
+						; increment record count if rcount<=vrecord
+	LDA	vrecord
+	LXI	HL,rcount
+	CMP	M ;vrecord-rcount
+	JC	DiskWrite4
+						; rcount <= vrecord
+	MOV	M,A
+	INR	M				; rcount = vrecord+1
+	MVI	C,2				; mark as record count incremented
+DiskWrite4:					; diskwr2:
+						; A has vrecord, C=2 if new block or new record#
+	DCR	C
+	DCR	C
+	JNZ	DiskWrite5
+	PUSH	PSW				; save vrecord value
+	CALL	GetModuleNum			; HL=.fcb(modnum), A=fcb(modnum)
+						; reset the file write flag to mark as written fcb
+		
+;XXXXXXXXXXXXX ani (not fwfmsk) and 0ffh		; bit reset
+	ANI	7FH				; not fwfmsk
+		
+	MOV	M,A				; fcb(modnum) = fcb(modnum) and 7fh
+	POP	PSW				; restore vrecord
+DiskWrite5:					; noupdate:
+						; check for end of extent, if found attempt to open
+						; next extent in preparation for next write
+	CPI	lastRecordNumber			; vrecord=lastRecordNumber?
+	JNZ	DiskWrite7			; skip if not
+						; may be random access write, if so we are done
+	LDA	seqReadFlag
+	ORA	A
+	JZ	DiskWrite7			; skip next extent open op
+						; update current fcb before going to next extent
+	CALL	PutFcbVariables
+	CALL	OpenNextExt			; readModeFlag=false
+						; vrecord remains at lastRecordNumber causing eof if
+						; no more directory space is available
+	LXI	HL,lowReturnStatus
+	MOV	A,M
+	ORA	A
+	JNZ	DiskWrite6			; no space
+						; space available, set vrecord=255
+	DCR	A
+	STA	vrecord				; goes to 00 next time
+DiskWrite6:					; nospace:
+	MVI	M,0				; lowReturnStatus = 00 for returned value
+DiskWrite7:					; diskwr3:
+	JMP	PutFcbVariables ;replace parameters
 	;ret
 ;-----------------------------------------------------------------
 ;close the current extent  and open the next one if possible.
@@ -1317,6 +1519,33 @@ OpenNextExtError:					; open$r$err:
 	CALL	SetLowReturnTo1			; lowReturnStatus = 1
 	JMP	SetFileWriteFlag			; ensure that it will not be closed
 ;-----------------------------------------------------------------
+;rename the file described by the first half of the currently addressed FCB.
+;the new name is contained in the last half of the FCB. The file name and type
+;are changed, but the reel number is ignored.  the user number is identical
+Rename:						; rename
+	CALL	CheckWrite			; may be write protected
+						; search up to the extent field
+	MVI	C,extnum				; extent number field index
+	CALL	Search4DirElement
+						; copy position 0
+	LHLD	paramDE
+	MOV	A,M				; HL=.fcb(0), A=fcb(0)
+	LXI	DE,diskMap
+	DAD	DE				; HL=.fcb(diskMap)
+	MOV	M,A				; fcb(diskMap)=fcb(0)
+						; assume the same disk drive for new named file
+Rename1:						; rename0:
+	CALL	EndOfDirectory
+	RZ					; stop at end of dir
+						; not end of directory, rename next element
+	CALL	CheckRODirectory			; may be read-only file
+	MVI	C,diskMap
+	MVI	E,extnum
+	CALL	CopyDir
+						; element renamed, move to next
+	CALL	Search4NextDirElement
+	JMP	Rename1
+;-----------------------------------------------------------------
 ;create a new file by creating a directory entry then opening the file
 MakeNewFile:					; make
 	CALL	CheckWrite			; may be write protected
@@ -1349,7 +1578,27 @@ MakeNewFile1:					; make0:
 	CALL	CopyFCB
 						; and set the file write flag to "1"
 	JMP	SetFileWriteFlag
-
+;-----------------------------------------------------------------
+;delete the currently addressed file
+DeleteFile:					; delete
+	CALL	CheckWrite			; write protected ?
+	MVI	C,extnum				; extent number field
+	CALL	Search4DirElement			; search through file type
+DeleteFile1:					; delete0:
+						; loop while directory matches
+	CALL	EndOfDirectory
+	RZ					; stop if end
+						; set each non zero disk map entry to 0
+						; in the allocation vector
+						; may be r/o file
+	CALL	CheckRODirectory			; ro disk error if found
+	CALL	GetDirElementAddress		; HL=.buff(dptr)
+	MVI	M,emptyDir
+	MVI	C,0
+	CALL	ScanDiskMap			; alloc elts set to 0
+	CALL	WriteDir				; write the directory
+	CALL	Search4NextDirElement		; to next element
+	JMP	DeleteFile1			; for another record
 ;-----------------------------------------------------------------
 ;locate the directory element and re-write it
 CloseDirEntry:					; close
@@ -1505,6 +1754,60 @@ Merge:						; mergezero
 	DCX	HL				; back to input form
 	RET
 ;-----------------------------------------------------------------
+;compute closest disk block number from current block
+;given allocation vector position BC, find the zero bit closest to this position
+;by searching left and right.
+;if found, set the bit to one and return the bit position in hl.
+;if not found (i.e., we pass 0 on the left, or dpbDSM on the right), return 0000 in hl
+GetClosestBlock:					; get$block
+	MOV	D,B
+	MOV	E,C				; copy of starting position to de
+TestLeft:						; lefttst:
+	MOV	A,C
+	ORA	B
+	JZ	TestRight				; skip if left=0000
+						; left not at position zero, bit zero?
+	DCX	BC
+	PUSH	DE
+	PUSH	BC				; left,right pushed
+	CALL	GetAllocBit
+	RAR
+	JNC	ReturnBlockNumber			; return block number if zero
+						; bit is one, so try the right
+	POP	BC
+	POP	DE				; left, right restored
+TestRight:					; righttst:
+	LHLD	dpbDSM				; value of maximum allocation#
+	MOV	A,E
+	SUB	L
+	MOV	A,D
+	SBB	H				; right=dpbDSM?
+	JNC	ReturnBlockZero			; return block 0000 if so
+	INX	DE
+	PUSH	B
+	PUSH	D				; left, right pushed
+	MOV	B,D
+	MOV	C,E				; ready right for call
+	CALL	GetAllocBit
+	RAR
+	JNC	ReturnBlockNumber			; return block number if zero
+	POP	DE
+	POP	BC ;restore left and right pointers
+	JMP	TestLeft ;for another attempt
+ReturnBlockNumber:					; retblock:
+	RAL
+	INR	A				; bit back into position and set to 1
+						; d contains the number of shifts required to reposition
+	CALL	RotateAndReplace			; move bit back to position and store
+	POP	HL
+	POP	DE ;HL returned value, DE discarded
+	RET
+	
+ReturnBlockZero:					; retblock0:
+						; cannot find an available bit, return 0000
+	LXI	HL,0000H
+	RET
+;-----------------------------------------------------------------
 ;compute disk block number from current fcb
 GetBlockNumber:					; index
 	CALL	ComputeDmPosition			; 0...15 in register A
@@ -1538,6 +1841,13 @@ SetActualRecordAdd1:				; atran0:
 	SHLD	currentRecord			; currentRecord=HL or (vrecord and dpbBLM)
 	RET
 ;-----------------------------------------------------------------
+;---------------------
+;copy directory location to lowReturnStatus
+DirLocationToReturnLoc:				; copy$dirloc
+	LDA	directoryFlag
+	STA	lowReturnStatus
+	RET
+;---------------------
 
 ;clear the module number field for user open/make (S2)
 ClearModuleNum:					; clrmodnum
@@ -2225,7 +2535,7 @@ fcbCopiedFlag:	DB	00H			; fcb$copied set true if CopyFCB called
 readModeFlag:	DB	00H			; rmf read mode flag for OpenNextExt
 directoryFlag:	DB	00H			; dirloc directory flag in rename, etc.
 seqReadFlag:	DB	00H			; seqio  1 if sequential i/o
-;dminx:	ds	byte	; local for diskwrite
+diskMapIndex:	DB	00H			; dminx  local for diskwrite
 searchLength:	DB	00H			; searchl search length
 searchAddress:	DW	0000H			; searcha search address
 ;tinfo:	ds	word				; temp for info in "make"
