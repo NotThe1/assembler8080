@@ -7,7 +7,7 @@ BDOSEntry	EQU	0E806H
 CCPEntry	EQU	0E000H
 
 CodeStart:
-	ORG	0100H
+	ORG	1000H
 	LXI	SP, $		
 	LXI	HL, messBegin
 	CALL	x_displayMessage

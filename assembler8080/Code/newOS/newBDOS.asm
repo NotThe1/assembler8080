@@ -130,9 +130,9 @@ diskf	EQU	($-functionTable)/2			; disk functions
 	DW	fGetCurrentDisk			; Function 19 - Return Current Disk
 	DW	fSetDMA				; Function 1A - Set DMA address
 	DW	fGetAllocAddr			; Function 1B - Get ADDR (ALLOC)
-	DW	DUMMY				; Function 1C - Write Protect Disk
-	DW	DUMMY				; Function 1D - Get Read/Only Vector
-	DW	DUMMY				; Function 1E - Set File Attributes
+	DW	fWriteProtectDisk			; Function 1C - Write Protect Disk
+	DW	fGetRoVector			; Function 1D - Get Read/Only Vector
+	DW	fSetFileAttributes			; Function 1E - Set File Attributes ??
 	DW	fGetDiskParamBlock			; Function 1F - Get ADDR (Disk Parameters)
 	DW	fGetSetUserNumber			; Function 20 - Set/Get User Code
 	DW	DUMMY				; Function 21 - Read Random
@@ -225,6 +225,95 @@ SetUserNumber:					; setusrcode
 	STA	currentUserNumber
 	RET					; jmp goback
 
+;*****************************************************************
+;random disk read
+;IN  - (DE) FCB address
+;OUT - (A) 01 = Reading unwritten data
+;	 02 = N/U
+;	 03 = Cannot close current extent
+;	 04 = Seek to unwriten Extent
+;	 05 = N/U
+;	 06 = Seek past Physical end of Disk
+fReadRandom:					; func33 (33 - 21) Read Random record
+
+;*****************************************************************
+;write random record
+;IN  - (DE) FCB address
+;OUT - (A) 01 = Reading unwritten data
+;	 02 = N/U
+;	 03 = Cannot close current extent
+;	 04 = Seek to unwriten Extent
+;	 05 = Cannot create new Extent because of directory overflow
+;	 06 = Seek past Physical end of Disk
+fWriteRandom:					; func34 (34 - 22) Write Random record
+
+;*****************************************************************
+;return file size (0-65536)
+;IN  - (DE) FCB address
+ (Next record position/ virtual file size)
+fComputeFileSize:					; func35 (35 - 23) Compute File Size
+	CALL	Reselect
+	JMP	getfilesize
+	;ret ;jmp goback
+;*****************************************************************
+;set random record
+;IN  - (DE) FCB address
+fSetRandomRecord:					; func36 (36 - 24) Set random Record
+;OUT - Random Record Field is set
+
+;*****************************************************************
+;******************< Random I/O Stuff ****************************
+;*****************************************************************
+;compute logical file size for current fcb
+GetFileSize:					; getfilesize
+	mvi	c,extnum
+	call	search
+			;zero the receiving ranrec field
+	lhld	ParamsDE
+	lxi	d,ranrec
+	dad	de
+	push	hl ;save position
+	mov	m,d
+	inx	hl
+	mov	m,d
+	inx	hl
+	mov	m,d;=00 00 00
+GetFileSize1:					; getsize:
+	call	end$of$dir
+	jz	GetFileSizeExit
+			;current fcb addressed by dptr
+	call	getdptra
+	lxi	de,reccnt ;ready for compute size
+	call	compute$rr
+			;A=0000 000? BC = mmmm eeee errr rrrr
+			;compare with memory, larger?
+	pop	hl
+	push	hl ;recall, replace .fcb(ranrec)
+	mov	e,a ;save cy
+	mov	a,c
+	sub	m
+	inx	hl ;ls byte
+	mov	a,b
+	sbb	m
+	inx	hl ;middle byte
+	mov	a,e
+	sbb	m ;carry if .fcb(ranrec) > directory
+	jc	GetFileSize2 ;for another try
+			;fcb is less or equal, fill from directory
+	mov	m,e
+	dcx	hl
+	mov	m,b
+	dcx	hl
+	mov	m,c
+GetFileSize2:					; getnextsize:
+	call	searchn
+	jmp	GetFileSize1
+GetFileSizeExit:					; setsize:
+	pop	hl ;discard .fcb(ranrec)
+	ret
+;
+;*****************************************************************
+;****************** Random I/O Stuff >****************************
 ;*****************************************************************
 ; store A and return
 StoreARet:					; sta$ret
@@ -496,8 +585,6 @@ fSetDMA:						; func26 (25 - 1A) Set Dma Address
 	SHLD	InitDAMAddress			; InitDAMAddress = paramDE
     JMP	SetDataDMA				; to data dma address
 	;ret ;jmp goback
-;
-
 ;-----------------------------------------------------------------
 ;return the Allocation Vector Address
 ;OUT - (HL) Allocation Vector Address
@@ -505,8 +592,26 @@ fGetAllocAddr:					; func27 (27 - 1B) Get Allocation Vector Address
 	LHLD	caAllocVector
 	SHLD	statusBDOSReturn
 	RET ;jmp goback
+;-----------------------------------------------------------------
+;;write protect current disk
+fWriteProtectDisk:					; func28 (28 - 1C) Write protect disk
+	JMP	SetDiskReadOnly
+	;ret ;jmp goback
+;-----------------------------------------------------------------
+;return r/o bit vector
+;OUT - (HL) Read Only Vector Vector
+fGetRoVector:					; func29 (29 - 1D)	Get read Only vector
+	LHLD	ReadOnlyVector
+	SHLD	statusBDOSReturn
+	RET	;jmp goback
 
-
+;-----------------------------------------------------------------
+;;set file Attributes
+fSetFileAttributes:					; func30 (30 - 1E) Set File Attributes
+	CALL	Reselect
+	CALL	SetAttributes
+	JMP	DirLocationToReturnLoc		; lret=dirloc
+	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ;return address of disk parameter block
 ; OUT - (HL) Disk Parameter Black for current drive
@@ -1134,6 +1239,21 @@ PutFcbVariables:					; setfcb
 	LDA	rcount
 	MOV	M,A				; fcb(reccnt)=rcount
 	RET
+;---------------------
+;set file Attributes for current fcb
+SetAttributes:					; indicators
+	MVI	C,extnum
+	CALL	Search4DirElement			; through file type
+SetAttributes1:					; indic0:
+	CALL	EndOfDirectory
+	RZ					; stop at end of dir
+						; not end of directory, continue to change
+	MVI	C,0
+	MVI	E,extnum ;copy name
+	CALL	CopyDir
+	CALL	Search4NextDirElement
+	JMP	SetAttributes1
+;
 ;*****************************************************************
 
 ;*****************************************************************

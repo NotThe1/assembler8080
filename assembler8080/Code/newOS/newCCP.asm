@@ -37,7 +37,7 @@ END_OF_FILE	EQU	1AH			; eofile end of file
 	                                        
 	ORG	CCPEntry
 CodeStart:
-	
+CcpBoundary	EQU	$			; tranm	
 	JMP	CcpStart				;start ccp with possible initial command
 
 	
@@ -111,12 +111,7 @@ intrinsicFunctionsVector:				; jmptab
 	DW	ccpRename				; file rename
 	DW	ccpUser				; user number
 	DW	ccpUserFunction			; user-defined function
-	
-badserial:
-	LXI	H,76F3H				; 'DI HLT' instructions  lxi h,di or (hlt shl 8)
-	SHLD	CCPEntry
-	LXI	H,CCPEntry
-	PCHL
+
 ;----------------------------------------------------------------
 ;----------------------------------------------------------------
 ;read the next command into the command buffer
@@ -207,7 +202,7 @@ GetUser:						; getuser
 	MVI	E,0FFH				; drop through to setuser
 ;------
 SetUser:						; setuser
-    MVI	C,fGetSetUserNumber
+	MVI	C,fGetSetUserNumber
 	JMP	BDOSE				; sets user number
 ;-----------------------------
 Initialize:					; initialize
@@ -563,7 +558,6 @@ GetNumericValue1:					; conv1 end of digits, check for all blanks
 	RET
 ;-----------------------------
 ;-----------------------------
-;-----------------------------
 ;intrinsic function names four characters each
 intrinsicFunctionNames:					; intvec
 	DB	'DIR '
@@ -575,7 +569,31 @@ intrinsicFunctionNames:					; intvec
 IntrinsicFunctionCount	EQU	6
 ;IntrinsicFunctionCount	EQU	($-intrinsicFunctionNames)/4	 intlen
 ;intlen EQU ($-intrinsicFunctionNames)/4  ;intrinsic function length
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 serialNumber: DB 0,0,0,0,0,0				; serial
+;-----------------------------
+;-----------------------------
+;check serialization
+CheckSerialNumber:					; serialize
+	LXI	D,serialNumber
+	LXI	H,BDOSBase			; BDOS base address
+	MVI	B,6				; check six bytes
+CheckSerialNumber0:					; ser0
+	LDAX	DE
+	CMP	M
+	JNZ	BadSerialNumber
+	INX	DE
+	INX	HL
+	DCR	B
+	JNZ	CheckSerialNumber0
+	RET						; serial number is ok
+;-----------------------------	
+BadSerialNumber:					; badserial:
+	LXI	H,76F3H				; 'DI HLT' instructions  lxi h,di or (hlt shl 8)
+	SHLD	CCPEntry
+	LXI	H,CCPEntry
+	PCHL
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 ;-----------------------------
 ;look for intrinsic functions (commandFCB has been filled)
@@ -880,8 +898,36 @@ ccpDirEnd:					; endir end of directory scan
 
 ;*****************************************************************
 ccpErase:						; erase file erase
-	LXI	DE,messCmdERA
-	JMP	CcpTemp				; send message and go ack for more
+;	LXI	DE,messCmdERA
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	FillFCB0				; cannot be all ???'s
+	CPI	11
+	JNZ	ccpEraseAll
+						; erasing all of the disk
+	LXI	BC,msgEraseAll
+	CALL	PrintCrLfStringNull
+	
+	CALL	ReadCommand
+	LXI	HL,CommandLength
+	DCR	M
+	JNZ	Ccp ;bad input
+	INX	HL
+	MOV	A,M
+	CPI	ASCII_Y
+	JNZ	Ccp
+						; ok, erase the entire diskette
+	INX	HL
+	SHLD	commandAddress			; otherwise error at ResetDiskAtCmdEnd
+ccpEraseAll:					; erasefile:
+	CALL	SetDisk4Cmd
+	LXI	DE,commandFCB
+	CALL	DeleteFile
+	INR	A				; 255 returned if not found
+	CZ	PrintNoFile			; no file message if so
+	JMP	ResetDiskAtCmdEnd
+;
+msgEraseAll:					; ermsg:
+	DB	'ALL (Y/N)?',0
 ;*****************************************************************
 ccpType:						; type type file
 ;	LXI	DE,messCmdTYPE
@@ -1050,26 +1096,158 @@ msgFileExists:					; renmsg:
 
 ;*****************************************************************
 ccpUser:						; user user number
-	LXI	DE,messCmdUSER
-	JMP	CcpTemp				; send message and go ack for more
+;	LXI	DE,messCmdUSER
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	GetNumberFromCmdLine		; leaves the value in the accumulator
+	CPI	16
+	JNC	CommandError			; must be between 0 and 15
+	MOV	E,A				; save for SetUser call
+	LDA	commandFCB + 1
+	CPI	SPACE
+	JZ	CommandError
+	CALL	SetUser ;new user number set
+	JMP	EndCommand
 ;*****************************************************************
 ccpUserFunction:					; userfunc user-defined function
-	LXI	DE,messCmdUF
-	JMP	CcpTemp				; send message and go ack for more
-;----------------------------------------------------------
-CcpTemp:
-	MVI	C,09H
-	CALL	BDOSE				; print String at (DE)
-	LXI	SP,Stack				; reset the stack pointer
-	JMP	Ccp				; go back for more
+;	LXI	DE,messCmdUF
+;	JMP	CcpTemp				; send message and go ack for more
+	CALL	CheckSerialNumber			; check Serial Number
+						; load user function and set up for execution
+	LDA	commandFCB + 1
+	CPI	SPACE
+	JNZ	ccpUserFunction1
+						; no file name, but may be disk switch
+	LDA	selectedDisk
+	ORA	A
+	JZ	EndCommand			; no disk name if 0
+	DCR	A
+	STA	currentDisk
+	CALL	SetDiskAddress			; set user/disk
+	CALL	SelectDisk
+	JMP	EndCommand
 	
-messCmdDIR:	DB	CR,LF,'Directory Command',CR,LF,DOLLAR
-messCmdERA:	DB	CR,LF,'Erase Command',CR,LF,DOLLAR
-messCmdTYPE:	DB	CR,LF,'Type Command',CR,LF,DOLLAR
-messCmdSAV:	DB	CR,LF,'Save Command',CR,LF,DOLLAR
-messCmdREN:	DB	CR,LF,'Rename Command',CR,LF,DOLLAR
-messCmdUSER:	DB	CR,LF,'User Command',CR,LF,DOLLAR
-messCmdUF:	DB	CR,LF,'User Function Command',CR,LF,DOLLAR
+ccpUserFunction1:					; user0 file name is present
+	LXI	DE,commandFCB + 9
+	LDAX	DE
+	CPI	SPACE
+	JNZ	CommandError			; type SPACE
+	PUSH	DE
+	CALL	SetDisk4Cmd
+	POP	DE
+	LXI	HL,comFileType			; .com
+	CALL	CopyHL2DE3			; file type is set to .com
+	CALL	OpenFile4CmdFCB
+	JZ	ccpUserFunctionError1
+						; file opened properly, read it into memory
+	LXI	HL,TPA				; transient program base
+ccpUserFunction2:					; load0:
+	PUSH	HL ;save dma address
+	XCHG
+	CALL	SetDMA
+	LXI	DE,commandFCB
+	CALL	DiskRead
+	JNZ	ccpUserFunction3
+						; sector loaded, set new dma address and compare
+	POP	HL
+	LXI	DE,128
+	DAD	DE
+	LXI	DE,CcpBoundary			; has the load overflowed?
+	MOV	A,L
+	SUB	E
+	MOV	A,H
+	SBB	D
+	JNC	ccpUserFunctionError2
+	JMP	ccpUserFunction2			; for another sector
+
+ccpUserFunction3:					; load1:
+	POP	H
+	DCR	A
+	JNZ	ccpUserFunctionError2		; end file is 1
+	CALL	ResetDisk				; back to original disk
+	CALL	FillFCB0
+	LXI	HL,selectedDisk
+	PUSH	HL
+	MOV	A,M
+	STA	commandFCB			; drive number set
+	MVI	A,16
+	CALL	FillFCB				; move entire fcb to memory
+	POP	HL
+	MOV	A,M
+	STA	commandFCB + 16
+	XRA	A
+	STA	currentRecord			; record number set to zero
+	LXI	DE,FCB1				; default FCB in page 0
+	LXI	HL,commandFCB
+	MVI	B,33
+	CALL	CopyHL2DEforB
+						; move command line to buff
+	LXI	HL,commandBuffer
+ccpUserFunction4:					; bmove0:
+	MOV	A,M
+	ORA	A
+	JZ	ccpUserFunction5
+	CPI	SPACE
+	JZ	ccpUserFunction5
+	INX	HL
+	JMP	ccpUserFunction4			; for another scan
+						; first blank position found
+ccpUserFunction5:					; bmove1:
+	MVI	B,0
+	LXI	DE,DMABuffer + 1
+						; ready for the move
+ccpUserFunction6:					; bmove2:
+	MOV	A,M
+	STAX	DE
+	ORA	A
+	JZ	ccpUserFunction7
+			;more to move
+	INR	B
+	INX	HL
+	INX	DE
+	JMP	ccpUserFunction6
+ccpUserFunction7:					; bmove3 b has character count
+	MOV	A,B
+	STA	DMABuffer
+	CALL	CrLf
+						; now go to the loaded program
+	CALL	SetDefaultDMA			; default dma
+	CALL	SaveUser				; user code saved
+						; low memory diska contains user code
+	CALL	TPA				; gone to the loaded program
+	LXI	SP,Stack				; may come back here
+	CALL	SetDiskAddress
+	CALL	SelectDisk
+	JMP	Ccp
+	
+ccpUserFunctionError1:				; userer arrive here on command error
+	CALL	ResetDisk
+	JMP	CommandError
+
+ccpUserFunctionError2:				; loaderr cannot load the program
+	LXI	BC,msgBadLoad
+	CALL	PrintCrLfStringNull
+	JMP	ResetDiskAtCmdEnd
+	
+msgBadLoad:					; loadmsg:
+	DB 'BAD LOAD',0
+comFileType:					; comtype:
+	DB 'COM' ;for com files
+;
+;
+;----------------------------------------------------------
+;CcpTemp:
+;	MVI	C,09H
+;	CALL	BDOSE				; print String at (DE)
+;	LXI	SP,Stack				; reset the stack pointer
+;	JMP	Ccp				; go back for more
+;	
+;messCmdDIR:	DB	CR,LF,'Directory Command',CR,LF,DOLLAR
+;messCmdERA:	DB	CR,LF,'Erase Command',CR,LF,DOLLAR
+;messCmdTYPE:	DB	CR,LF,'Type Command',CR,LF,DOLLAR
+;messCmdSAV:	DB	CR,LF,'Save Command',CR,LF,DOLLAR
+;messCmdREN:	DB	CR,LF,'Rename Command',CR,LF,DOLLAR
+;messCmdUSER:	DB	CR,LF,'User Command',CR,LF,DOLLAR
+;messCmdUF:	DB	CR,LF,'User Function Command',CR,LF,DOLLAR
 ;*****************************************************************
 ;*****************************************************************
 ;change disks for this command, if requested
