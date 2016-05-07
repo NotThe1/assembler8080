@@ -38,6 +38,7 @@ HASH_TAG		EQU	23H			; Sharp sign #
 DOLLAR		EQU	24H			; Dollar Sign
 PERCENT		EQU	25H			; Percent Sign
 ASTERISK		EQU	2AH			; Asterisk *
+COMMA		EQU	2CH			; comma
 PERIOD		EQU	2EH			; Period
 SLASH		EQU	2FH			; /
 ASCII_ZERO	EQU	30H			; zero

@@ -67,7 +67,15 @@ xx_MEQUALS:
 	DB ' = ',xx_EOM
 
 ;--------------Show address1 & Show Address2-------------
-
+x_showRegAcomma:
+	PUSH	AF
+	PUSH	BC
+	PUSH	DE
+	PUSH	HL
+	CALL	x_showRegA
+	MVI	C,2CH
+	CALL	xx_CONOUT
+	JMP	xx_FullExit			; restore registers and return
 ;---------------------   x_showRegA  -------------------
 
 ; Display the contents of A

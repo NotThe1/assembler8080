@@ -39,6 +39,8 @@ CodeStart:
 	JMP	BdosStart				;past parameter block
 	
 BdosStart:
+	MOV	A,C
+	STA	Cvalue
 	XCHG					; swap DE and HL
 	SHLD	paramDE				; save the original value of DE
 	XCHG					; restore DE
@@ -135,10 +137,10 @@ diskf	EQU	($-functionTable)/2			; disk functions
 	DW	fSetFileAttributes			; Function 1E - Set File Attributes ??
 	DW	fGetDiskParamBlock			; Function 1F - Get ADDR (Disk Parameters)
 	DW	fGetSetUserNumber			; Function 20 - Set/Get User Code
-	DW	DUMMY				; Function 21 - Read Random
-	DW	DUMMY				; Function 22 - Write Random
-	DW	DUMMY				; Function 23 - Compute File Size
-	DW	fGetLoginVector			; Function 24 - Set Random Record
+	DW	fReadRandom			; Function 21 - Read Random
+	DW	fWriteRandom			; Function 22 - Write Random
+	DW	fComputeFileSize			; Function 23 - Compute File Size
+	DW	fSetRandomRecord			; Function 24 - Set Random Record
 	DW	DUMMY				; Function 25 - Reset Drive
 	DW	DUMMY				; Function 26 - Access Drive (not supported)
 	DW	DUMMY				; Function 27 - Free Drive (not supported)
@@ -235,7 +237,9 @@ SetUserNumber:					; setusrcode
 ;	 05 = N/U
 ;	 06 = Seek past Physical end of Disk
 fReadRandom:					; func33 (33 - 21) Read Random record
-
+	CALL	Reselect
+	JMP	RandomDiskRead			; to perform the disk read
+	;ret ;jmp goback
 ;*****************************************************************
 ;write random record
 ;IN  - (DE) FCB address
@@ -246,72 +250,259 @@ fReadRandom:					; func33 (33 - 21) Read Random record
 ;	 05 = Cannot create new Extent because of directory overflow
 ;	 06 = Seek past Physical end of Disk
 fWriteRandom:					; func34 (34 - 22) Write Random record
-
+	CALL	Reselect
+	JMP	RandomDiskWrite			; to perform the disk write
+	;ret ;jmp goback
 ;*****************************************************************
 ;return file size (0-65536)
 ;IN  - (DE) FCB address
  (Next record position/ virtual file size)
 fComputeFileSize:					; func35 (35 - 23) Compute File Size
 	CALL	Reselect
-	JMP	getfilesize
+	JMP	GetFileSize
 	;ret ;jmp goback
 ;*****************************************************************
 ;set random record
 ;IN  - (DE) FCB address
 fSetRandomRecord:					; func36 (36 - 24) Set random Record
 ;OUT - Random Record Field is set
-
+	JMP	SetRandomRecord
 ;*****************************************************************
 ;******************< Random I/O Stuff ****************************
 ;*****************************************************************
+;random disk read
+RandomDiskRead:					; randiskread
+	MVI	C,TRUE				; marked as read operation
+	CALL	RandomSeek
+	CZ	DiskRead ;if seek successful
+	RET
+;*****************************************************************
+;random disk write
+RandomDiskWrite:					; randiskwrite
+	MVI	C,FALSE				; marked as read operation
+	CALL	RandomSeek
+	CZ	DiskWrite				; if seek successful
+	RET
+;*****************************************************************
+;*****************************************************************
+;random access seek operation, C=0ffh if read mode
+;fcb is assumed to address an active file control block
+;(modnum has been set to 11000000b if previous bad seek)
+RandomSeek:					; rseek
+ 	XRA	A
+	STA	seqReadFlag			; marked as random access operation
+	PUSH	BC				; save r/w flag
+	LHLD	paramDE
+	XCHG					; DE will hold base of fcb
+	LXI	HL,RANDOM_REC_FIELD
+	DAD	DE				; HL=.fcb(RANDOM_REC_FIELD)
+	MOV	A,M
+	ANI	7FH
+	PUSH	PSW				; record number
+	MOV	A,M
+	RAL					; cy=lsb of extent#
+	INX	HL
+	MOV	A,M
+	RAL
+	ANI	11111B				; A=ext#
+	MOV	C,A				; C holds extent number, record stacked
+	MOV	A,M
+	RAR
+	RAR
+	RAR
+	RAR
+	ANI	1111B				; mod#
+	MOV	B,A				; B holds module#, C holds ext#
+	POP	PSW				; recall sought record #
+						;check to insure that high byte of ran rec = 00
+	INX	HL
+	MOV	L,M				; l=high byte (must be 00)
+	INR	L
+	DCR	L
+	MVI	L,06				; zero flag, l=6
+						; produce error 6, seek past physical eod
+	JNZ	RandomSeekError
+						; otherwise, high byte = 0, A = sought record
+	LXI	HL,NEXT_RECORD
+	DAD	DE				; HL = .fcb(NEXT_RECORD)
+	MOV	M,A				; sought rec# stored away
+						; arrive here with B=mod#, C=ext#, DE=.fcb, rec stored
+						; the r/w flag is still stacked.  compare fcb values
+	LXI	HL,extnum				; extent number field
+	DAD	DE
+	MOV	A,C				; A=seek ext#
+	SUB	M
+	JNZ	RandomSeekClose			; tests for = extents
+						; extents match, check mod#
+	LXI	HL,modnum
+	DAD	DE
+	MOV	A,B				; B=seek mod#
+						; could be overflow at eof, producing module#
+						; of 90H or 10H, so compare all but fwf
+	SUB	M
+	ANI	7FH
+	JZ	RandomSeekExit			; same?
+RandomSeekClose:					; ranclose:
+	PUSH	BC
+	PUSH	DE				; save seek mod#,ext#, .fcb
+	CALL	CloseDirEntry			; current extent closed
+	POP	DE
+	POP	BC				; recall parameters and fill
+	MVI	L,03				; cannot close error #3
+	LDA	lowReturnStatus
+	INR	A
+	JZ	RandomSeekErrorBadSeek
+	LXI	HL,extnum
+	DAD	DE
+	MOV	M,C				; fcb(extnum)=ext#
+	LXI	HL,modnum
+	DAD	DE
+	MOV	M,B				; fcb(modnum)=mod#
+	CALL	OpenFile				; is the file present?
+	LDA	lowReturnStatus
+	INR	A
+	JNZ	RandomSeekExit			; open successful?
+						; cannot open the file, read mode?
+	POP	BC				; r/w flag to c (=0ffh if read)
+	PUSH	BC				; everyone expects this item stacked
+	MVI	L,04				; seek to unwritten extent #4
+	INR	C				; becomes 00 if read operation
+	JZ	RandomSeekErrorBadSeek		; skip to error if read operation
+						; write operation, make new extent
+	CALL	MakeNewFile
+	MVI	L,05				; cannot create new extent #5
+	LDA	lowReturnStatus
+	INR	A
+	JZ	RandomSeekErrorBadSeek		; no dir space
+						; file make operation successful
+RandomSeekExit:					; seekok:
+	POP	BC				; discard r/w flag
+	XRA	A
+	STA	lowReturnStatus
+	RET					; with zero set
+	
+RandomSeekErrorBadSeek:				; badseek:
+						; fcb no longer contains a valid fcb, mark
+						; with 1100$000b in modnum field so that it
+						; appears as overflow with file write flag set
+	PUSH	HL				; save error flag
+	CALL	GetModuleNum			; HL = .modnum
+	MVI	M,11000000B
+	POP	HL				; and drop through
+RandomSeekError:					; seekerr:
+	POP	B				; discard r/w flag
+	MOV	A,L
+	STA	lowReturnStatus			; lowReturnStatus=#, nonzero
+						; SetFileWriteFlag returns non-zero accumulator for err
+	JMP	SetFileWriteFlag			; flag set, so subsequent close ok
+	;ret
+;
+;*****************************************************************
+SetRandomRecord:					; setrandom
+	LHLD	paramDE
+	LXI	DE,NEXT_RECORD			; ready params for computesize
+	CALL	GetRandomRecordPosition		; DE=paramDE, A=cy, BC=mmmm eeee errr rrrr
+	LXI	HL,RANDOM_REC_FIELD
+	DAD	DE				; HL = .FCB(RANDOM_REC_FIELD)
+	MOV	M,C
+	INX	HL
+	MOV	M,B
+	INX	HL
+	MOV	M,A				; to RANDOM_REC_FIELD
+	RET
+;*****************************************************************
 ;compute logical file size for current fcb
 GetFileSize:					; getfilesize
-	mvi	c,extnum
-	call	search
-			;zero the receiving ranrec field
-	lhld	ParamsDE
-	lxi	d,ranrec
-	dad	de
-	push	hl ;save position
-	mov	m,d
-	inx	hl
-	mov	m,d
-	inx	hl
-	mov	m,d;=00 00 00
+	MVI	C,extnum
+	CALL	Search4DirElement
+						; zero the receiving Ramdom record field
+	LHLD	paramDE
+	LXI	D,RANDOM_REC_FIELD
+	DAD	DE
+	PUSH	HL				; save position
+	MOV	M,D
+	INX	HL
+	MOV	M,D
+	INX	HL
+	MOV	M,D				; =00 00 00
 GetFileSize1:					; getsize:
-	call	end$of$dir
-	jz	GetFileSizeExit
-			;current fcb addressed by dptr
-	call	getdptra
-	lxi	de,reccnt ;ready for compute size
-	call	compute$rr
-			;A=0000 000? BC = mmmm eeee errr rrrr
-			;compare with memory, larger?
-	pop	hl
-	push	hl ;recall, replace .fcb(ranrec)
-	mov	e,a ;save cy
-	mov	a,c
-	sub	m
-	inx	hl ;ls byte
-	mov	a,b
-	sbb	m
-	inx	hl ;middle byte
-	mov	a,e
-	sbb	m ;carry if .fcb(ranrec) > directory
-	jc	GetFileSize2 ;for another try
-			;fcb is less or equal, fill from directory
-	mov	m,e
-	dcx	hl
-	mov	m,b
-	dcx	hl
-	mov	m,c
+	CALL	EndOfDirectory
+	JZ	GetFileSizeExit
+						; current fcb addressed by dptr
+	CALL	GetDirElementAddress
+	LXI	DE,reccnt				; ready for compute size
+	CALL	GetRandomRecordPosition
+						; A=0000 000? BC = mmmm eeee errr rrrr
+						; compare with memory, larger?
+	POP	HL
+	PUSH	HL				; recall, replace .fcb(Random record Field)
+	MOV	E,A				; save cy
+	MOV	A,C
+	SUB	M
+	INX	HL				; ls byte
+	MOV	A,B
+	SBB	M
+	INX	HL				; middle byte
+	MOV	A,E
+	SBB	M				; carry if .fcb(random record field) > directory
+	JC	GetFileSize2			; for another try
+						; fcb is less or equal, fill from directory
+	MOV	M,E
+	DCX	HL
+	MOV	M,B
+	DCX	HL
+	MOV	M,C
 GetFileSize2:					; getnextsize:
-	call	searchn
-	jmp	GetFileSize1
+	CALL	Search4NextDirElement
+	JMP	GetFileSize1
 GetFileSizeExit:					; setsize:
-	pop	hl ;discard .fcb(ranrec)
-	ret
-;
+	POP	HL				; discard .fcb(random record field)
+	RET
+;-----------------------------------------------------------------
+;compute random record position 
+GetRandomRecordPosition:				; compute$rr
+	XCHG
+	DAD	DE
+						; DE=.buf(dptr) or .fcb(0), HL = .f(NEXT_RECORD/reccnt)
+	MOV	C,M
+	MVI	B,0				; BC = 0000 0000 ?rrr rrrr
+	LXI	HL,extnum
+	DAD	DE
+	MOV	A,M
+	RRC
+	ANI	80H				; A=e000 0000
+	ADD	C
+	MOV	C,A
+	MVI	A,0
+	ADC	B
+	MOV	B,A
+						; BC = 0000 000? errrr rrrr
+	MOV	A,M
+	RRC
+	ANI	0FH
+	ADD	B
+	MOV	B,A
+						; BC = 000? eeee errrr rrrr
+	LXI	HL,modnum
+	DAD	DE
+	MOV	A,M				; A=XXX? mmmm
+	ADD	A
+	ADD	A
+	ADD	A
+	ADD	A				; cy=? A=mmmm 0000
+	PUSH	PSW
+	ADD	B
+	MOV	B,A
+						; cy=?, BC = mmmm eeee errr rrrr
+	PUSH	PSW				; possible second carry
+	POP	HL				; cy = lsb of L
+	MOV	A,L				; cy = lsb of A
+	POP	HL				; cy = lsb of L
+	ORA	L 				; cy/cy = lsb of A
+	ANI	1 				; A = 0000 000? possible carry-out
+	RET
+;-----------------------------------------------------------------
+
 ;*****************************************************************
 ;****************** Random I/O Stuff >****************************
 ;*****************************************************************
@@ -610,7 +801,7 @@ fGetRoVector:					; func29 (29 - 1D)	Get read Only vector
 fSetFileAttributes:					; func30 (30 - 1E) Set File Attributes
 	CALL	Reselect
 	CALL	SetAttributes
-	JMP	DirLocationToReturnLoc		; lret=dirloc
+	JMP	DirLocationToReturnLoc		; lowReturnStatus=dirloc
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ;return address of disk parameter block
@@ -1203,21 +1394,21 @@ StillInDirectory:					; compcdr
 	;condition dirCounter - cdrmax  produces cy if cdrmax>dirCounter
 	RET
 ;---------------------
-;compute reccnt and nxtrec addresses for get/setfcb
+;compute reccnt and NEXT_RECORD addresses for get/setfcb
 GetFcbAddress:					; getfcba
 	LHLD	paramDE
 	LXI	DE,reccnt
 	DAD	DE
 	XCHG					; DE=.fcb(reccnt)
-	LXI	HL,(nxtrec-reccnt)
-	DAD	DE				; HL=.fcb(nxtrec)
+	LXI	HL,(NEXT_RECORD-reccnt)
+	DAD	DE				; HL=.fcb(NEXT_RECORD)
 	RET
 ;---------------------
 ;set variables from currently addressed fcb
 SetFcbVariables:					; getfcb
 	CALL	GetFcbAddress			; addresses in DE, HL
 	MOV	A,M
-	STA	vrecord 				; vrecord=fcb(nxtrec)
+	STA	vrecord 				; vrecord=fcb(NEXT_RECORD)
 	XCHG
 	MOV	A,M
 	STA	rcount				; rcount=fcb(reccnt)
@@ -1234,7 +1425,7 @@ PutFcbVariables:					; setfcb
 	MOV	C,A				; =1 if sequential i/o
 	LDA	vrecord
 	ADD	C
-	MOV	M,A				; fcb(nxtrec)=vrecord+seqReadFlag
+	MOV	M,A				; fcb(NEXT_RECORD)=vrecord+seqReadFlag
 	XCHG
 	LDA	rcount
 	MOV	M,A				; fcb(reccnt)=rcount
@@ -2026,7 +2217,7 @@ OpenFileCopyFCB:					; open$copy
 	CALL	GetDirElementAddress
 	XCHG					; DE = .buff(dptr)
 	LHLD	paramDE				; HL=.fcb(0)
-	MVI	C,nxtrec				; length of move operation
+	MVI	C,NEXT_RECORD			; length of move operation
 	PUSH	DE				; save .buff(dptr)
 	CALL	Move				; from .buff(dptr) to .fcb(0)
 						; note that entire fcb is copied, including indicators
@@ -2585,9 +2776,9 @@ fwfmsk		EQU	80h			; file write flag is high order modnum
 nameLength	EQU	15			; namlen name length
 reccnt		EQU	15			; record count field
 diskMap		EQU	16			; dskmap disk map field
-lstfcb		EQU	fcbLength-1                   
-nxtrec		EQU	fcbLength                     
-ranrec		EQU	nxtrec+1			; random record field (2 bytes)
+; lstfcb		EQU	fcbLength-1                   
+NEXT_RECORD	EQU	fcbLength			; nxtrec                  
+RANDOM_REC_FIELD	EQU	NEXT_RECORD + 1			;ranrec random record field (2 bytes)
 ;
 ;	reserved file indicators
 rofile	EQU	9				; high order of first type char
@@ -2655,7 +2846,7 @@ fcbCopiedFlag:	DB	00H			; fcb$copied set true if CopyFCB called
 readModeFlag:	DB	00H			; rmf read mode flag for OpenNextExt
 directoryFlag:	DB	00H			; dirloc directory flag in rename, etc.
 seqReadFlag:	DB	00H			; seqio  1 if sequential i/o
-diskMapIndex:	DB	00H			; dminx  local for diskwrite
+diskMapIndex:	DB	00H			; dminx  local for DiskWrite
 searchLength:	DB	00H			; searchl search length
 searchAddress:	DW	0000H			; searcha search address
 ;tinfo:	ds	word				; temp for info in "make"
@@ -2674,11 +2865,12 @@ dirCounter:	DW	00H			; dcnt directory counter 0,1,...,dpbDRM
 dirRecord:	DW	00H			; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
 
 ;********************** data areas ******************************
-compcol:	DB	0				; true if computing column position
+Cvalue:		DB	00h			; Reg C on BDOS Entry
+compcol:		DB	0			; true if computing column position
 startingColumn:	DB	0			; strtcol starting column position after read
 columnPosition:	DB	0			; column column position
 listeningToggle:	DB	0			; listcp listing toggle
-kbchar:	DB	0				; initial key char = 00
+kbchar:		DB	0			; initial key char = 00
 usersStack:	DS	2			; entry stack pointer
 stackBottom:	DS	STACK_SIZE * 2		; stack size
 bdosStack:
