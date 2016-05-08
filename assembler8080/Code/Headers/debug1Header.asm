@@ -8,6 +8,7 @@
 ; x_showAddress1 - (HL) address
 ; x_showAddress2 - (HL) address
 ; x_showRegA     - (A) 
+; x_showRegAcomma- (A) with a comma trailing
 ; x_displayHL	  HL value to display
 
 
