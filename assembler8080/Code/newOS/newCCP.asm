@@ -1267,8 +1267,6 @@ SetDisk4Cmd:					; setdisk
 ;*****************************************************************
 ;************************ Data Area ******************************
 ;*****************************************************************
-	DS	16				; 8 level stack
-Stack:						; stack
 ;	'submit' file control block
 submitFlag:	DB	00H			; submit 00 if no submit file, ff if submitting
 submitFCB:	DB	00H			; subfcb file name is $$$
@@ -1286,19 +1284,25 @@ currentDisk:	DB	00H			; cdisk current disk
 selectedDisk:	DB	00H			; sdisk selected disk for current operation
 ;						; none=0, a=1, b=2 ...
 bufferPointer:	DB	00H			; bptr  buffer pointer
-
+;------------------------------------
+fillFCBStart:	DW	0000H			; staddr starting address of current FillFCB request
 ;----------------------------
+; (command executed initially if CommandLength non zero)
 MaxBufferLength:	DB	127			; maxlen max buffer length
 CommandLength:	DB	0			; comlen command length (filled in by dos)
-; (command executed initially if CommandLength non zero)
 commandBuffer:					; combuf:
 	DB	'        '			; 8 character fill
 	DB	'        '			; 8 character fill
 	DB	'COPYRIGHT (C) 1979 DIGITAL RESEARCH  '; 38
-	DS	128-($-commandBuffer)
-;	total buffer length is 128 characters
+restOfCmdBuffer:
+	DS	128-(restOfCmdBuffer-commandBuffer)
 commandAddress:	DW	commandBuffer		; comaddr address of next to char to scan
-fillFCBStart:	DW	0000H			; staddr starting address of current FillFCB request
+	
+endOfCommandBuffer:
+;-------------------------------
+;	DS	16				; 8 level stack
+	ORG	BDOSBase-10H
+Stack:						; stack
 
 CodeEnd:
 
