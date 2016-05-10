@@ -25,6 +25,7 @@ SPACE		EQU	20H		; Space
 ASCII_ZERO	EQU	'0'		; the number 0
 ASCII_Q		EQU	'Q'
 ASCII_R		EQU	'R'
+ASCII_W		EQU	'W'
 ASCII_LO_A	EQU	'a'
 TPA		EQU	0100H		; Trasient Program Area
 
@@ -89,6 +90,8 @@ Ready:						; ready:
 ;
 NotQuitCommand:					; notq:
 ; not the quit command, random write?
+	CPI	ASCII_W				; Write ?
+	JNZ	NotWriteCommand
 	LXI	DE,datmsg
 	CALL	PrintBuff				; data prompt
 	MVI	C,127				; up to 127 characters
@@ -122,7 +125,7 @@ CharReadEnd:					; erloop:
 ;
 ; end of write command, process read
 ;
-notw:
+NotWriteCommand:					; notw
 ; not a write command, read record?
 	CPI	ASCII_R
 	JNZ	Error				; skip if not
