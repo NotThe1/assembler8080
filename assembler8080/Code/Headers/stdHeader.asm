@@ -64,6 +64,6 @@ ASCII_W		EQU	'W'
 ASCII_Y		EQU	'Y'
 CARET		EQU	'^'
 ASCII_LO_A	EQU	'a'
-ASCII_LO_K	EQU	'K'
+ASCII_LO_K	EQU	'k'
 ASCII_LO_P	EQU	'p'
 LEFT_CURLY	EQU	'{'			; Left curly Bracket

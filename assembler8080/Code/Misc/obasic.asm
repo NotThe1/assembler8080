@@ -1118,7 +1118,7 @@ L10A5:
           CPI  00DH      
           JZ   00FDCH    
           JMP  01034H    
-L10B4:
+L10B4:					; are HL equal ?
           MOV  A,H       
           SUB  D         
           RNZ            
