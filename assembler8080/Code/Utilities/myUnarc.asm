@@ -962,17 +962,17 @@ anyQMarks:
 	LXI  B,FullNameSize
 	MVI  A,QMARK
 	CALL haveValue
-	RET				; return with Zero Flag set if QMARK found
+	RET					; return with Zero Flag set if QMARK found
 ;---------------
 
 L090C:
-	LDA	targetDrive				; get target drive
+	LDA	targetDrive			; get target drive
 	ORA	A
-	RZ				; return if there is one
+	RZ					; return if there is one
 
 	MOV	B,A				; move targetDrive value to B
 	LDA	hdrType				; get type
-	CPI	ARC_TYPE_TOO_BIG; not valid if > 9
+	CPI	ARC_TYPE_TOO_BIG			; not valid Achive type if > 9
 	LXI	D,messNeedNewerArch
 	JNC	sendErrorMess
 	MOV	L,A				; move type into L
@@ -995,9 +995,9 @@ L090C:
 	JZ	00949H				; skip if  something there
 	ADD	C
 	JC	00949H
-	CMP  M
-	JNC  00949H
-	MOV  M,A
+	CMP	M
+	JNC	00949H
+	MOV	M,A				; modify available memory
 L0949:
 	LDA	printFlag
 	ORA	A
@@ -1207,7 +1207,11 @@ typeEQ8:
 	CPI	CTRL_L				; do we have a Form Feed as first byte?
 	LXI	D,messInCompatibleCruch
 	JNZ	sendErrorMess				; error exit if not
-
+; crunch0-4 setting up correct routines for type 8
+; putting jumps and call addresses in the following routines
+; L0B1A...CALL 0BC7
+; addTableEntry ....CALL 0BA1
+; L0D8A.CALL 0DC3
 crunch0:
 	LXI	B,02FFFH				;  buffer size - for table1A
 	MVI	A,010H				; load Acc for code modification
@@ -1215,8 +1219,8 @@ crunch1:
 	STA	00BB0H				; modifying code CPI XX at 0BB0 (does not change)
 	LXI	H,00000H				; reset HL
 	SHLD	CounterY				; reset this location
-	LXI	D,L0BC7H				; get pointerA
-	LXI	H,L0BA1				; get pointerB
+	LXI	D,L0BC7H				; get RoutineAadd
+	LXI	H,L0BA1				; get RoutineBadd
 	MVI	A,009H				; load Acc
 	JZ	crunch3				; first pass it is zero or we would have exited
 ; get her for types 5 and fall thru for type 9
@@ -1227,41 +1231,41 @@ crunch2:
 	POP  H
 	JMP  crunch4
 
-; get here for types 6 & 7
+; get here for types 6 & 7 eventually w/type 8
 crunch3:
-	PUSH	H				; save pointerB  to Stack
-	LXI	H,L0DA3				; get  pointerC to code
-	SHLD	ptrSubjectFile				; save it in memory
+	PUSH	H				; save RoutineBadd to stack
+	LXI	H,L0DA3				; get  RoutineCadd to HL
+	SHLD	ptrSubjectFile			; save it in memory
 	POP	H				; get  pointerB
 ; get here for types 5,6,7
 crunch4:
 	PUSH	H				; save pointerB
-	LHLD	ptrSubjectFile				; get pointerB into HL
+	LHLD	ptrSubjectFile			; get pointerB into HL
 	SHLD	00D8EH				; modify code 0D8A with   pointerB ***
 	POP	H				; get pointerB into HL
 	SHLD	00B91H				; modify code 0B91 with  pointerB ***
-	XCHG				; move pointerC to HL
+	XCHG					; move pointerC to HL
 	SHLD	00B1BH				; modify code 0B91 with  pointerC ***
 	XCHG
-	STA	typeControl1				; save byte (09)
+	STA	typeControl1			; save byte (09), may be a counter
 	MOV	A,B				; move page count to Acc
 	SUI	003H				; subtract 3 pages ???
 	STA	00C3AH				; ** modify code ( no change)
-	CALL	clearTable1AForBCbytes				; clear 1a00 for BC bytes (original 2FFF) BC returns 00
+	CALL	clearTable1AForBCbytes		; clear 1a00 for BC bytes (original 2FFF) BC returns 00
 	PUSH	H				; save end of Table1A area
 	MOV	H,B
 	MOV	L,C				; put 00 00 in HL
 	SHLD	CounterX				; save Zeros here(counterX), reseting count ???
 	POP	H				; retreive last mem location cleared
-	DCX	B				; decrement counterX ??
-	PUSH	B				; save counterX -1
+	DCX	B				; Set to -1
+	PUSH	B				; save counter -1
 	XRA	A				; clear the Acc
 
 ; after all the code mods for types Acc is index counter starts ends at 00
 makeTable1A:
-	POP	B				; get counterX -1
-	PUSH	B				; save counterX -1
-	PUSH	PSW				; save index counter
+	POP	B				; get counter -1
+	PUSH	B				; save counter -1
+	PUSH	PSW				; save value
 	CALL	addTable1AEntry
 	POP	PSW
 	INR	A				; Increment the index counter
@@ -1272,7 +1276,8 @@ makeTable1A:
 L0B17:
 	CALL swapAllRegisters				; save the registers for later
 L0B1A:
-	CALL 00000H				; ** code is modified by 0AEF (CALL 0BC7 type 8)
+	; ** code is modified by 0AEF (CALL 0BC7 type 8)
+	CALL 00000H
 	POP  B
 	JC   00A68H
 	PUSH H
@@ -1347,21 +1352,22 @@ L0B78:
 ; came here after modifying the code based on type. entered with CounterX containing 0000
 addTable1AEntry:
 	LHLD	CounterX				; get CounterX value
-	PUSH	PSW				; save Counter in Acc
+	PUSH	PSW				; save Value in Acc
 	MOV	A,H				; get MSB of CounterX
 	ANI	010H				; ** code is modified by 0A7C (ANI  010H for type 8)
 ; ** code is modified by 0A9F (ANI  020H for type 9)
 ; checking bit 4 
-	XTHL				; get original value into H
+	XTHL					; get Value into H
 	MOV	A,H				; restore it, but ANI's flags are still there
 	POP	H				; restore HL
-	RNZ				; return if bit 4 was set
+	RNZ					; return if bit 4 was set
 
 	INX	H				; increment CounterX value 
 	SHLD	CounterX				; and put back 
 	PUSH	PSW				; save original MSB of CounterX
 	PUSH	B				; save modified CounteX
-	CALL	00000H				; ** code is modified by 0AEB (CALL 0BA1 type 8)
+	; ** code is modified by 0AEB (CALL 0BA1 type 8)
+	CALL	00000H
 ; returns with HL pointing at position in Table1A work area
 	XTHL				; swap returned value & Modified CounterX (FFFF)??
 	CALL	table1Aand3DE				;Returns with HL =((DE) *3) + Table1A+1
@@ -1381,7 +1387,7 @@ L0BA1:
 	MOV	A,L				; get LSB of counter ??
 	DCR	L
 	ORA	A				; was orignal value Zero ?
-	JNZ	table1Aand3DE				;skip if not else Returns with HL =((DE) *3) + Table1A+1				; 
+	JNZ	table1Aand3DE			;skip if not else Returns with HL =((DE) *3) + Table1A+1				; 
 	MOV  A,H
 	DCR  H
 	LXI  D,CounterX
@@ -1409,7 +1415,7 @@ table1Aand3DE:
 	RET
 ;---------------
 L0BC7H:
-	LXI	H,CounterY				; starts with 00 in CounterY
+	LXI	H,CounterY			; starts with 00 in CounterY
 	DCR	M				; decrement LSB
 	INX	H
 	MOV	A,M				; get MSB
@@ -1417,30 +1423,33 @@ L0BC7H:
 	MOV	B,M				; typeControl1 in B
 	LXI	H,07FFFH
 	ORA	A				; reset carry bit
-	RAR				; divide MSB by 2
+	RAR					; divide MSB by 2
 	INR	A
 	DCR	A				; messing with flags ???
-	JZ   L0C4E
-	PUSH PSW
-	MOV  A,H
+	JZ	L0C4E				; will only jump when 0 or 1
+	
+; come back after jmp above	
+L0BD9:
+	PUSH	PSW
+	MOV	A,H				; previous value
 	RAR
-	INR  A
-	DCR  A
-	MOV  H,A
+	INR	A
+	DCR	A
+	MOV	H,A
 	XTHL
-	MOV  A,H
-	POP  H
-	PUSH PSW
-	MOV  A,L
+	MOV	A,H
+	POP	H
+	PUSH	PSW
+	MOV	A,L
 	RAR
-	INR  A
-	DCR  A
-	MOV  L,A
+	INR	A
+	DCR	A
+	MOV	L,A
 	XTHL
-	MOV  A,H
-	POP  H
-	DCR  B
-	JNZ  00BD2H
+	MOV	A,H
+	POP	H
+	DCR	B
+	JNZ	00BD2H
 	ORA  A
 	PUSH PSW
 	MOV  A,H
@@ -1511,7 +1520,7 @@ L0C4E:
 	CALL	swapAllRegisters
 	POP	H
 	POP	B				; B has typeControl1 ( 9 for typr 8)
-	RC				; return if end-of-data
+	RC					; return if end-of-data
 	PUSH	PSW				; save byte read
 	MOV	A,B
 	ANI	008H				; typeControl1 bit 3 set ?
@@ -1519,9 +1528,10 @@ L0C4E:
 	MOV	A,H
 	POP	H				; Acc has Byte, B has typeControl1, HL has ??
 	JNZ	L0C68				; skip if bit 3 of 	typeControl1 set
-	STC				; else set the carry bit
+	STC					; else set the carry bit
 	RAR
-	JMP  00BD9H
+	JMP	00BD9H
+	
 L0C68:
 	MOV	L,H				; put counter MSB into L
 	MOV	H,A				; put byte into H
@@ -1762,7 +1772,10 @@ Label1A:
 ;---------------
 L0D8A:
 	CALL swapAllRegisters
-	JMP  00000H				; ** code is modified by 0AE7 (JMP 0DA3 for type 8)
+	; ** code is modified by 0AE7 (JMP 0DC3 for type 8)
+	JMP  00000H
+	
+	
 L0D90:
 	LHLD 01795H
 	MVI  L,000H
@@ -2772,13 +2785,13 @@ upperCaseAcc:				; L12DA:
 ;
 swapAllRegisters:				; L12E3:
 	PUSH H				; save HL as called
-	LHLD storeHL				; get whats in 178c
+	LHLD storeHL			; get whats in 178c
 	XTHL				; put on stack
-	SHLD storeHL				; put HL's content into 178c
+	SHLD storeHL			; put HL's content into 178c
 	PUSH D				; save DE as Called
 	LHLD storeDE
 	XTHL
-	SHLD storeDE				; put DE's content into 178c
+	SHLD storeDE			; put DE's content into 178c
 	PUSH B				; save BC as called
 	LHLD storeBC
 	XTHL
@@ -3005,17 +3018,17 @@ storeDE:	DS	2				; L178E
 storeBC:	DS	2				; L1790
 L1792:	DS	2
 storedSubTotal:
-ptrSubjectFile:	DS	2				; L1794:
-memReqType:	DS	1
-memAvailable:	DS	1
-CounterY:	DS	2
-typeControl1:	DS	1				; orginally set to 9 for type 8
-CounterX:	DS	2
+ptrSubjectFile:	DW	0000			; L1794:/ general purpose storage
+memReqType:	DB	00
+memAvailable:	DB	00
+CounterY:		DW	0000
+typeControl1:	DB	00			; orginally set to 9 for type 8
+CounterX:		DW	0000
 X179D:
 
-Table18	EQU	CodeStart + 01700H				; table 1 (19 FE XX)
-Table19	EQU	CodeStart + 01800H				; table 1 (19 FE XX)
-Table1A	EQU	CodeStart + 01900H				; table 1 (19 FE XX)
+Table18	EQU	CodeStart + 01700H			; table 1 (19 FE XX)
+Table19	EQU	CodeStart + 01800H			; table 1 (19 FE XX)
+Table1A	EQU	CodeStart + 01900H			; table 1 (19 FE XX)
 
 
 
