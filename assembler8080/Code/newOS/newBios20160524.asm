@@ -471,9 +471,9 @@ SELDSK:
 						; Disk Type bottom nibble - Blocking MSB (bit 7)
 	ANI	0FH				; isolate disk type
 	STA	DiskType				; save for use in low level driver
-;;	MOV	A,M				; get another copy
-;;	ANI	NeedDeblocking			; determin if deblocking is required and
-;;	STA	DeblockingRequired			; save for low level driver
+	MOV	A,M				; get another copy
+	ANI	NeedDeblocking			; determin if deblocking is required and
+	STA	DeblockingRequired			; save for low level driver
 	POP	H				; recover DPH pointer
 	RET
 	
@@ -513,14 +513,11 @@ SETDMA:
 ; on Exit:	HL = physical sector number
 ;**********************
 SECTRAN:
-	PUSH	BC
-	POP	HL			; just move the value from BC to HL
+	XCHG					; HL -> skew table base
+	DAD	B			; Add on logical sector number
+	MOV	L,M			; Get physical sector number
+	MVI	H,00H			; make into a word
 	RET
-;;	XCHG					; HL -> skew table base
-;;	DAD	B			; Add on logical sector number
-;;	MOV	L,M			; Get physical sector number
-;;	MVI	H,00H			; make into a word
-;;	RET
 	
 ;************************************************************************************************
 ;        READ	BIOS 
@@ -531,8 +528,8 @@ SECTRAN:
 ; to unpack a 128-byte sector from  the physical sector. 
 ;************************************************************************************************
 READ:
-;;	LDA	DeblockingRequired
-;;	ORA	A
+	LDA	DeblockingRequired
+	ORA	A
 ;;	JZ	ReadNoDeblock			; if 0 use normal non-blocked read (128 byte sectors)
 ; The de-blocking algorithm used is such that a read operation can be viewed UP until the actual
 ; data transfer as though it was the first write to an unallocated allocation block. 
@@ -561,9 +558,9 @@ READ:
 ; The number of physical disk operations can therefore be reduced considerably.
 ;************************************************************************************************
 WRITE:
-;;	LDA	DeblockingRequired
-;;	ORA	A
-;;	JZ	WriteNoDeblock			; if 0 use non-blocked write
+	LDA	DeblockingRequired
+	ORA	A
+	JZ	WriteNoDeblock			; if 0 use non-blocked write
 ; Buffered I/O
 	XRA	A
 	STA	ReadFlag				; Set to zero to indicate that this is not a read
@@ -789,46 +786,46 @@ MoveDkTrkSecLoop:
 	RZ					; exit loop done
 	JMP	MoveDkTrkSecLoop
 ;********************************************************************
-;;; Write contents of disk buffer to correct sector
-;;WriteNoDeblock:
-;;	MVI	A,DiskWriteCode			; get write function code
-;;	JMP	CommonNoDeblock
-;;;Read previously selected sector into disk buffer
-;;ReadNoDeblock:
-;;	MVI	A,DiskReadCode			; get read function code
-;;CommonNoDeblock:
-;;	STA	DCTCommand			; set the correct command code
-;;	LXI	H,128				; bytes per sector
-;;	SHLD	DCTByteCount
-;;	XRA	A				; 8" has only head 0
-;;	STA	DCTHead
-;;	
-;;	LDA	SelectedDisk			; insure only disk 0 or 1
-;;	ANI	01H
-;;	STA	DCTUnit				; set the unit number
-;;	
-;;	LDA	SelectedTrack
-;;	STA	DCTTrack				; set track number
-;;	
-;;	LDA	SelectedSector
-;;	STA	DCTSector				; set sector
-;;	
-;;	LHLD	DMAAddress
-;;	SHLD	DCTDMAAddress			; set transfer address
-;;	
-;;;  The disk controller can accept chained disk control tables, but in this case
-;;; they are not used. so the "Next" pointers must be pointed back at the initial
-;;; control bytes in the base page. 
-;;	LXI	H,DiskStatusBlock
-;;	SHLD	DCTNextStatusBlock			; set pointer back to start
-;;	LXI	H,DiskControl8
-;;	SHLD	DCTNextControlLocation		; set pointer back to start
-;;	LXI	H,DCTCommand
-;;	SHLD	CommandBlock8
-;;	
-;;	LXI	H,DiskControl8
-;;	MVI	M,080H				; activate the controller to perform operation
-;;	JMP	WaitForDiskComplete
+; Write contents of disk buffer to correct sector
+WriteNoDeblock:
+	MVI	A,DiskWriteCode			; get write function code
+	JMP	CommonNoDeblock
+;Read previously selected sector into disk buffer
+ReadNoDeblock:
+	MVI	A,DiskReadCode			; get read function code
+CommonNoDeblock:
+	STA	DCTCommand			; set the correct command code
+	LXI	H,128				; bytes per sector
+	SHLD	DCTByteCount
+	XRA	A				; 8" has only head 0
+	STA	DCTHead
+	
+	LDA	SelectedDisk			; insure only disk 0 or 1
+	ANI	01H
+	STA	DCTUnit				; set the unit number
+	
+	LDA	SelectedTrack
+	STA	DCTTrack				; set track number
+	
+	LDA	SelectedSector
+	STA	DCTSector				; set sector
+	
+	LHLD	DMAAddress
+	SHLD	DCTDMAAddress			; set transfer address
+	
+;  The disk controller can accept chained disk control tables, but in this case
+; they are not used. so the "Next" pointers must be pointed back at the initial
+; control bytes in the base page. 
+	LXI	H,DiskStatusBlock
+	SHLD	DCTNextStatusBlock			; set pointer back to start
+	LXI	H,DiskControl8
+	SHLD	DCTNextControlLocation		; set pointer back to start
+	LXI	H,DCTCommand
+	SHLD	CommandBlock8
+	
+	LXI	H,DiskControl8
+	MVI	M,080H				; activate the controller to perform operation
+	JMP	WaitForDiskComplete
 ;********************************************************************
 ;Write contents of disk buffer to correct sector
 WritePhysical:
@@ -916,11 +913,11 @@ DiskError:
 ;---------------------------------------------------------------------------
 ; Disk Types
 Floppy5	EQU	1 				; 5 1/4" mini floppy
-;;Floppy8	EQU	2 				; 8"  floppy (SS SD)
-HardDisk	EQU	2				; hard disk
+Floppy8	EQU	2 				; 8"  floppy (SS SD)
+
 NumberOfLogicalDisks	EQU 4			; max number of disk in this system
                                                   
-;;NeedDeblocking	EQU 	080H			; Sector size > 128 bytes
+NeedDeblocking	EQU 	080H			; Sector size > 128 bytes
 
 ;**************************************************************************************************
 ;  There are two "smart" disk controllers on this system, one for the 8" floppy diskette drives,
@@ -949,8 +946,8 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ; the end of the chain
 ;**************************************************************************************************
 
-;;DiskControl8	EQU	040H			; 8" control byte
-;;CommandBlock8	EQU	041H			; Control Table Pointer
+DiskControl8	EQU	040H			; 8" control byte
+CommandBlock8	EQU	041H			; Control Table Pointer
                                                   
 DiskStatusBlock	EQU	043H			; 8" and 5 1/4" status block
                                                   
@@ -1051,7 +1048,7 @@ PrereadSectorFlag:		DB	00H		; non-zero if physical sector must be read into the 
 						; for a normal CP/M 128 byte sector read
 ReadFlag:		DB	00H			; Non-zero when a CP/M 128 byte sector is to be read
 DiskType:		DB	00H			; Indicate 8" or 5 1/4" selected  (set in SELDSK)
-;;DeblockingRequired:	DB	00H			; Non-zero when the selected disk needs de-blocking (set in SELDSK)
+DeblockingRequired:	DB	00H			; Non-zero when the selected disk needs de-blocking (set in SELDSK)
 
 ;---------------------------------------------------------------------------
 
@@ -1086,27 +1083,26 @@ DiskParameterHeaders:				; described in chapter 3
 	DW	DiskBAllocationVector
 	
 						; Logical Disk C: (8" Floppy)
-	DW	Floppy5SkewTable			; shares the same skew table as A:
+	DW	Floppy8SkewTable			; 8" skew table
 	DW	0				; Rel pos for file (0-3)
 	DW	0				; Last Selected Track #
 	DW	0				; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	Floppy5ParameterBlock
+	DW	Floppy8ParameterBlock
 	DW	DiskCWorkArea
-	DW	DiskDAllocationVector
-	
-						; Logical Disk D: (8" Floppy)
-	DW	Floppy5SkewTable			; shares the same skew table as A:
-	DW	0				; Rel pos for file (0-3)
-	DW	0				; Last Selected Track #
-	DW	0				; Last Selected Sector #
-	DW	DirectoryBuffer			; all disks use this buffer
-	DW	Floppy5ParameterBlock
-	DW	DiskDWorkArea
 	DW	DiskCAllocationVector
 	
- 	DB	Floppy5
-;;	DB	Floppy5 + NeedDeblocking
+						; Logical Disk D: (8" Floppy)
+	DW	Floppy8SkewTable			; shares the same skew table as A:
+	DW	0				; Rel pos for file (0-3)
+	DW	0				; Last Selected Track #
+	DW	0				; Last Selected Sector #
+	DW	DirectoryBuffer			; all disks use this buffer
+	DW	Floppy8ParameterBlock
+	DW	DiskDWorkArea
+	DW	DiskDAllocationVector
+	
+	DB	Floppy5 + NeedDeblocking
 	
 Floppy5ParameterBlock:
 	DW	048H				; 128-byte sectors per track- (72)
@@ -1123,37 +1119,36 @@ Floppy5ParameterBlock:
 						; Standard 8" floppy
 						; extra byte prefixed to DPB for 
 						;  this version of the BIOS
-;;	DB	Floppy8				; Indicates disk type and the fact
-	DB	HardDisk
+	DB	Floppy8				; Indicates disk type and the fact
 						;   that no de-blocking is required
 	
-;;Floppy8ParameterBlock:
-;;	DW	048H				; 128-byte sectors per track- (72)
-;;	DB	04H				; Block shift ( 4=> 2K)
-;;	DB	0FH				; Block mask
-;;	DB	01 				; Extent mask
-;;	DW	0AEH 				; Maximum allocation block number (174)
-;;	DW	07FH 				; Number of directory entries - 1 (127)
-;;	DB	0C0H				; Bit map for reserving 1 alloc. block
-;;	DB	00				;  for file directory
-;;	DW	020H				; Disk change work area size (32)
-;;	DW	01				; Number of tracks before directory
-;;	
+Floppy8ParameterBlock:
+	DW	01AH				; sectors per track (26)
+	DB	03				; Block shift (3=>1K)
+	DB	07				; Block mask
+	DB	00 				; Extent mask
+	DW	0F2H 				; Maximum allocation block number (242)
+	DW	03FH 				; Number of directory entries - 1 (63)
+	DB	0C0H				; Bit map for reserving 2 alloc. block
+	DB	00				;  for file directory
+	DW	010H				;Disk change work area size (16)
+	DW	02				; Number of tracks before directory
+	
 
 Floppy5SkewTable:					; each physical sector contains four
-;;						;  128-byte sectors	
-;;	DB	00,01,02,03,04,05,06,07,08,09
-;;	DB	10,11,12,13,14,15,16,17,18,19
-;;	DB	20,21,22,23,24,25,26,27,28,29
-;;	DB	30,31,32,33,34,35,36,37,38,39
-;;	DB	40,41,42,43,44,45,46,47,48,49
-;;	DB	50,51,52,53,54,55,56,57,58,59
-;;	DB	60,61,62,63,64,65,66,67,68,69
-;;	DB	70,71
+						;  128-byte sectors	
+	DB	00,01,02,03,04,05,06,07,08,09
+	DB	10,11,12,13,14,15,16,17,18,19
+	DB	20,21,22,23,24,25,26,27,28,29
+	DB	30,31,32,33,34,35,36,37,38,39
+	DB	40,41,42,43,44,45,46,47,48,49
+	DB	50,51,52,53,54,55,56,57,58,59
+	DB	60,61,62,63,64,65,66,67,68,69
+	DB	70,71
 Floppy8SkewTable:					; Standard 8" Driver
-;;	DB	00,01,02,03,04,05,06,07,08,09		; Physical Sectors
-;;	DB	10,11,12,13,14,15,16,17,18,19		; Physical Sectors
-;;	DB	20,21,22,23,24,25,26		; Physical Sectors
+	DB	00,01,02,03,04,05,06,07,08,09		; Physical Sectors
+	DB	10,11,12,13,14,15,16,17,18,19		; Physical Sectors
+	DB	20,21,22,23,24,25,26		; Physical Sectors
 
 ;---------------------------------------------------------------------------
 ;	Disk work area
@@ -1164,8 +1159,8 @@ Floppy8SkewTable:					; Standard 8" Driver
 	
 DiskAWorkArea:	DS	020H			; A:
 DiskBWorkArea:	DS	020H			; B:
-DiskCWorkArea:	DS	020H			; C:
-DiskDWorkArea:	DS	020H			; D:
+DiskCWorkArea:	DS	010H			; C:
+DiskDWorkArea:	DS	010H			; D:
 
 ;---------------------------------------------------------------------------
 ;	Disk allocation vectors
@@ -1179,8 +1174,8 @@ DiskDWorkArea:	DS	020H			; D:
 DiskAAllocationVector:	DS	(174/8)+1 	; A:
 DiskBAllocationVector:	DS	(174/8)+1 	; B:
 						
-DiskCAllocationVector:	DS	(174/8)+1 	; C:
-DiskDAllocationVector:	DS	(174/8)+1 	; A:
+DiskCAllocationVector:	DS	(242/8)+1 	; C:
+DiskDAllocationVector:	DS	(242/8)+1 	; A:
 ;---------------------------------------------------------------------------
 ;	Disk Buffer
 ;---------------------------------------------------------------------------
