@@ -468,7 +468,7 @@ SELDSK:
 	XCHG						; DE ->DPB
 	DCX	H				; DE -> prefix byte
 	MOV	A,M				; get Disk Type/Blocking byte
-						; Disk Type bottom nibble - Blocking MSB (bit 7)
+;;***** excess code around Disk Type ****						; Disk Type bottom nibble - Blocking MSB (bit 7)
 	ANI	0FH				; isolate disk type
 	STA	DiskType				; save for use in low level driver
 ;;	MOV	A,M				; get another copy
@@ -839,17 +839,18 @@ ReadPhysical:
 CommonPhysical:                                   
 	STA	DCTCommand			; set the command
 	
-	LDA	DiskType
-	CPI	Floppy5				; is it 5 1/4 ?
-	JZ	CorrectDisktype			; yes
-	MVI	A,1
-	STA	DiskError				; no set error and exit
-	RET
+;;	LDA	DiskType
+;;	CPI	Floppy5				; is it 5 1/4 ?
+;;	JZ	CorrectDisktype			; yes
+;;	MVI	A,1
+;;	STA	DiskError				; no set error and exit
+;;	RET
 ;---------	
 	
 CorrectDisktype:
 	LDA	InBufferDisk
-	ANI	01H				; only units 0 or 1
+;;	ANI	01H				; only units 0 or 1
+	ANI	03H				;; only units 0 to 3
 	STA	DCTUnit				; set disk
 	LHLD	InBufferTrack
 	MOV	A,L				; for this controller it is a byte value
@@ -963,15 +964,15 @@ DiskWriteCode	EQU	02H			; Code for Write
 ;	Disk Control tables
 ;***************************************************************************
 DiskControlTable:
-DCTCommand:	DB	00H			; Command
-DCTUnit:		DB	00H			; unit (drive) number = 0 or 1
-DCTHead:		DB	00H			; head number = 0 or 1
-DCTTrack:		DB	00H			; track number
-DCTSector:	DB	00H			; sector number
-DCTByteCount:	DW	0000H			; number of bytes to read/write
-DCTDMAAddress:	DW	0000H			; transfer address
-DCTNextStatusBlock:	DW	0000H			; pointer to next status block
-DCTNextControlLocation:	DW	0000H			; pointer to next control byte
+DCTCommand:		DB	00H		; Command
+DCTUnit:			DB	00H		; unit (drive) number = 0 or 1
+DCTHead:			DB	00H		; head number = 0 or 1
+DCTTrack:			DB	00H		; track number
+DCTSector:		DB	00H		; sector number
+DCTByteCount:		DW	0000H		; number of bytes to read/write
+DCTDMAAddress:		DW	0000H		; transfer address
+DCTNextStatusBlock:		DW	0000H		; pointer to next status block
+DCTNextControlLocation:	DW	0000H		; pointer to next control byte
 
 ;*******************************************************************************
 ;	 More tables
@@ -1025,11 +1026,11 @@ MustWriteBuffer:	DB	00H			; Non-zero when data has been written into DiskBuffer,
 ;     variables for selected disk, track and sector
 ; These are moved and compared as a group, DO NOT ALTER
 SelectedDkTrkSec:
-SelectedDisk:	DB	00H
-SelectedTrack:	DW	00H
-SelectedSector:	DB	00H
+SelectedDisk:		DB	00H
+SelectedTrack:		DW	00H
+SelectedSector:		DB	00H
 
-DMAAddress:	DW	00H			; DMA address
+DMAAddress:		DW	00H			; DMA address
 
 						;Selected physical sector derived from selected (CP/M) sector by shifting it
 						; right the number of of bits specified by SectorBitShift
@@ -1049,8 +1050,8 @@ DiskErrorFlag:		DB	00H		; Non-Zero - unrecoverable error output "Bad Sector" mes
 PrereadSectorFlag:		DB	00H		; non-zero if physical sector must be read into the disk buffer
 						; either before a write to a allocated block can occur, or
 						; for a normal CP/M 128 byte sector read
-ReadFlag:		DB	00H			; Non-zero when a CP/M 128 byte sector is to be read
-DiskType:		DB	00H			; Indicate 8" or 5 1/4" selected  (set in SELDSK)
+ReadFlag:			DB	00H		; Non-zero when a CP/M 128 byte sector is to be read
+DiskType:			DB	00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
 ;;DeblockingRequired:	DB	00H			; Non-zero when the selected disk needs de-blocking (set in SELDSK)
 
 ;---------------------------------------------------------------------------
@@ -1093,7 +1094,7 @@ DiskParameterHeaders:				; described in chapter 3
 	DW	DirectoryBuffer			; all disks use this buffer
 	DW	Floppy5ParameterBlock
 	DW	DiskCWorkArea
-	DW	DiskDAllocationVector
+	DW	DiskCAllocationVector
 	
 						; Logical Disk D: (8" Floppy)
 	DW	Floppy5SkewTable			; shares the same skew table as A:
@@ -1101,9 +1102,9 @@ DiskParameterHeaders:				; described in chapter 3
 	DW	0				; Last Selected Track #
 	DW	0				; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	Floppy5ParameterBlock
+	DW	HardDiskParameterBlock		;; Floppy5ParameterBlock
 	DW	DiskDWorkArea
-	DW	DiskCAllocationVector
+	DW	DiskDAllocationVector
 	
  	DB	Floppy5
 ;;	DB	Floppy5 + NeedDeblocking
@@ -1126,6 +1127,19 @@ Floppy5ParameterBlock:
 ;;	DB	Floppy8				; Indicates disk type and the fact
 	DB	HardDisk
 						;   that no de-blocking is required
+	
+HardDiskParameterBlock:
+	DW	090H				; 128-byte sectors per track- (72)
+	DB	04H				; Block shift ( 4=> 2K)
+	DB	0FH				; Block mask
+	DB	01 				; Extent mask
+	DW	2C6H 				; Maximum allocation block number (174)
+	DW	07FH 				; Number of directory entries - 1 (127)
+	DB	0C0H				; Bit map for reserving 1 alloc. block
+	DB	00				;  for file directory
+	DW	020H				; Disk change work area size (32)
+	DW	01				; Number of tracks before directory
+
 	
 ;;Floppy8ParameterBlock:
 ;;	DW	048H				; 128-byte sectors per track- (72)
@@ -1165,7 +1179,7 @@ Floppy8SkewTable:					; Standard 8" Driver
 DiskAWorkArea:	DS	020H			; A:
 DiskBWorkArea:	DS	020H			; B:
 DiskCWorkArea:	DS	020H			; C:
-DiskDWorkArea:	DS	020H			; D:
+DiskDWorkArea:	DS	060H			; D:
 
 ;---------------------------------------------------------------------------
 ;	Disk allocation vectors
@@ -1180,7 +1194,7 @@ DiskAAllocationVector:	DS	(174/8)+1 	; A:
 DiskBAllocationVector:	DS	(174/8)+1 	; B:
 						
 DiskCAllocationVector:	DS	(174/8)+1 	; C:
-DiskDAllocationVector:	DS	(174/8)+1 	; A:
+DiskDAllocationVector:	DS	060H		; (174/8)+1 	; A:
 ;---------------------------------------------------------------------------
 ;	Disk Buffer
 ;---------------------------------------------------------------------------

@@ -152,14 +152,17 @@ Begin:
 ; now we need to address the dirctory 	
 	CALL	ClearImages			; clear the image work area
 	CALL	SetUpDirectory			; put EmptyCode in all the directory entries 
+	JMP	0000H				; JMP EnterCPM 
+
+;///// 	
 ; Write the Directory 
 	HLT
 	LXI	H,WriteCommand4
 	CALL	DoWrite
 	LXI	H,WriteMessage4
 	CALL	SendMessage1
-	HLT					; temp, until the system is working fully
-	JMP		EnterCPM  	
+;	HLT					; temp, until the system is working fully
+	JMP	0000H				; JMP EnterCPM  	
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
 ; HL points to command block to use
