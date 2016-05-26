@@ -80,7 +80,7 @@ ExitProgram:
 ; write message given in de, reboot 
 	MVI	C,printf 
 	CALL	bdos				; write message 
-	JMP	bdos				; reboot system
+	JMP	boot				; reboot system
 ;
 ;    system interface subroutines
 ;    (all return directly from bdos)

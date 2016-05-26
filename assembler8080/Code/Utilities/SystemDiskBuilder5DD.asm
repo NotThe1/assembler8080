@@ -4,7 +4,14 @@
 ;
 ; SystemDiskBuilder program starts at location 0200
 ;
-
+; Track 0                       Sector
+;          1      2      3      4      5     6       7     8      9
+;Head  +------+------+------+------+------+------+------+------+-------+
+;  0   | BOOT |<========== CCP ==========>|<========== BDOS ==========>|
+;   1  +------+------+------+------+------+------+------+------+-------+
+;      |<====== BDOS ======>|<================= BIOS =================>|
+;      +------+------+------+------+------+------+------+------+-------+
+;          1      2      3      4      5     6       7     8      9
 
 
 DiskStatusBlock	EQU	0043H
@@ -71,9 +78,9 @@ WaitForBootComplete:
 BootControl:
 	DB	01H				; Read function
 	DB	00H				; unit number
-	DB	00H				; head number
+	DB	01H				; head number
 	DB	00H				; track number
-	DB	0DH				; Starting sector number ()
+	DB	04H				; Starting sector number ()
 	DW	5 * 512				; Number of bytes to read ( rest of the head)
 	DW	BIOSStart				; read into this address
 	DW	DiskStatusBlock			; pointer to next block - no linking
@@ -131,31 +138,31 @@ Begin:
 	CALL	DoWrite
 	LXI	H,WriteMessage1
 	CALL	SendMessage1
-; write the CCP &  BDOS
+; write the CCP & start of BDOS
 	LXI	H,WriteCommand2
 	CALL	DoWrite
 	LXI	H,WriteMessage2
 	CALL	SendMessage1
 ; Write the rest of BDOS
-;	LXI	H,WriteCommand3
-;	CALL	DoWrite
-;	LXI	H,WriteMessage3
-;	CALL	SendMessage1
-;;---------------------------------------------------	
+	LXI	H,WriteCommand3
+	CALL	DoWrite
+	LXI	H,WriteMessage3
+	CALL	SendMessage1
+;---------------------------------------------------	
 ; now we need to address the dirctory 	
-;;	CALL	ClearImages			; clear the image work area
-;	CALL	SetUpDirectory			; put EmptyCode in all the directory entries 
+	CALL	ClearImages			; clear the image work area
+	CALL	SetUpDirectory			; put EmptyCode in all the directory entries 
 	JMP	0000H				; JMP EnterCPM 
 
 ;///// 	
 ; Write the Directory 
-;	HLT
-;	LXI	H,WriteCommand4
-;	CALL	DoWrite
-;	LXI	H,WriteMessage4
-;	CALL	SendMessage1
-;;	HLT					; temp, until the system is working fully
-;	JMP	0000H				; JMP EnterCPM  	
+	HLT
+	LXI	H,WriteCommand4
+	CALL	DoWrite
+	LXI	H,WriteMessage4
+	CALL	SendMessage1
+;	HLT					; temp, until the system is working fully
+	JMP	0000H				; JMP EnterCPM  	
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
 ; HL points to command block to use
@@ -179,33 +186,33 @@ WaitForWriteComplete:
 	HLT
 	; and stop
 ;---------------------------------------------------	
-;ClearImages:
-;	LXI	B,DirectorySize  + 1
-;	LXI	H,DirectoryImage
-;ClearImages1:				
-;	MVI	M,0				; clear out the location
-;	INX	H				; point at the next location
-;	DCX	B				; count down
-;	MOV	A,C				; get lo byte
-;	ORA	B				; AND with Hi byte 
-;	JNZ	ClearImages1			; keep going if both (B) and (C) not 0
-;	RET					; we are done
-;	
-;SetUpDirectory:
-;	LXI	H,DirectoryImage
-;	LXI	D,FCBsize
-;	LXI	B,DirectoryEntries
-;SetUpDirectory1:
-;	MVI	M,EmptyCode			; put in the empty entry flag
-;	DAD	D				; point at next directory entry
-;	DCX	B				; count down
-;	MOV	A,C				; get lo byte
-;	ORA	B				; AND with Hi byte 
-;	JNZ	SetUpDirectory1			; keep going if both (B) and (C) not 0
-;	
-;;	LXI	H,FATImage			; point at the File Allocation Table
-;;	MVI	M,0C0H				; allocate the firt two Blocks
-;	RET					; we are done		
+ClearImages:
+	LXI	B,DirectorySize  + 1
+	LXI	H,DirectoryImage
+ClearImages1:				
+	MVI	M,0				; clear out the location
+	INX	H				; point at the next location
+	DCX	B				; count down
+	MOV	A,C				; get lo byte
+	ORA	B				; AND with Hi byte 
+	JNZ	ClearImages1			; keep going if both (B) and (C) not 0
+	RET					; we are done
+	
+SetUpDirectory:
+	LXI	H,DirectoryImage
+	LXI	D,FCBsize
+	LXI	B,DirectoryEntries
+SetUpDirectory1:
+	MVI	M,EmptyCode			; put in the empty entry flag
+	DAD	D				; point at next directory entry
+	DCX	B				; count down
+	MOV	A,C				; get lo byte
+	ORA	B				; AND with Hi byte 
+	JNZ	SetUpDirectory1			; keep going if both (B) and (C) not 0
+	
+;	LXI	H,FATImage			; point at the File Allocation Table
+;	MVI	M,0C0H				; allocate the firt two Blocks
+	RET					; we are done		
 ;---------------------------------------------------
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++	
 ; write the boot sector	
@@ -222,27 +229,27 @@ WriteCommand1:
 ;---------------------------------------------------
 ; write the CCP & start of BDOS
 WriteCommand2:
-	DB	02H				; Write function
-	DB	00H				; unit number
-	DB	00H				; head number
-	DB	00H				; track number
-	DB	02H				; Starting sector number (after boot sector)
-	DW	16 * 512				; Number of bytes to write (rest of head)
-	DW	CCPStart				; write from this address
-	DW	DiskStatusBlock			; pointer to next block - no linking
-	DW	DiskControlTable			; pointer to next table- no linking	
+	DB		02H				; Write function
+	DB		00H				; unit number
+	DB		00H				; head number
+	DB		00H				; track number
+	DB		02H				; Starting sector number (after boot sector)
+	DW		8 * 512				; Number of bytes to write (rest of head)
+	DW		CCPStart				; write from this address
+	DW		DiskStatusBlock			; pointer to next block - no linking
+	DW		DiskControlTable			; pointer to next table- no linking	
 ;---------------------------------------------------
 ; Write the rest of BDOS	
-;WriteCommand3:
-;	DB	02H					; Write function
-;	DB	00H					; unit number
-;	DB	01H					; head number
-;	DB	00H					; track number
-;	DB	01H					; Starting sector number (First one)
-;	DW	8 * 512					; Number of bytes to write (Boot sector)
-;	DW	CCPStart + (8*512)				; write from this address
-;	DW	DiskStatusBlock				; pointer to next block - no linking
-;	DW	DiskControlTable				; pointer to next table- no linking
+WriteCommand3:
+	DB	02H					; Write function
+	DB	00H					; unit number
+	DB	01H					; head number
+	DB	00H					; track number
+	DB	01H					; Starting sector number (First one)
+	DW	8 * 512					; Number of bytes to write (Boot sector)
+	DW	CCPStart + (8*512)				; write from this address
+	DW	DiskStatusBlock				; pointer to next block - no linking
+	DW	DiskControlTable				; pointer to next table- no linking
 ;---------------------------------------------------
 ; Write Directory image - all entries show deleted file	
 WriteCommand4:

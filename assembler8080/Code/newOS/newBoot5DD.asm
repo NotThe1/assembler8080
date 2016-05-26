@@ -60,9 +60,9 @@ WaitForBootComplete:
 BootControl:
 	DB	01H				; Read function
 	DB	00H				; unit number
-	DB	00H				; head number
+	DB	01H				; head number
 	DB	00H				; track number
-	DB	0CH				; Starting sector number ()
+	DB	04H				; Starting sector number ()
 	DW	5 * PhysicalSectorSize		; Number of bytes to read ( rest of the head)
 	DW	BIOSStart				; read into this address
 	DW	DiskStatusBlock			; pointer to next block - no linking
