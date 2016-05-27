@@ -393,9 +393,14 @@ SELDSK:
 	LXI	D,DiskParameterHeaders			; get base address
 	DAD	D				; DE -> appropriate DPH
 	PUSH	HL				; Save DPH pointer
-	LXI	DE,15
+	LXI	DE,10				; point at Parameter Block
 	DAD	D				; point at the Number of Sectors/Head
-	LDAX	DE
+	MOV	E,M
+	INX	HL
+	MOV	D,M				; DE has Parameter Block
+	LXI	HL,15
+	DAD	DE				; HL is at SecPerHeadPerTrack
+	MOV	A,M				; get the value and
 	STA	SelectedDskSecsPerHead		; save for actual IO	
 
 
@@ -746,21 +751,24 @@ CommonPhysical:
 	STA	DCTTrack				; set track
 ;  The sector must be converted into a head number and sector number.
 ; This set of disks and Diskettes only have two Heads ******
-	LXI	HL,SelectedDskSecsPerHead;
 	MVI	B,0				; assume head 0
-	LDA	InBufferSector
-	MOV	C,A				; save copy
-	CMP	M				; was 09H
-	JC	Head0
-	SUB	M				; 09H Modulo sector
-	MOV	C,A
-	INR	B				; set head to 1
+	LXI	HL,SelectedDskSecsPerHead		; Point at track counts
+	LDA	InBufferSector			; get target sector
 Head0:
+	CMP	M				; Need another Head?
+	JC	Head1				; nope Acc < M
+	JZ	Head1				; nope Acc = M
+	SUB	M				; subtrack track value
+	INR	B				; Increment head
+	JMP	Head0				; loop til done
+	
+Head1:
+	INR	A				; physical sectors start at 1
+	STA	DCTSector
+	; set sector
 	MOV	A,B
 	STA	DCTHead				; set head number
-	MOV	A,C
-	INR	A				; physical sectors start at 1
-	STA	DCTSector				; set sector
+
 	LXI	H,PhysicalSectorSize
 	SHLD	DCTByteCount			; set byte count
 	LXI	H,DiskBuffer
