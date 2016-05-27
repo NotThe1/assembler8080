@@ -2825,17 +2825,17 @@ caListSize	EQU	caListSizeEnd - caListSizeStart	;addlist	equ	$-caDirectoryDMA	 ad
 ; data must be adjacent, do not insert variables
 ; dpb - Disk Parameter Block
 dpbStart:
-dpbSPT:	DW	0000H				; sectpt sectors per track
-dpbBSH:	DB	0000H				; blkshf block shift factor
-dpbBLM:	DB	00H				; blkmsk block mask
-dpbEXM:	DB	00H				; extmsk extent mask
-dpbDSM:	DW	0000H				; maxall maximum allocation number
-dpbDRM:	DW	0000H				; dirmax largest directory number
-dpbDABM:	DW	0000H				; dirblk reserved allocation bits for directory
-dpbCKS:	DW	0000H				; chksiz size of checksum vector
-dpbOFF:	DW	0000H				; offset offset tracks at beginning
-dpbEnd:
-dpbSize	EQU	dpbEnd - dpbStart	;dpblist	equ	$-dpbSPT	;size of area
+dpbSPT:		DW	0000H			; sectpt sectors per track
+dpbBSH:		DB	0000H			; blkshf block shift factor
+dpbBLM:		DB	00H			; blkmsk block mask
+dpbEXM:		DB	00H			; extmsk extent mask
+dpbDSM:		DW	0000H			; maxall maximum allocation number
+dpbDRM:		DW	0000H			; dirmax largest directory number
+dpbDABM:		DW	0000H			; dirblk reserved allocation bits for directory
+dpbCKS:		DW	0000H			; chksiz size of checksum vector
+dpbOFF:		DW	0000H			; offset offset tracks at beginning
+dpbEnd:	
+dpbSize		EQU	dpbEnd - dpbStart	;dpblist	equ	$-dpbSPT	;size of area
 ;
 
 ;     ************************
