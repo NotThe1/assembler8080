@@ -1000,7 +1000,7 @@ ScanDiskMap:					; scandm
 	LXI	DE,diskMap
 	DAD	D				; hl now addresses the disk map
 	PUSH	BC				; save the 0/1 bit to set
-	MVI	C,fcbLength-diskMap+1 ; size of single byte disk map + 1
+	MVI	C,fcbLength-diskMap+1		; size of single byte disk map + 1
 	
 ScanDiskMap0:					; loop once for each disk map entry
 	POP	DE				; recall bit parity
@@ -1016,7 +1016,7 @@ ScanDiskMap0:					; loop once for each disk map entry
 	PUSH	HL				; save map address
 	MOV	C,M
 	MVI	B,0				; BC=block#
-	JMP ScanDiskMap2
+	JMP	ScanDiskMap2
 	
 ScanDiskMap1:					; two byte scan operation
 	DCR	C				; count for double byte
@@ -2463,9 +2463,9 @@ GetDiskMapValue:					; getdm
 GetDiskMapValue1:					; getdmd:
 	DAD	BC				; HL=.fcb(dm+i*2)
 						; double precision value returned
-	MOV	E,M
-	INX	HL
 	MOV	D,M
+	INX	HL
+	MOV	E,M
 	XCHG
 	RET
 ;---------------------
