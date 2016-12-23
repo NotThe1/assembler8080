@@ -1,19 +1,14 @@
 package assembler;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.EventQueue;
-
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenuBar;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-//import javax.swing.filechooser.FileFilter;
-import javax.swing.filechooser.FileNameExtensionFilter;
-
-import java.awt.event.ActionListener;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.io.BufferedReader;
@@ -36,20 +31,20 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
-import javax.swing.JButton;
-
-//import MyParser.EvaluationException;
-//import MyParser.ExpressionNode;
-//import MyParser.Parser;
-//import MyParser.ParserException;
-//import MyParser.SetVariable;
-//import MyParser.Token;
-//import MyParser.Tokenizer;
-
-import javax.swing.JCheckBox;
+import javax.swing.SwingConstants;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import parser.EvaluationException;
 import parser.ExpressionNode;
@@ -59,20 +54,9 @@ import parser.SetVariable;
 import parser.Token;
 import parser.Tokenizer;
 
-import java.awt.Color;
-import java.awt.GridBagLayout;
-import java.awt.GridBagConstraints;
-import java.awt.Insets;
-import java.awt.Font;
-
-import javax.swing.JSplitPane;
-import javax.swing.SwingConstants;
-
 public class ASM implements ActionListener, AdjustmentListener {
 
 	private JFrame frame;
-	// private JFileChooser chooser;
-
 	private File asmSourceFile = null;
 	private JButton btnStart;
 	private Scanner scanner;
@@ -90,15 +74,13 @@ public class ASM implements ActionListener, AdjustmentListener {
 	private String defaultDirectory;
 
 	private LinkedList<PassOne> passOneList;
-	// private String baseFileName;
 	private SymbolTable symbolTable;
 	private InstructionCounter instructionCounter;
-	private HashMap<Integer, Byte> memoryImage; // allows for non contiguous
-												// memory utilization
-
+	private HashMap<Integer, Byte> memoryImage; /* allows for non contiguous memory utilization */
+												
 	private Tokenizer tokenizer;
+	
 	private Parser parser;
-
 	private int lineNumber;
 	private boolean isEmptyLine;
 	private int currentPC;
@@ -1009,7 +991,7 @@ public class ASM implements ActionListener, AdjustmentListener {
 		case "mnuFileOpen":
 			JFileChooser chooserOpen = getFileChooser(defaultDirectory, "Assembler Source Code", ASSEMBLER_SUFFIX);
 			if (chooserOpen.showOpenDialog(frame) != JFileChooser.APPROVE_OPTION) {
-				System.out.printf("You cancelled the file open%n", "");
+				System.out.println("You cancelled the file open%n");
 			} else {
 				txtSource.setText("");
 				txtListing.setText("");
