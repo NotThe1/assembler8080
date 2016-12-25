@@ -21,8 +21,7 @@ public class InstructionCounter {
 		if (currentSegment == ASEG) {
 			return;
 		}// ASEG
-		if (this.allocationType[currentSegment] == null) { // only set for the
-															// first declaration
+		if (this.allocationType[currentSegment] == null) { /* only set for the first declaration */
 			this.allocationType[currentSegment] = allocationType;
 		}// if - first declaration
 
@@ -51,10 +50,6 @@ public class InstructionCounter {
 		return priorLocation[currentSegment];
 	}// getCurrentLocation
 	
-//	public void setCurrentLocation(int location){
-//		location[currentSegment] = location;
-//	}// setCurrentLocation
-
 	public int getCurrentSegment() {
 		return currentSegment;
 	}// getCurrentSegment
