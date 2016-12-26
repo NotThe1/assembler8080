@@ -53,15 +53,15 @@ public class ASM {
 	private File asmSourceFile = null;
 	private StyledDocument docSource;
 	private StyledDocument docListing;
-	
+
 	private boolean isEmptyLine;
 	private String symbol;
 	private Directive directive;
 	private Instruction instruction;
 	private String arguments;
 	private String comment;
-	
-//	private int currentPC;
+
+	// private int currentPC;
 
 	/* ---------------------------------------------------------------------------------- */
 	private void openFile() {
@@ -93,8 +93,8 @@ public class ASM {
 		instructionCounter.reset();
 		symbolTable.reset();
 		if (asmSourceFile != null) {
-			
-			 passOne();
+
+			passOne();
 			// passTwo(asmSourceFile);
 			// // passOne(asmSourceFile);
 			// // passTwo(asmSourceFile);
@@ -134,9 +134,9 @@ public class ASM {
 					lineNumber = doInclude(fileReference, sourceFile.getParentFile().getAbsolutePath(), lineNumber);
 				} // if
 			} // while
-			 reader.close();
+			reader.close();
 		} catch (IOException e) {
-			 e.printStackTrace();
+			e.printStackTrace();
 		} // TRY
 		return lineNumber;
 	}// passZero
@@ -150,14 +150,14 @@ public class ASM {
 			fileReference += "." + SUFFIX_ASSEMBLER;
 		} //
 
-			 String includeMarker = ";<<<<<<<<<<<<<<<<<<<<<<< Include >>>>>>>>>>>>>>>>";
-			 insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
-			
-			 File includedFile = new File(fileReference);
-			 lineNumber = loadSourceFile(includedFile,lineNumber);
-			
-			 insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
-			//
+		String includeMarker = ";<<<<<<<<<<<<<<<<<<<<<<< Include >>>>>>>>>>>>>>>>";
+		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
+
+		File includedFile = new File(fileReference);
+		lineNumber = loadSourceFile(includedFile, lineNumber);
+
+		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
+		//
 		return lineNumber;
 	}// doInclude
 
@@ -167,11 +167,12 @@ public class ASM {
 		} catch (BadLocationException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} // try	
+		} // try
 	}// insertSource
-	
+
 	private void insertListing(String str) {
 		try {
+			// docListing.
 			docListing.insertString(docListing.getLength(), str, null);
 		} catch (BadLocationException e) {
 			// TODO Auto-generated catch block
@@ -179,73 +180,70 @@ public class ASM {
 		} // try
 	}// insertSource
 	/* .................................................................................. */
+
 	public void passOne() {
-		Matcher matcher;
-		Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
-
-		String line;
-
+		boolean emptyLine = true;
+		int lineNumber;
+		String sourceLine;
+		LineParser lineParser = new LineParser();
 		Scanner scannerPassOne = new Scanner(tpSource.getText());
+
 		while (scannerPassOne.hasNextLine()) {
-			line = scannerPassOne.nextLine();
-			matcher = patternForLineNumber.matcher(line);
-			if (!matcher.lookingAt()) {
-				continue;
-			}// no line number
-			int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
-			//*****			parseLine(lineNumber, line.substring(matcher.end(), line.length()));
-			
-			test(lineNumber, line.substring(matcher.end(), line.length()));
-			
-			insertListing(line.substring(matcher.end(), line.length()));
-		}// while
-//
-//		// symbolTable.passOneDone();
-//		SymbolTable.passOneDone();
-//		instructionCounter.reset();
-//		scannerPassOne.close();
+			sourceLine = scannerPassOne.nextLine();
+			if (sourceLine.equals(EMPTY_STRING)){
+					continue;
+			}//if skip textbox's emty lines
+			emptyLine = lineParser.parse(sourceLine);
+			lineNumber = lineParser.getLineNumber();
+			// ****int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
+			// ***** parseLine(lineNumber, line.substring(matcher.end(), line.length()));
+insertListing(lineNumber + LINE_SEPARATOR);
+//			insertListing(sourceLine + LINE_SEPARATOR);
+		} // while
+			//
+			// // symbolTable.passOneDone();
+			// SymbolTable.passOneDone();
+			// instructionCounter.reset();
+			tpListing.setCaretPosition(0);
+			 scannerPassOne.close();
 	}// buildTheSymbolTable
-	private void test(int lineNumber, String sourceLine){
-		String workingLine = sourceLine.replaceAll("\t", " ");
-	}//test
-	
+
 	private void parseLine(int lineNumber, String sourceLine) {
-		String workingLine = sourceLine.replaceAll("\t", " ");
-		int currentPC = instructionCounter.getCurrentLocation();
-		clearElements();
-		if (workingLine.length() == 0) {// do nothing on an empty line
-			isEmptyLine = true;
-			return;
-		}// if - empty source line
-
-		workingLine = checkForComment(workingLine); // check for Comment
-
-		// comments have been removed from the working line
-
-		if (workingLine.length() == 0) {
-			return; // all done! the whole line was a comment
-		}// if
-
-//		workingLine = checkForInstruction(workingLine);
-//		if (instruction == null) {
-//			workingLine = checkForDirective(workingLine, lineNumber);
-//		}//
-//
-//		if (workingLine.length() == 0) {
-//			return; // all done!
-//		}// if
-//
-//		// must be a label/name at begging of line
-//		workingLine = checkForSymbol(workingLine, lineNumber);
-//
-//		if (workingLine.length() == 0) {
-//			return; // all done!
-//		}// if
-//
-//		workingLine = checkForDirective(workingLine, lineNumber);
-//		if (directive == null) {
-//			workingLine = checkForInstruction(workingLine);
-//		}//
+		// int currentPC = instructionCounter.getCurrentLocation();
+		// clearElements();
+		// if (workingLine.length() == 0) {// do nothing on an empty line
+		// isEmptyLine = true;
+		// return;
+		// } // if - empty source line
+		//
+		// workingLine = checkForComment(workingLine); // check for Comment
+		//
+		// // comments have been removed from the working line
+		//
+		// if (workingLine.length() == 0) {
+		// return; // all done! the whole line was a comment
+		// } // if
+		/* =================================== */
+		// workingLine = checkForInstruction(workingLine);
+		// if (instruction == null) {
+		// workingLine = checkForDirective(workingLine, lineNumber);
+		// }//
+		//
+		// if (workingLine.length() == 0) {
+		// return; // all done!
+		// }// if
+		//
+		// // must be a label/name at begging of line
+		// workingLine = checkForSymbol(workingLine, lineNumber);
+		//
+		// if (workingLine.length() == 0) {
+		// return; // all done!
+		// }// if
+		//
+		// workingLine = checkForDirective(workingLine, lineNumber);
+		// if (directive == null) {
+		// workingLine = checkForInstruction(workingLine);
+		// }//
 
 	}// parseLine
 
@@ -258,7 +256,7 @@ public class ASM {
 		arguments = null;
 		comment = null;
 	}// clearElements
-	
+
 	private String checkForComment(String lineToCheck) {
 		Pattern patternForComments = Pattern.compile(";.*");
 
@@ -268,10 +266,10 @@ public class ASM {
 			if (comment.contains("'")) {// is there a single quote here?
 				if (lineToCheck.substring(0, matcher.start()).contains("'")) {
 					comment = null;
-				}// its all inside a string
-			}// if single quote fund
+				} // its all inside a string
+			} // if single quote fund
 			lineToCheck = lineToCheck.substring(0, matcher.start()).trim();
-		}// if comments found
+		} // if comments found
 		return lineToCheck.trim();
 	}// checkForComment
 	/* ---------------------------------------------------------------------------------- */
@@ -557,12 +555,15 @@ public class ASM {
 	private static final String MNU_FILE_PRINT_SOURCE = "mnuFilePrintSource";
 	private static final String MNU_FILE_PRINT_LISTING = "mnuFilePrintListing";
 	private static final String MNU_FILE_EXIT = "mnuFileExit";
+	private static final String LINE_SEPARATOR = String.format("%n", "");
 
 	private static final String FILE_SEPARATOR = File.separator;
 	private static final String DEFAULT_DIRECTORY = "." + FILE_SEPARATOR + "Code" + FILE_SEPARATOR + ".";
 	private final static String SUFFIX_ASSEMBLER = "asm";
 	private final static String SUFFIX_LISTING = "list";
 	private final static String SUFFIX_MEMORY = "mem";
+	private static final String EMPTY_STRING = ""; // empty string
+
 	private JLabel lblSourceFilePath;
 	private JButton btnStart;
 	private JTextPane tpSource;
