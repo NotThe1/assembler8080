@@ -14,8 +14,12 @@ public class LineParser {
 	String instruction;
 	String label;
 	String lineNumberStr;
-	int opCodeSize;
 	String symbol;
+	int operandType;
+	int operand1Shift;
+	int operand2Shift;
+	byte baseCode;
+	int opCodeSize;
 
 	boolean activeLine;
 
@@ -38,7 +42,7 @@ public class LineParser {
 
 	public boolean isActiveLine() {
 		return this.activeLine;
-	}// isEmptyLine
+	}// isActiveLine
 
 	public boolean hasArgument() {
 		return this.arguments != null;
@@ -54,7 +58,7 @@ public class LineParser {
 
 	public String getComment() {
 		return this.comment;
-	}// getArgument
+	}// getComment
 
 	public boolean hasDirective() {
 		return this.directive != null;
@@ -66,11 +70,11 @@ public class LineParser {
 
 	public boolean hasInstruction() {
 		return this.instruction != null;
-	}// hasOpCode
+	}// hasInstruction
 
 	public String getInstruction() {
 		return this.instruction;
-	}// getArgument
+	}// getInstruction
 
 	public boolean hasLabel() {
 		return this.label != null;
@@ -78,7 +82,7 @@ public class LineParser {
 
 	public String getLabel() {
 		return this.label;
-	}// getArgument
+	}// getLabel
 
 	public boolean hasLineNumber() {
 		return this.lineNumberStr != null;
@@ -89,21 +93,37 @@ public class LineParser {
 	}// getLineNumberStr
 
 	public int getLineNumber() {
-		int ln = hasLineNumber()?Integer.valueOf(this.lineNumberStr, 10):-1;
+		int ln = hasLineNumber() ? Integer.valueOf(this.lineNumberStr, 10) : -1;
 		return ln;
-	}// getLineNumberInt
-
-	public int getOpCodeSize() {
-		return this.opCodeSize;
 	}// getLineNumberInt
 
 	public boolean hasSymbol() {
 		return this.symbol != null;
-	}// hasOpCode
+	}// hasSymbol
 
 	public String getSymbol() {
 		return this.symbol;
-	}// getArgument
+	}// getSymbol
+
+	public int getOpCodeSize() {
+		return this.opCodeSize;
+	}// getOpCodeSize
+
+	public int getOperandType() {
+		return this.operandType;
+	}// getOperandType
+
+	public int getOperand1Shift() {
+		return this.operand1Shift;
+	}// getOperand1Shift
+
+	public int getOperand2Shift() {
+		return this.operand2Shift;
+	}// getOperand2Shift
+
+	public byte getBaseCode() {
+		return this.baseCode;
+	}// getBaseCode
 
 	private void clear() {
 		this.arguments = null;
@@ -112,15 +132,22 @@ public class LineParser {
 		this.label = null;
 		this.lineNumberStr = null;
 		this.instruction = null;
-		this.opCodeSize = 0;
 		this.symbol = null;
+
+		this.opCodeSize = 0;
+		this.operandType = Instruction.ARGUMENT_NONE;
+		this.operand1Shift = 0;
+		this.operand2Shift = 0;
+		this.baseCode = (byte) 0X00;
 
 		this.activeLine = false;
 	}// clear
+
 	/**
 	 * parses the source line and identifies the its components
+	 * 
 	 * @param sourceLine
-	 * @return 
+	 * @return
 	 */
 
 	public boolean parse(String sourceLine) {
@@ -131,16 +158,12 @@ public class LineParser {
 			return activeLine;
 		} // if
 		activeLine = true;
-		
+
 		workingLine = findLineNumber(workingLine);
 		if (workingLine.length() == 0)
 			return this.activeLine;
 
 		workingLine = findComment(workingLine);
-
-		workingLine = findLabelOrSymbol(workingLine);
-		if (workingLine.length() == 0)
-			return this.activeLine;
 
 		workingLine = findInstruction(workingLine);
 		if (workingLine.length() == 0)
@@ -152,6 +175,9 @@ public class LineParser {
 		if (workingLine.length() == 0)
 			return this.activeLine;
 
+		workingLine = findLabelOrSymbol(workingLine);
+		if (workingLine.length() == 0)
+			return this.activeLine;
 		// System.out.printf("%n[LineParser.parse] sourceLine: %s%n", sourceLine);
 		// System.out.printf("[LineParser.parse] \tworkingLine: %s%n", workingLine);
 		// System.out.printf("[LineParser.parse] \t\tcomment: %s%n", comment);
@@ -163,26 +189,44 @@ public class LineParser {
 
 	private String findDirective(String workingLine) {
 		String netLine = new String(workingLine).trim();
+		this.directive = null;
+
 		matcher = patternForDirectives.matcher(netLine);
 		if (matcher.find()) {
 			this.directive = matcher.group();
+			this.arguments = (matcher.end() < netLine.length())
+					? netLine.substring(matcher.end(), netLine.length()).trim() : null;
 			netLine = matcher.replaceFirst(EMPTY_STRING);
-		} else {
-			this.directive = null;
 		} // if
 		return netLine;
 	}// findInstruction
 
 	private String findInstruction(String workingLine) {
 		String netLine = new String(workingLine).trim();
+		this.instruction = null;
+		this.opCodeSize = 0;
+		// this.arguments = null;
+		this.operandType = Instruction.ARGUMENT_NONE;
+		this.operand1Shift = 0;
+		this.operand2Shift = 0;
+		this.baseCode = (byte) 0X00;
 		matcher = patternForInstructions.matcher(netLine);
+
 		if (matcher.find()) {
 			this.instruction = matcher.group().toUpperCase();
-			this.opCodeSize= InstructionSet.getOpCodeSize(this.instruction);
+//			this.arguments = (matcher.end() < netLine.length())
+//					? netLine.substring(matcher.end(), netLine.length() - matcher.end()) : null;
+			this.arguments = (matcher.end() < netLine.length())
+					? netLine.substring(matcher.end(), netLine.length()).trim() : null;
+			this.opCodeSize = InstructionSet.getOpCodeSize(this.instruction);
+			this.operandType = InstructionSet.getOperandType(this.instruction);
+			this.operand1Shift = InstructionSet.getOperand1Shift(this.instruction);
+			this.operand2Shift = InstructionSet.getOperand2Shift(this.instruction);
+			this.baseCode = InstructionSet.getBaseCode(this.instruction);
+
 			netLine = matcher.replaceFirst(EMPTY_STRING);
-		} else {
-			this.instruction = null;
-		} // if
+
+		} // if instrucion found
 		return netLine;
 	}// findInstruction
 
@@ -263,7 +307,7 @@ public class LineParser {
 	}// inRange
 
 	private String findLineNumber(String workingLine) {
-		String netLine = new String(workingLine);	//.trim()
+		String netLine = new String(workingLine); // .trim()
 
 		matcher = patternForLineNumber.matcher(netLine);
 		if (matcher.lookingAt()) {
