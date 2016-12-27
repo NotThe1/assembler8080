@@ -8,15 +8,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class LineParser {
-	String argument;
+	String arguments;
 	String comment;
 	String directive;
+	String instruction;
 	String label;
 	String lineNumberStr;
-	String instruction;
+	int opCodeSize;
 	String symbol;
 
-	boolean emptyLine;
+	boolean activeLine;
 
 	Matcher matcher;
 
@@ -35,16 +36,16 @@ public class LineParser {
 		// TODO Auto-generated constructor stub
 	}// Constructor
 
-	public boolean isEmptyLine() {
-		return this.emptyLine;
+	public boolean isActiveLine() {
+		return this.activeLine;
 	}// isEmptyLine
 
 	public boolean hasArgument() {
-		return this.argument != null;
+		return this.arguments != null;
 	}// hasArgument
 
 	public String getArgument() {
-		return this.argument;
+		return this.arguments;
 	}// getArgument
 
 	public boolean hasComment() {
@@ -62,6 +63,14 @@ public class LineParser {
 	public String getDirective() {
 		return this.directive;
 	}// getDirective
+
+	public boolean hasInstruction() {
+		return this.instruction != null;
+	}// hasOpCode
+
+	public String getInstruction() {
+		return this.instruction;
+	}// getArgument
 
 	public boolean hasLabel() {
 		return this.label != null;
@@ -84,13 +93,9 @@ public class LineParser {
 		return ln;
 	}// getLineNumberInt
 
-	public boolean hasInstruction() {
-		return this.instruction != null;
-	}// hasOpCode
-
-	public String getInstruction() {
-		return this.instruction;
-	}// getArgument
+	public int getOpCodeSize() {
+		return this.opCodeSize;
+	}// getLineNumberInt
 
 	public boolean hasSymbol() {
 		return this.symbol != null;
@@ -101,45 +106,51 @@ public class LineParser {
 	}// getArgument
 
 	private void clear() {
-		this.argument = null;
+		this.arguments = null;
 		this.comment = null;
 		this.directive = null;
 		this.label = null;
 		this.lineNumberStr = null;
 		this.instruction = null;
+		this.opCodeSize = 0;
 		this.symbol = null;
 
-		this.emptyLine = false;
+		this.activeLine = false;
 	}// clear
+	/**
+	 * parses the source line and identifies the its components
+	 * @param sourceLine
+	 * @return 
+	 */
 
 	public boolean parse(String sourceLine) {
 		String workingLine = sourceLine.replaceAll("\t", SPACE);
 		clear();
 		if (workingLine.trim().length() == 0) {
-			emptyLine = true;
-			return emptyLine;
+			activeLine = false;
+			return activeLine;
 		} // if
-		emptyLine = false;
+		activeLine = true;
 		
 		workingLine = findLineNumber(workingLine);
 		if (workingLine.length() == 0)
-			return this.emptyLine;
+			return this.activeLine;
 
 		workingLine = findComment(workingLine);
 
 		workingLine = findLabelOrSymbol(workingLine);
 		if (workingLine.length() == 0)
-			return this.emptyLine;
+			return this.activeLine;
 
 		workingLine = findInstruction(workingLine);
 		if (workingLine.length() == 0)
-			return this.emptyLine;
+			return this.activeLine;
 
 		if (this.instruction == null) {
 			workingLine = findDirective(workingLine);
 		} // if no instruction
 		if (workingLine.length() == 0)
-			return this.emptyLine;
+			return this.activeLine;
 
 		// System.out.printf("%n[LineParser.parse] sourceLine: %s%n", sourceLine);
 		// System.out.printf("[LineParser.parse] \tworkingLine: %s%n", workingLine);
@@ -147,7 +158,7 @@ public class LineParser {
 		// System.out.printf("[LineParser.parse] \t\tlabel: %s%n", label);
 		// System.out.printf("[LineParser.parse] \t\tInstruction: %s%n", instruction);
 		// System.out.printf("[LineParser.parse] \t\tDirective: %s%n", directive);
-		return this.emptyLine;
+		return this.activeLine;
 	}// parse
 
 	private String findDirective(String workingLine) {
@@ -166,7 +177,8 @@ public class LineParser {
 		String netLine = new String(workingLine).trim();
 		matcher = patternForInstructions.matcher(netLine);
 		if (matcher.find()) {
-			this.instruction = matcher.group();
+			this.instruction = matcher.group().toUpperCase();
+			this.opCodeSize= InstructionSet.getOpCodeSize(this.instruction);
 			netLine = matcher.replaceFirst(EMPTY_STRING);
 		} else {
 			this.instruction = null;

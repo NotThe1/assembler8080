@@ -33,6 +33,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
@@ -53,6 +54,8 @@ public class ASM {
 	private File asmSourceFile = null;
 	private StyledDocument docSource;
 	private StyledDocument docListing;
+	private JScrollBar sbarSource;
+	private JScrollBar sbarListing;
 
 	private boolean isEmptyLine;
 	private String symbol;
@@ -93,7 +96,7 @@ public class ASM {
 		instructionCounter.reset();
 		symbolTable.reset();
 		if (asmSourceFile != null) {
-
+			loadSourceFile(asmSourceFile, 1);
 			passOne();
 			// passTwo(asmSourceFile);
 			// // passOne(asmSourceFile);
@@ -190,23 +193,33 @@ public class ASM {
 
 		while (scannerPassOne.hasNextLine()) {
 			sourceLine = scannerPassOne.nextLine();
-			if (sourceLine.equals(EMPTY_STRING)){
-					continue;
-			}//if skip textbox's emty lines
-			emptyLine = lineParser.parse(sourceLine);
+			if (sourceLine.equals(EMPTY_STRING)) {
+				continue;
+			} // if skip textbox's empty lines
+			
+			if(!lineParser.parse(sourceLine)){
+				continue;
+			} // if skip textbox's empty lines
+			
+			
 			lineNumber = lineParser.getLineNumber();
-			// ****int lineNumber = Integer.valueOf(matcher.group().trim(), 10);
+
 			// ***** parseLine(lineNumber, line.substring(matcher.end(), line.length()));
-insertListing(lineNumber + LINE_SEPARATOR);
-//			insertListing(sourceLine + LINE_SEPARATOR);
+			insertListing(lineParser.getLineNumberStr() + "\t" + lineNumber + LINE_SEPARATOR);
+			
 		} // while
 			//
 			// // symbolTable.passOneDone();
 			// SymbolTable.passOneDone();
 			// instructionCounter.reset();
-			tpListing.setCaretPosition(0);
-			 scannerPassOne.close();
+		tpListing.setCaretPosition(0);
+		scannerPassOne.close();
 	}// buildTheSymbolTable
+	
+	private void parseLine(LineParser lp){
+		int currentPC = instructionCounter.getCurrentLocation();
+		//comment
+	}
 
 	private void parseLine(int lineNumber, String sourceLine) {
 		// int currentPC = instructionCounter.getCurrentLocation();
@@ -318,7 +331,14 @@ insertListing(lineNumber + LINE_SEPARATOR);
 
 		// symbolTable = new SymbolTable(instructionCounter);
 		docSource = tpSource.getStyledDocument();
+		sbarSource = spSource.getVerticalScrollBar();
+		sbarSource.setName(SBAR_SOURCE);
+		sbarSource.addAdjustmentListener(adapterForASM);
+
 		docListing = tpListing.getStyledDocument();
+		sbarListing = spListing.getVerticalScrollBar();
+		sbarListing.setName(SBAR_LISTING);
+		sbarListing.addAdjustmentListener(adapterForASM);
 	}// appInit
 
 	/**
@@ -528,8 +548,12 @@ insertListing(lineNumber + LINE_SEPARATOR);
 		/* AdjustmentListener */
 
 		@Override
-		public void adjustmentValueChanged(AdjustmentEvent arg0) {
-			// TODO Auto-generated method stub
+		public void adjustmentValueChanged(AdjustmentEvent adjustmentEvent) {
+			if (adjustmentEvent.getSource() instanceof JScrollBar) {
+				int value = ((JScrollBar) adjustmentEvent.getSource()).getValue();
+				sbarSource.setValue(value);
+				sbarListing.setValue(value);
+			} // if scroll bar
 
 		}// adjustmentValueChanged
 
@@ -549,14 +573,19 @@ insertListing(lineNumber + LINE_SEPARATOR);
 	private JSeparator separator;
 	private JSeparator separator_1;
 
+	// private static final String ASSEMBLE = "Assemble";
+	// private static final String RE_ASSEMBLE = "Reassemble";
+
 	private static final String START_BUTTON = "btnStart";
 	private static final String NO_FILE = "<No File Selected>";
 	private static final String MNU_FILE_OPEN = "mnuFileOpen";
 	private static final String MNU_FILE_PRINT_SOURCE = "mnuFilePrintSource";
 	private static final String MNU_FILE_PRINT_LISTING = "mnuFilePrintListing";
 	private static final String MNU_FILE_EXIT = "mnuFileExit";
-	private static final String LINE_SEPARATOR = String.format("%n", "");
+	private static final String SBAR_SOURCE = "sbarSource";
+	private static final String SBAR_LISTING = "sbarListing";
 
+	private static final String LINE_SEPARATOR = System.lineSeparator();
 	private static final String FILE_SEPARATOR = File.separator;
 	private static final String DEFAULT_DIRECTORY = "." + FILE_SEPARATOR + "Code" + FILE_SEPARATOR + ".";
 	private final static String SUFFIX_ASSEMBLER = "asm";

@@ -23,8 +23,8 @@ public class LineParserTest {
 	public void testMT() {
 		LineParser lp = new LineParser();
 		String sourceLine = "";
-		assertThat("Empty Line 1", true, equalTo(lp.parse(sourceLine)));
-		assertThat("Empty Line 2", true, equalTo(lp.isEmptyLine()));
+		assertThat("Empty Line 1", false, equalTo(lp.parse(sourceLine)));
+		assertThat("Empty Line 2", false, equalTo(lp.isActiveLine()));
 
 		assertThat("No Argument", null, equalTo(lp.getArgument()));
 		assertThat("No Comment", null, equalTo(lp.getComment()));
@@ -42,8 +42,8 @@ public class LineParserTest {
 		assertThat("Has No Instruction", false, equalTo(lp.hasInstruction()));
 
 		sourceLine = "stuff";
-		assertThat("Not Empty Line 1", false, equalTo(lp.parse(sourceLine)));
-		assertThat("Not Empty Line 2", false, equalTo(lp.isEmptyLine()));
+		assertThat("Not Empty Line 1", true, equalTo(lp.parse(sourceLine)));
+		assertThat("Not Empty Line 2", true, equalTo(lp.isActiveLine()));
 
 	}// testMT
 
@@ -147,7 +147,7 @@ public class LineParserTest {
 		sourceLine = "label:  sTaX     ;comment";
 		lp.parse(sourceLine);
 		assertThat("Has instruction", true, equalTo(lp.hasInstruction()));
-		assertThat("only a label and comment and  instruction", "sTaX", equalTo(lp.getInstruction()));
+		assertThat("only a label and comment and  instruction", "STAX", equalTo(lp.getInstruction()));
 
 		sourceLine = "label:  sTaXa     ;comment";
 		lp.parse(sourceLine);
@@ -227,5 +227,18 @@ public class LineParserTest {
 		assertThat("Int  -ln 01, inst, argument and comments", -1, equalTo(lp.getLineNumber()));
 
 	}// testLineNumber
+	
+	@Test
+	public void testOpCodeSize() {
+		String[] opCodes = {" NOP"," LXI"," DaD"," CPI"," rst"," LHLD"," JUNK"};
+		int[] sizes = {1,3,1,2,1,3,0};
+		
+		LineParser lp = new LineParser();
+		for ( int i = 0; i < opCodes.length;i++){
+			lp.parse(opCodes[i]);
+			assertThat( opCodes[i] + " - OpCode Size" ,sizes[i],equalTo(lp.getOpCodeSize()));
+		}//for
+
+	}//testOpCodeSize
 
 }// class LineParserTest
