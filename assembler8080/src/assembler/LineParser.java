@@ -22,6 +22,7 @@ public class LineParser {
 	int opCodeSize;
 
 	boolean activeLine;
+	boolean onlyComment;
 
 	Matcher matcher;
 
@@ -52,6 +53,9 @@ public class LineParser {
 		return this.arguments;
 	}// getArgument
 
+	public boolean isOnlyComment(){
+		return this.onlyComment;
+	}//isOnlyComment
 	public boolean hasComment() {
 		return this.comment != null;
 	}// hasComment
@@ -125,7 +129,7 @@ public class LineParser {
 		return this.baseCode;
 	}// getBaseCode
 
-	private void clear() {
+	private void resetAtttributes() {
 		this.arguments = null;
 		this.comment = null;
 		this.directive = null;
@@ -141,6 +145,7 @@ public class LineParser {
 		this.baseCode = (byte) 0X00;
 
 		this.activeLine = false;
+		this.onlyComment = false;
 	}// clear
 
 	/**
@@ -152,7 +157,7 @@ public class LineParser {
 
 	public boolean parse(String sourceLine) {
 		String workingLine = sourceLine.replaceAll("\t", SPACE);
-		clear();
+		resetAtttributes();
 		if (workingLine.trim().length() == 0) {
 			activeLine = false;
 			return activeLine;
@@ -250,10 +255,16 @@ public class LineParser {
 	private String findComment(String workingLine) {
 		String netLine = new String(workingLine);
 		this.comment = null;
+		matcher = patternForComment.matcher(netLine);
+		
 		if (!netLine.contains(COMMENT_CHAR)) {
 			/* just return the line - no comments here */
+		}else if (matcher.lookingAt()){
+			comment = netLine;
+			netLine = EMPTY_STRING;
+			this.onlyComment = true;
 		} else if (!netLine.contains(SINGLE_QUOTE)) {
-			matcher = patternForComment.matcher(netLine);
+			matcher.reset();
 			matcher.find();
 			comment = matcher.group();
 			netLine = matcher.replaceFirst(EMPTY_STRING);

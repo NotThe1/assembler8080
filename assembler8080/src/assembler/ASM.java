@@ -15,10 +15,13 @@ import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.print.PrinterException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Scanner;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -41,8 +44,17 @@ import javax.swing.JTextPane;
 import javax.swing.SwingConstants;
 import javax.swing.border.BevelBorder;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 
+import parser.EvaluationException;
+import parser.ExpressionNode;
+import parser.Parser;
+import parser.ParserException;
+import parser.SetVariable;
+import parser.Token;
+import parser.Tokenizer;
 import stuff.MyFileChooser;
 
 public class ASM {
@@ -50,12 +62,21 @@ public class ASM {
 	private AdapterForASM adapterForASM = new AdapterForASM();
 	private InstructionCounter instructionCounter = new InstructionCounter();
 	private SymbolTable symbolTable = new SymbolTable(instructionCounter);
+	private Parser parser = new Parser();
+	private Tokenizer tokenizer = new Tokenizer();
+
 	private String defaultDirectory;
 	private File asmSourceFile = null;
 	private StyledDocument docSource;
 	private StyledDocument docListing;
 	private JScrollBar sbarSource;
 	private JScrollBar sbarListing;
+
+	private SimpleAttributeSet attrBlue = new SimpleAttributeSet();
+	private SimpleAttributeSet attrGreen = new SimpleAttributeSet();
+	private SimpleAttributeSet attrOrange = new SimpleAttributeSet();
+	private SimpleAttributeSet attrBlack = new SimpleAttributeSet();
+	private SimpleAttributeSet attrGray = new SimpleAttributeSet();
 
 	private boolean isEmptyLine;
 	private String symbol;
@@ -86,7 +107,7 @@ public class ASM {
 			// lblListing.setText(replaceWithListingFileName(sourceFileName));
 			clearDoc(docSource);
 			clearDoc(docListing);
-			loadSourceFile(asmSourceFile, 1);
+			loadSourceFile(asmSourceFile, 1, null);
 			tpSource.setCaretPosition(0);
 			btnStart.setEnabled(true);
 		} // if
@@ -96,14 +117,27 @@ public class ASM {
 		instructionCounter.reset();
 		symbolTable.reset();
 		if (asmSourceFile != null) {
-			loadSourceFile(asmSourceFile, 1);
+			clearDoc(docSource);
+			clearDoc(docListing);
+
+			loadSourceFile(asmSourceFile, 1, null);
 			passOne();
+
+			showSymbolTable();
 			// passTwo(asmSourceFile);
 			// // passOne(asmSourceFile);
 			// // passTwo(asmSourceFile);
 		} // if
 
 	}// start
+
+	private void showSymbolTable() {
+		List<String> symbols = symbolTable.getAllSymbols();
+		for (String symbol : symbols) {
+			System.out.printf("[showSymbolTable]   %-10s %04d %n", symbol,
+					symbolTable.getEntry(symbol).getDefinedLineNumber());
+		} // for
+	}//
 
 	private void clearDoc(StyledDocument doc) {
 		try {
@@ -114,7 +148,7 @@ public class ASM {
 		} // try
 	}// clearDoc
 
-	public int loadSourceFile(File sourceFile, int lineNumber) {
+	public int loadSourceFile(File sourceFile, int lineNumber, SimpleAttributeSet attr) {
 		try {
 			FileReader source = new FileReader(sourceFile);
 			BufferedReader reader = new BufferedReader(source);
@@ -128,7 +162,7 @@ public class ASM {
 				line = rawLine;
 				outputLine = String.format("%04d %s%n", lineNumber++, line);
 
-				insertSource(outputLine);
+				insertSource(outputLine, attr);
 				// txtSource.append(outputLine);
 				matcherInclude = patternForInclude.matcher(line);
 
@@ -154,36 +188,40 @@ public class ASM {
 		} //
 
 		String includeMarker = ";<<<<<<<<<<<<<<<<<<<<<<< Include >>>>>>>>>>>>>>>>";
-		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
+		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker), attrBlue);
 
 		File includedFile = new File(fileReference);
-		lineNumber = loadSourceFile(includedFile, lineNumber);
+		lineNumber = loadSourceFile(includedFile, lineNumber, attrBlue);
 
-		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker));
+		insertSource(String.format("%04d %s%n", lineNumber++, includeMarker), attrBlue);
 		//
 		return lineNumber;
 	}// doInclude
 
-	private void insertSource(String str) {
+	private void insertSource(String str, SimpleAttributeSet attr) {
 		try {
-			docSource.insertString(docSource.getLength(), str, null);
+			docSource.insertString(docSource.getLength(), str, attr);
 		} catch (BadLocationException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} // try
 	}// insertSource
 
-	private void insertListing(String str) {
+	private void insertListing(String str, SimpleAttributeSet attr) {
 		try {
 			// docListing.
-			docListing.insertString(docListing.getLength(), str, null);
+			docListing.insertString(docListing.getLength(), str, attr);
 		} catch (BadLocationException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} // try
 	}// insertSource
+
 	/* .................................................................................. */
 
+	/**
+	 * passOne sets up the sysmbol table with inital value for Labels & symbols
+	 */
 	public void passOne() {
 		boolean emptyLine = true;
 		int lineNumber;
@@ -196,29 +234,107 @@ public class ASM {
 			if (sourceLine.equals(EMPTY_STRING)) {
 				continue;
 			} // if skip textbox's empty lines
-			
-			if(!lineParser.parse(sourceLine)){
+
+			if (!lineParser.parse(sourceLine)) {
 				continue;
 			} // if skip textbox's empty lines
-			
-			
+
 			lineNumber = lineParser.getLineNumber();
 
 			// ***** parseLine(lineNumber, line.substring(matcher.end(), line.length()));
-			insertListing(lineParser.getLineNumberStr() + "\t" + lineNumber + LINE_SEPARATOR);
-			
+			// insertListing(lineParser.getLineNumberStr() + "\t" + lineNumber + LINE_SEPARATOR);
+			if (lineParser.hasLabel()) {
+				processLabel(lineParser, lineNumber);
+			} // if - has label
+			if (lineParser.hasSymbol()) {
+				processSymbol(lineParser, lineNumber);
+			} // if has symbol
+			displayStuff(lineParser);
 		} // while
-			//
-			// // symbolTable.passOneDone();
-			// SymbolTable.passOneDone();
-			// instructionCounter.reset();
+
+		SymbolTable.passOneDone();
+		instructionCounter.reset();
 		tpListing.setCaretPosition(0);
 		scannerPassOne.close();
-	}// buildTheSymbolTable
-	
-	private void parseLine(LineParser lp){
+	}// passOne
+
+	private void processSymbol(LineParser lp, int lineNumber) {
+		if (!lp.hasDirective()) {
+			return; // symbol defintion needs to be on a directive line
+		} // if have a Directive?
+		String symbol = lp.getSymbol();
+
+		switch (lp.getDirective().toUpperCase()) {
+		case "EQU":
+			int value = resolveSimpleArgument(lp.getArgument(), lineNumber);
+			symbolTable.defineSymbol(symbol, value, lineNumber, SymbolTable.NAME);
+			break;
+		case "SET":
+		case "MACRO":
+		case "$INCLUDE":
+			// ok let it go
+			break;
+		default:
+			System.out.printf("** Check line number %d directive is = %n", lineNumber, lp.getDirective());
+			// look out for Include
+		}// switch
+
+	}// processSymbol
+
+	private void processLabel(LineParser lp, int lineNumber) {
+		String label = lp.getLabel().replace(":", EMPTY_STRING);
+		symbolTable.defineSymbol(label, instructionCounter.getCurrentLocation(), lineNumber, SymbolTable.LABEL);
+	}// processSymbol
+
+	private void displayStuff(LineParser lp) {
+		int lineNumber = lp.getLineNumber();
+		String msg = String.format("%04d  ", lineNumber);
+		insertListing(msg, attrGray);
+
+		/* if the line is only a comment */
+		if (lp.isOnlyComment()) {
+			insertListing(lp.getComment() + LINE_SEPARATOR, attrGreen);
+			return;
+		} // if only comment
+
+		String labelOrSymbol = null;
+		;
+		if (lp.hasLabel()) {
+			labelOrSymbol = lp.getLabel() + ":";
+		} else if (lp.hasSymbol()) {
+			labelOrSymbol = lp.getSymbol();
+		} else {
+			labelOrSymbol = EMPTY_STRING;
+		} // if Label Or Symbol
+		msg = String.format("%-10s ", labelOrSymbol);
+		insertListing(msg, attrBlack);
+
+		String insOrDir = null;
+		if (lp.hasInstruction()) {
+			insOrDir = lp.getInstruction();
+		} else if (lp.hasDirective()) {
+			insOrDir = lp.getDirective();
+		} else {
+			insOrDir = EMPTY_STRING;
+		} // if Label Or Symbol
+		msg = String.format("%-4s ", insOrDir);
+		insertListing(msg, attrBlue);
+
+		String arguments = lp.hasArgument() ? lp.getArgument() : EMPTY_STRING;
+		msg = String.format("%-15s ", arguments);
+		insertListing(msg, attrBlack);
+
+		if (lp.hasComment()) {
+			insertListing(lp.getComment(), attrGreen);
+		} // if comments
+
+		insertListing(LINE_SEPARATOR, null);
+
+	}// displayStuff
+
+	private void parseLine(LineParser lp) {
 		int currentPC = instructionCounter.getCurrentLocation();
-		//comment
+		// comment
 	}
 
 	private void parseLine(int lineNumber, String sourceLine) {
@@ -285,6 +401,86 @@ public class ASM {
 		} // if comments found
 		return lineToCheck.trim();
 	}// checkForComment
+
+	/* ---------------------------------------------------------------------------------- */
+	/* ---------------------------------------------------------------------------------- */
+
+	private Integer resolveSimpleArgument(String argument, Integer lineNumber) {
+		// Integer ans = null;
+		Integer ans = 0;
+		if (argument.equals("$")) {
+			ans = instructionCounter.getCurrentLocation();
+		} else if (symbolTable.contains(argument)) {
+			ans = symbolTable.getValue(argument);
+			symbolTable.referenceSymbol(argument, lineNumber);
+		} else if (argument.matches(stringValuePattern)) {
+			// ans = 0;
+			String s = argument.replace("'", ""); // remove the 's
+			byte[] ba = s.getBytes();
+			for (byte b : ba) {
+				ans = (ans << 8) + (b & 0XFF);
+			} //
+
+		} else if (argument.matches(hexValuePattern)) {
+			ans = Integer.valueOf(argument.replace("H", ""), 16);
+		} else if (argument.matches(octalValuePattern)) {
+			ans = Integer.valueOf(argument.substring(0, argument.length() - 1), 8);
+		} else if (argument.matches(decimalValuePattern)) {
+			ans = Integer.valueOf(argument.replace("D", ""), 10);
+		} else if (argument.matches(binaryValuePattern)) {
+			ans = Integer.valueOf(argument.replace("D", ""), 2);
+
+		} else {// send to expression resolver
+			ans = resolveExpression(argument, lineNumber);
+		}
+		if (ans == null) {
+			System.out.printf("Null ans from argument: %s%n", argument);
+		}
+
+		return (ans != null) ? ans & 0XFFFF : 0; // max value is 64K
+	}// resolveSimpleArgument
+
+	private Integer resolveExpression(String arguments, Integer lineNumber) {
+		Integer answer = null;
+		try {
+			tokenizer.tokenize(arguments);
+			ExpressionNode expression = parser.parse(tokenizer.getTokens());
+			LinkedList<Token> tokens = tokenizer.getTokens();
+
+			for (Token t : tokens) {
+				if (t.token == Token.VARIABLE) {
+					int value = symbolTable.getValue(t.sequence);
+					symbolTable.referenceSymbol(t.sequence, lineNumber);
+
+					expression.accept(new SetVariable(t.sequence, value));
+				} // if - its a variable
+			}
+			answer = expression.getValue();
+		} catch (ParserException pe) {
+			System.err.println(pe.getMessage());
+			throw new AssemblerException("bad Expression: " + arguments);
+		} catch (EvaluationException ee) {
+			System.err.println(ee.getMessage());
+			throw new AssemblerException("bad Expression: " + arguments);
+		} // try
+		return answer;
+	}// resolveExpression
+
+	/* ---------------------------------------------------------------------------------- */
+	/* ---------------------------------------------------------------------------------- */
+
+	private void printListing() {
+
+		try {
+			tpListing.print();
+
+		} catch (PrinterException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}// printListing
+	/* ---------------------------------------------------------------------------------- */
 	/* ---------------------------------------------------------------------------------- */
 
 	/**
@@ -339,7 +535,17 @@ public class ASM {
 		sbarListing = spListing.getVerticalScrollBar();
 		sbarListing.setName(SBAR_LISTING);
 		sbarListing.addAdjustmentListener(adapterForASM);
+
+		setAttributes();
 	}// appInit
+
+	private void setAttributes() {
+		StyleConstants.setForeground(attrBlue, Color.blue);
+		StyleConstants.setForeground(attrGreen, Color.GREEN);
+		StyleConstants.setForeground(attrGray, Color.GRAY);
+		StyleConstants.setForeground(attrOrange, Color.ORANGE);
+		StyleConstants.setForeground(attrBlack, Color.BLACK);
+	}// setAttributes
 
 	/**
 	 * Create the application.
@@ -455,6 +661,7 @@ public class ASM {
 		spSource.setColumnHeaderView(lblSourceFileName);
 
 		tpSource = new JTextPane();
+		tpSource.setFont(new Font("Courier New", Font.PLAIN, 14));
 		spSource.setViewportView(tpSource);
 
 		spListing = new JScrollPane();
@@ -467,6 +674,7 @@ public class ASM {
 		spListing.setColumnHeaderView(lblListingFileName);
 
 		tpListing = new JTextPane();
+		tpListing.setFont(new Font("Courier New", Font.PLAIN, 14));
 		spListing.setViewportView(tpListing);
 
 		panelStatus = new JPanel();
@@ -531,6 +739,7 @@ public class ASM {
 			case MNU_FILE_PRINT_SOURCE:
 				break;
 			case MNU_FILE_PRINT_LISTING:
+				printListing();
 				break;
 			case MNU_FILE_EXIT:
 				appClose();
@@ -592,6 +801,12 @@ public class ASM {
 	private final static String SUFFIX_LISTING = "list";
 	private final static String SUFFIX_MEMORY = "mem";
 	private static final String EMPTY_STRING = ""; // empty string
+
+	private static final String hexValuePattern = "[0-9][0-9A-Fa-f]{0,4}H";
+	private static final String octalValuePattern = "[0-7]+[O|Q]";
+	private static final String binaryValuePattern = "[01]B";
+	private static final String decimalValuePattern = "[0-9]{1,4}D?+";
+	private static final String stringValuePattern = "\\A'.*'\\z"; // used for
 
 	private JLabel lblSourceFilePath;
 	private JButton btnStart;

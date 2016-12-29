@@ -1,6 +1,11 @@
 package assembler;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
 
 public class SymbolTable {
 	private HashMap<String, SymbolTableEntry> symbols;
@@ -68,6 +73,24 @@ public class SymbolTable {
 	public HashMap<String, SymbolTableEntry> getTableEntries() {
 		return symbols;
 	}// getTableEntries
+	
+	public List<String> getAllSymbols(){
+		Set<String> allSymbols = symbols.keySet();
+		List<String> symbolList = asSortedList(allSymbols);
+		return symbolList;
+		
+	}//getAllSymbols
+	public static
+	<T extends Comparable<? super T>> List<T> asSortedList(Collection c){
+		List<T> list = new ArrayList<T>(c);
+		Collections.sort(list);
+		return list;
+	}//asSortedList
+	
+	
+	public SymbolTableEntry getEntry(String symbol){
+		return symbols.get(symbol);
+	}//getEntry
 
 	public boolean contains(String name) {
 		return symbols.containsKey(name);

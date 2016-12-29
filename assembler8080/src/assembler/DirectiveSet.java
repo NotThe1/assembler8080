@@ -37,7 +37,9 @@ public class DirectiveSet {
 		sb.append(")\\b");
 //		System.out.printf("[DirectiveSet.getRegex] sb: %s%n%n", sb.toString());
 		;
-		return sb.toString();
+		String regexExpression = sb.toString();
+		regexExpression = regexExpression.replace("$", ""); //$include
+		return regexExpression;
 	}//getRegex
 	
 	public static Set<String> getDirectiveSet(){
@@ -80,6 +82,10 @@ public class DirectiveSet {
 		directives.put("IRP", new Directive("IRP", true, 1, false)); /* list of dummy parameters */
 		directives.put("IRPC", new Directive("IRPC", true, 1, false)); // list
 		directives.put("EXITM", new Directive("EXITM", true, 0, false));
+		
+		/* special case */
+		directives.put("$INCLUDE", new Directive("$INCLUDE", true, 1, false));
+	
 	}// static
 
 }// class DirectiveSet
