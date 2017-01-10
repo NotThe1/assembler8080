@@ -19,6 +19,7 @@ public class SymbolTableEntry {
 	public SymbolTableEntry(String name,int value,int definedLineNumber,int symbolType){
 		this.name = name;
 		this.value = value;
+		this.symbolType=symbolType;
 		this.definedLineNumber= definedLineNumber;
 		this.referencedLineNumbers = new ArrayList<Integer>();
 		

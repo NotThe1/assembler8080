@@ -134,8 +134,9 @@ public class ASM {
 	private void showSymbolTable() {
 		List<String> symbols = symbolTable.getAllSymbols();
 		for (String symbol : symbols) {
-			System.out.printf("[showSymbolTable]   %-10s %04d %n", symbol,
-					symbolTable.getEntry(symbol).getDefinedLineNumber());
+			System.out.printf("[showSymbolTable]   %-10s %04d %X\t %s%n", symbol,
+					symbolTable.getEntry(symbol).getDefinedLineNumber(), symbolTable.getValue(symbol),
+					symbolTable.getTypeName(symbol));
 		} // for
 	}//
 
@@ -220,7 +221,7 @@ public class ASM {
 	/* .................................................................................. */
 
 	/**
-	 * passOne sets up the sysmbol table with inital value for Labels & symbols
+	 * passOne sets up the symbol table with initial value for Labels & symbols
 	 */
 	public void passOne() {
 		boolean emptyLine = true;
@@ -246,6 +247,12 @@ public class ASM {
 			if (lineParser.hasLabel()) {
 				processLabel(lineParser, lineNumber);
 			} // if - has label
+			if (lineParser.hasInstruction()) {
+				instructionCounter.incrementCurrentLocation(lineParser.getOpCodeSize());
+			} // if instruction
+			if (lineParser.hasDirective()) {
+				processDirective(lineParser, lineNumber);
+			}
 			if (lineParser.hasSymbol()) {
 				processSymbol(lineParser, lineNumber);
 			} // if has symbol
@@ -257,6 +264,106 @@ public class ASM {
 		tpListing.setCaretPosition(0);
 		scannerPassOne.close();
 	}// passOne
+
+	private void processDirective(LineParser lp, int lineNumber) {
+		String directive = lp.getDirective();
+		String arguments = lp.getArgument();
+		String errorMsg = String.format("Directive %s on line: %04d not yet implemented", directive, lineNumber);
+		Scanner scannerComma;
+		switch (directive.toUpperCase()) {
+		case "DB":
+			if (arguments != null) {
+				String arg;
+				scannerComma = new Scanner(arguments);
+				scannerComma.useDelimiter(COMMA);
+				while (scannerComma.hasNext()) {
+					arg = scannerComma.next();
+					if (arg.matches(stringValuePattern)) {
+						arg.replace("'", "");
+						instructionCounter.incrementCurrentLocation(arg.length());
+					} else {
+						instructionCounter.incrementCurrentLocation();
+					} // if
+				} // while
+			} else {
+				throw new AssemblerException("Directive DB on line: " + lineNumber + " needs an argument");
+			} // if
+			break;
+		case "DW":
+			if (arguments != null) {
+				scannerComma = new Scanner(arguments);
+				scannerComma.useDelimiter(COMMA);
+				while (scannerComma.hasNext()) {
+					instructionCounter.incrementCurrentLocation(2);
+				} // while
+			} else {
+				throw new AssemblerException("Directive DW on line: " + lineNumber + " needs an argument");
+			} // if
+			break;
+		case "DS":
+			int storage = resolveSimpleArgument(arguments, lineNumber);
+			instructionCounter.incrementCurrentLocation(storage);
+			break;
+		case "ORG":
+			Integer loc = resolveSimpleArgument(arguments, lineNumber);
+			if (loc != null) {
+				instructionCounter.setCurrentLocation(loc);
+				instructionCounter.setPriorLocation();
+			} // if
+			break;
+		case "ASEG":
+			if (arguments == null) {
+				instructionCounter.makeCurrent(InstructionCounter.ASEG);
+			} else {
+				instructionCounter.makeCurrent(InstructionCounter.ASEG, arguments);
+			} // if
+			break;
+		case "DSEG":
+			if (arguments == null) {
+				instructionCounter.makeCurrent(InstructionCounter.DSEG);
+			} else {
+				instructionCounter.makeCurrent(InstructionCounter.DSEG, arguments);
+			} // if
+			break;
+		case "CSEG":
+			if (arguments == null) {
+				instructionCounter.makeCurrent(InstructionCounter.CSEG);
+			} else {
+				instructionCounter.makeCurrent(InstructionCounter.CSEG, arguments);
+			} // if
+			break;
+		case "IF":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "ELSE":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "ENDIF":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "END":
+		//	throw new AssemblerException(errorMsg);
+			
+			break;
+		case "PUBLIC":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "EXTRN":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "NAME":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "STKLN":
+			throw new AssemblerException(errorMsg);
+		//	break;
+		case "TITLE":
+			break;
+		default:
+			// ignore
+		}// switch directive
+
+	}// processDirective
 
 	private void processSymbol(LineParser lp, int lineNumber) {
 		if (!lp.hasDirective()) {
@@ -800,7 +907,9 @@ public class ASM {
 	private final static String SUFFIX_ASSEMBLER = "asm";
 	private final static String SUFFIX_LISTING = "list";
 	private final static String SUFFIX_MEMORY = "mem";
+
 	private static final String EMPTY_STRING = ""; // empty string
+	private static final String COMMA = ","; // Comma ,
 
 	private static final String hexValuePattern = "[0-9][0-9A-Fa-f]{0,4}H";
 	private static final String octalValuePattern = "[0-7]+[O|Q]";

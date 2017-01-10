@@ -12,7 +12,7 @@ public class SymbolTable {
 	// private ArrayList<SymbolTableEntry> symbols;
 	private SymbolTableEntry entry;
 	private static boolean pass1 = true; // used to control two pass assembler
-	private  InstructionCounter instructionCounter;
+	private InstructionCounter instructionCounter;
 
 	public SymbolTable() {
 		symbols = new HashMap<String, SymbolTableEntry>();
@@ -25,11 +25,11 @@ public class SymbolTable {
 		this.instructionCounter = ic;
 		// pass1 = true;
 	}// SymbolTable
-	
-	public void reset(){
+
+	public void reset() {
 		symbols.clear();
 		symbols.put("$", new SymbolTableEntry("$", 0, 0, SymbolTable.ASSEMBLER));
-	}//reset
+	}// reset
 
 	public static void passOneDone() {
 		pass1 = false;
@@ -40,13 +40,13 @@ public class SymbolTable {
 			// TODO - account for SET
 			if (!pass1) {
 				return;
-			}//
+			} //
 			String message = String.format("Duplicate definition of %s at line # %04d%n", name, lineNumber);
 			System.err.println(message);
 
 		} else { // new symbol
 			symbols.put(name, new SymbolTableEntry(name, value, lineNumber, symbolType));
-		}// if
+		} // if
 	}// defineSymbol
 
 	public void referenceSymbol(String name, int lineNumber, int symbolType) {
@@ -56,7 +56,7 @@ public class SymbolTable {
 			symbols.put(name, entry);
 		} else {
 			symbols.put(name, new SymbolTableEntry(name, lineNumber, symbolType));
-		}// if
+		} // if
 	}// referenceSymbol
 
 	public void referenceSymbol(String name, int lineNumber) {
@@ -65,36 +65,57 @@ public class SymbolTable {
 			entry.addReferenceLineNumber(lineNumber);
 			symbols.put(name, entry);
 		} else {
-			throw new AssemblerException("Attempting to reference an undefined symbol: " + name + " on line: "
-					+ lineNumber);
-		}// if
+			throw new AssemblerException(
+					"Attempting to reference an undefined symbol: " + name + " on line: " + lineNumber);
+		} // if
 	}// referenceSymbol
 
 	public HashMap<String, SymbolTableEntry> getTableEntries() {
 		return symbols;
 	}// getTableEntries
-	
-	public List<String> getAllSymbols(){
+
+	public List<String> getAllSymbols() {
 		Set<String> allSymbols = symbols.keySet();
 		List<String> symbolList = asSortedList(allSymbols);
 		return symbolList;
-		
-	}//getAllSymbols
-	public static
-	<T extends Comparable<? super T>> List<T> asSortedList(Collection c){
+
+	}// getAllSymbols
+
+	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection c) {
 		List<T> list = new ArrayList<T>(c);
 		Collections.sort(list);
 		return list;
-	}//asSortedList
-	
-	
-	public SymbolTableEntry getEntry(String symbol){
+	}// asSortedList
+
+	public SymbolTableEntry getEntry(String symbol) {
 		return symbols.get(symbol);
-	}//getEntry
+	}// getEntry
 
 	public boolean contains(String name) {
 		return symbols.containsKey(name);
 	}// contains
+
+	public int getType(String symbol) {
+		return symbols.get(symbol).getSymbolType();
+	}// getType
+
+	public String getTypeName(String symbol) {
+		String ans = null;
+		switch (this.getType(symbol)) {
+		case LABEL:
+			ans = "Label";
+			break;
+		case NAME:
+			ans = "Name";
+			break;
+		case ASSEMBLER:
+			ans = "Assembler";
+			break;
+		default:
+			ans = "Unknown";
+		}
+		return ans;
+	}// getType
 
 	public Integer getValue(String name) {
 		if (name.equals("$")) {
@@ -105,8 +126,8 @@ public class SymbolTable {
 			} catch (NullPointerException npe) {
 				System.err.printf("Bad symbol: %s%n", name);
 				return 0;
-			}// try
-		}//if
+			} // try
+		} // if
 
 	}// getValue
 		// ----------------------------------------------------------------------
@@ -119,4 +140,3 @@ public class SymbolTable {
 	public final static int GLOBAL = 4;
 
 }// class SymbolTable
-

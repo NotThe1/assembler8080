@@ -689,7 +689,7 @@ public class ASM_1_0 implements ActionListener, AdjustmentListener {
 		workingLine = checkForDirective(workingLine, lineNumber);
 		if (directive == null) {
 			workingLine = checkForInstruction(workingLine);
-		}//
+		}// if
 
 	}// parseLine
 
