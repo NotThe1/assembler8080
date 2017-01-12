@@ -37,7 +37,7 @@ public class LineParser {
 	}// hasArgument
 
 	public String getArgument() {
-		return this.arguments;
+		return hasArgument()?this.arguments:EMPTY_STRING;
 	}// getArgument
 
 	public boolean isOnlyComment(){
@@ -48,7 +48,7 @@ public class LineParser {
 	}// hasComment
 
 	public String getComment() {
-		return this.comment;
+		return hasComment()?this.comment:EMPTY_STRING;
 	}// getComment
 
 	public boolean hasDirective() {
@@ -56,7 +56,7 @@ public class LineParser {
 	}// hasDirective
 
 	public String getDirective() {
-		return this.directive;
+		return hasDirective()?this.directive:EMPTY_STRING;
 	}// getDirective
 
 	public boolean hasInstruction() {
@@ -64,7 +64,7 @@ public class LineParser {
 	}// hasInstruction
 
 	public String getInstruction() {
-		return this.instruction;
+		return hasInstruction()?this.instruction:EMPTY_STRING;
 	}// getInstruction
 
 	public boolean hasLabel() {
@@ -72,7 +72,7 @@ public class LineParser {
 	}// hasLabel
 
 	public String getLabel() {
-		return this.label;
+		return hasLabel()?this.label:EMPTY_STRING;
 	}// getLabel
 
 	public boolean hasLineNumber() {
@@ -80,7 +80,7 @@ public class LineParser {
 	}// hasLineNumber
 
 	public String getLineNumberStr() {
-		return this.lineNumberStr;
+		return hasLineNumber()?this.lineNumberStr:EMPTY_STRING;
 	}// getLineNumberStr
 
 	public int getLineNumber() {
@@ -93,7 +93,7 @@ public class LineParser {
 	}// hasSymbol
 
 	public String getSymbol() {
-		return this.symbol;
+		return hasSymbol()?this.symbol:EMPTY_STRING;
 	}// getSymbol
 
 	public int getOpCodeSize() {
@@ -269,7 +269,7 @@ public class LineParser {
 			Queue<Point> quotePairs = new LinkedList<Point>();
 			matcher = patternInQuotes.matcher(netLine);
 			while (matcher.find()) {
-				quotePairs.add(new Point(matcher.start(), matcher.end()));
+				quotePairs.add(new Point(matcher.start(), matcher.end()-1));
 			} // while
 
 			boolean commentFound = true;
@@ -291,7 +291,7 @@ public class LineParser {
 
 			if (commentFound) {
 				comment = workingLine.substring(targetIndex, workingLine.length());
-				netLine = workingLine.substring(0, targetIndex - 1);
+				netLine = workingLine.substring(0, targetIndex );
 			} // if there is a comment
 		} // if
 

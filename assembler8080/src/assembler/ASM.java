@@ -20,11 +20,16 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,18 +79,22 @@ public class ASM {
 	private JScrollBar sbarSource;
 	private JScrollBar sbarListing;
 
-	private SimpleAttributeSet attrBlue = new SimpleAttributeSet();
-	private SimpleAttributeSet attrGreen = new SimpleAttributeSet();
-	private SimpleAttributeSet attrOrange = new SimpleAttributeSet();
 	private SimpleAttributeSet attrBlack = new SimpleAttributeSet();
+	private SimpleAttributeSet attrBlue = new SimpleAttributeSet();
 	private SimpleAttributeSet attrGray = new SimpleAttributeSet();
+	private SimpleAttributeSet attrGreen = new SimpleAttributeSet();
+	private SimpleAttributeSet attrRed = new SimpleAttributeSet();
+	private SimpleAttributeSet attrSilver = new SimpleAttributeSet();
+	private SimpleAttributeSet attrNavy = new SimpleAttributeSet();
+	private SimpleAttributeSet attrMaroon = new SimpleAttributeSet();
+	private SimpleAttributeSet attrTeal = new SimpleAttributeSet();
 
-	private boolean isEmptyLine;
-	private String symbol;
-	private Directive directive;
-	private Instruction instruction;
-	private String arguments;
-	private String comment;
+	// private boolean isEmptyLine;
+	// private String symbol;
+	// private Directive directive;
+	// private Instruction instruction;
+	// private String arguments;
+	// private String comment;
 
 	// private int currentPC;
 
@@ -124,7 +133,7 @@ public class ASM {
 
 			loadSourceFile(asmSourceFile, 1, null);
 			passOne();
-			showSymbolTable();
+			// showSymbolTable();
 			passTwo();
 
 			// passTwo(asmSourceFile);
@@ -265,7 +274,6 @@ public class ASM {
 		} // while
 
 		SymbolTable.passOneDone();
-		tpListing.setCaretPosition(0);
 		scannerPassOne.close();
 	}// passOne
 
@@ -283,7 +291,7 @@ public class ASM {
 				while (scannerComma.hasNext()) {
 					arg = scannerComma.next();
 					if (arg.matches(stringValuePattern)) {
-						arg.replace("'", "");
+						arg = arg.replace("'", "");
 						instructionCounter.incrementCurrentLocation(arg.length());
 					} else {
 						instructionCounter.incrementCurrentLocation();
@@ -452,30 +460,44 @@ public class ASM {
 	 */
 	private void passTwo() {
 		instructionCounter.reset();
+		clearDoc(docListing);
 		HashMap<Integer, Byte> memoryImage = new HashMap<Integer, Byte>();
-		int lineNumber;
-		String sourceLine, lineImage;
+		// int lineNumber;
+		int currentLocation;
+		String sourceLine, instructionImage;
 		LineParser lineParser = new LineParser();
 		Scanner scannerPassTwo = new Scanner(tpSource.getText());
 
 		while (scannerPassTwo.hasNextLine()) {
-			sourceLine = scannerPassTwo.next();
+
+			currentLocation = instructionCounter.getCurrentLocation();
+			sourceLine = scannerPassTwo.nextLine();
+			if (sourceLine.equals(EMPTY_STRING)) {
+				continue;
+			} // if skip textbox's empty lines
+
 			lineParser.parse(sourceLine);
-			lineImage = EMPTY_STRING;
-			lineNumber = lineParser.getLineNumber();
+			instructionImage = EMPTY_STRING;
+			int lineNumber = lineParser.getLineNumber();
 			if (lineParser.hasInstruction()) {
-				lineImage = setMemoryBytesForInstruction(lineParser);
+				instructionImage = setMemoryBytesForInstruction(lineParser);
 			} else if (lineParser.hasDirective()) {
-				lineImage = setMemoryBytesForDirective(lineParser);
+				instructionImage = setMemoryBytesForDirective(lineParser);
 			} // if
-			System.out.printf("[passTwo] %04d  %04X  %s%n", lineParser.getLineNumber(),
-					instructionCounter.getCurrentLocation(), lineImage);
-			int a = 0;
+				// System.out.printf("[passTwo] %04d %04X %s%n", lineParser.getLineNumber(),
+				// currentLocation, instructionImage);
+			makeListing(currentLocation, sourceLine, instructionImage, lineParser);
+			if (instructionImage != EMPTY_STRING) {
+				saveMemoryImage(currentLocation, instructionImage, memoryImage);
+			} // if
 		} // while
 		scannerPassTwo.close();
+		tpListing.setCaretPosition(0);
+		makeMemoryFile( memoryImage);
+		
 	}// passTwo
 
-	private void saveMemoryImage(String lineImage, HashMap<Integer, Byte> memoryImage) {
+	private void saveMemoryImage(int pc, String lineImage, HashMap<Integer, Byte> memoryImage) {
 		int numOfChars = lineImage.length() / 2;
 		if (numOfChars < 1) {
 			return;
@@ -485,15 +507,63 @@ public class ASM {
 		for (int i = 0; i < numOfChars; i++) {
 			strValue = lineImage.substring(i * 2, (i + 1) * 2);
 			intValue = Integer.valueOf(strValue, 16);
-			memoryImage.put((Integer) instructionCounter.getCurrentLocation() + i, (byte) intValue);
+			memoryImage.put((Integer) pc + i, (byte) intValue);
 		}
 	}// saveMemoryImage
+
+	private void makeListing(int location, String sourceLine, String memoryImage, LineParser lineParser) {
+		String cmd;
+		SimpleAttributeSet attributeSet;
+		if (lineParser.hasInstruction()) {
+			cmd = String.format("%-6s", lineParser.getInstruction());
+			attributeSet = attrNavy;
+		} else if (lineParser.hasDirective()) {
+			cmd = String.format("%-6s", lineParser.getDirective());
+			attributeSet = attrBlue;
+		} else {
+			cmd = EMPTY_STRING;
+			attributeSet = null;
+		} // if
+
+		String symbol;
+		SimpleAttributeSet attributeSet1;
+		if (lineParser.hasLabel()) {
+			symbol = String.format("%-10s", lineParser.getLabel() + COLON);
+			attributeSet1 = attrNavy;
+		} else if (lineParser.hasSymbol()) {
+			symbol = String.format("%-10s", lineParser.getSymbol());
+			attributeSet1 = attrNavy;
+		} else {
+			symbol = String.format("%-10s", EMPTY_STRING);
+			attributeSet1 = null;
+		} // if
+
+		String lineNumberStr = String.format("%04d: ", lineParser.getLineNumber());
+		insertListing(lineNumberStr, attrSilver);
+		String memLocation = String.format("%04X ", location);
+		insertListing(memLocation, attrGray);
+		String image = String.format("%-8s", memoryImage);
+		insertListing(image, attrRed);
+
+		if (lineParser.onlyComment) {
+			insertListing(lineParser.getComment(), attrGreen);
+		} else {
+			insertListing(symbol, attributeSet1);
+			insertListing(cmd, attributeSet);
+			String argument = String.format("%-20s", lineParser.getArgument());
+			insertListing(argument, attrBlack);
+			insertListing(lineParser.getComment(), attrGreen);
+		} // if only comment
+
+		insertListing(System.lineSeparator(), null);
+	}// makeListing
 
 	private String setMemoryBytesForDirective(LineParser lineParser) {
 		switch (lineParser.getDirective().toUpperCase()) {
 		case "DB":
 		case "DW":
 		case "DS":
+		case "ORG":
 			break;
 		default:
 			return EMPTY_STRING;
@@ -520,17 +590,17 @@ public class ASM {
 			while (scannerDirective.hasNext()) {
 				args = scannerDirective.next();
 				if (args.matches(stringValuePattern)) { // literal
-					args.replace(QUOTE, EMPTY_STRING);
+					args = args.replace(QUOTE, EMPTY_STRING);
 					char[] allCharacters = args.toCharArray();
 					for (char aCharacter : allCharacters) {
 						aByte = (byte) aCharacter;
 						sb.append(String.format("%02X", aByte));
-						locationCount += 2;
+						locationCount++;
 					} // for each
 				} else {
 					ansInt = resolveSimpleArgument(args, lineParser.getLineNumber()) & 0XFF;
 					sb.append(String.format("%02X", ansInt));
-					locationCount += 2;
+					locationCount++;
 				} // if
 			} // while
 			break;
@@ -541,11 +611,20 @@ public class ASM {
 				byte hiByte = (byte) (ansInt >> 8);
 				byte loByte = (byte) (ansInt & 0X00FF);
 				sb.append(String.format("%02X%02X", loByte, hiByte));
-				locationCount = 4;
+				locationCount = 2;
 			} // while
 			break;
 		case "DS":
 			locationCount = resolveSimpleArgument(lineParser.getArgument(), lineParser.getLineNumber()) & 0XFFFF;
+			break;
+		case "ORG":
+			Integer loc = resolveSimpleArgument(lineParser.getArgument(), lineParser.getLineNumber());
+			if (loc != null) {
+				instructionCounter.setCurrentLocation(loc);
+				instructionCounter.setPriorLocation();
+				locationCount = 0;
+			} // if
+
 			break;
 		default:
 		}// switch
@@ -624,7 +703,7 @@ public class ASM {
 			} // if
 			argInt = argInt & 0XFFFF; // mod 64K
 			args = String.format("%04X", argInt);
-			ans = String.format("%02X%%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
+			ans = String.format("%02X%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
 			break;
 		case Instruction.ARGUMENT_R16D_D16:
 			Scanner scannerArguments = new Scanner(lineParser.getArgument());
@@ -640,7 +719,7 @@ public class ASM {
 
 			if (R16D.matches(r16dPattern)) {
 				opCode = lineParser.getBaseCode();
-				registerValue = Instruction.getR16DValue(lineParser.getArgument());
+				registerValue = Instruction.getR16DValue(R16D);
 				shiftValue = lineParser.getOperand1Shift();
 				registerValue = (byte) (registerValue << shiftValue);
 				opCode = (byte) (baseCode | registerValue);
@@ -657,7 +736,7 @@ public class ASM {
 
 			argInt = argInt & 0XFFFF; // mod 64K
 			args = String.format("%04X", argInt);
-			ans = String.format("%02X%%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
+			ans = String.format("%02X%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
 
 			break;
 		case Instruction.ARGUMENT_R8_D8:
@@ -674,7 +753,7 @@ public class ASM {
 
 			if (R8.matches(r8Pattern)) {
 				opCode = lineParser.getBaseCode();
-				registerValue = Instruction.getR8Value(lineParser.getArgument());
+				registerValue = Instruction.getR8Value(R8);
 				shiftValue = lineParser.getOperand1Shift();
 				registerValue = (byte) (registerValue << shiftValue);
 				opCode = (byte) (baseCode | registerValue);
@@ -771,6 +850,53 @@ public class ASM {
 
 	/* ---------------------------------------------------------------------------------- */
 	/* ---------------------------------------------------------------------------------- */
+	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection<T> c) {
+		List<T> list = new ArrayList<T>(c);
+		Collections.sort(list);
+		return list;
+	}// sort for key list
+
+	private void makeMemoryFile(HashMap<Integer, Byte> memoryImage) {
+		Set<Integer> locations = memoryImage.keySet();
+		List<Integer> locationsOrdered = asSortedList(locations);
+
+		Queue<Point> gaps = new LinkedList<Point>();
+		Integer lastLocation = locationsOrdered.get(0) - 1;
+
+		int gapStart = 0;
+		int gapEnd = 0;
+
+		boolean inGap = false;
+		boolean isLineComplete = false;
+
+		/* start at line boundary */
+		int location = locationsOrdered.get(0);
+		gapStart = location % SIXTEEN;
+		if (gapStart != 0) {
+			for (int g = 0; g < gapStart; g++) {
+				memoryImage.put(location - g, (byte) 00);
+			} // add locations
+		} // if
+
+		for (Integer loc : locationsOrdered) {
+
+			if (lastLocation + 1 == loc) {
+				lastLocation = loc;
+			} else {
+				gapStart = lastLocation + 1;
+				gapEnd = loc - 1;
+				gaps.add(new Point(gapStart,gapEnd));
+				lastLocation = loc;
+			} // if
+			
+		} // for location
+		
+		int a = 0;
+
+	}// makeMemoryFile
+
+	/* ---------------------------------------------------------------------------------- */
+	/* ---------------------------------------------------------------------------------- */
 
 	private void printListing() {
 
@@ -843,11 +969,15 @@ public class ASM {
 	}// appInit
 
 	private void setAttributes() {
-		StyleConstants.setForeground(attrBlue, Color.blue);
-		StyleConstants.setForeground(attrGreen, Color.GREEN);
-		StyleConstants.setForeground(attrGray, Color.GRAY);
-		StyleConstants.setForeground(attrOrange, Color.ORANGE);
-		StyleConstants.setForeground(attrBlack, Color.BLACK);
+		StyleConstants.setForeground(attrNavy, new Color(0, 0, 128));
+		StyleConstants.setForeground(attrBlack, new Color(0, 0, 0));
+		StyleConstants.setForeground(attrBlue, new Color(0, 0, 255));
+		StyleConstants.setForeground(attrGreen, new Color(0, 128, 0));
+		StyleConstants.setForeground(attrTeal, new Color(0, 128, 128));
+		StyleConstants.setForeground(attrGray, new Color(128, 128, 128));
+		StyleConstants.setForeground(attrSilver, new Color(192, 192, 192));
+		StyleConstants.setForeground(attrRed, new Color(255, 0, 0));
+		StyleConstants.setForeground(attrMaroon, new Color(128, 0, 0));
 	}// setAttributes
 
 	/**
@@ -1107,6 +1237,7 @@ public class ASM {
 	private static final String EMPTY_STRING = ""; // empty string
 	private static final String SPACE = " "; // Space 0X20
 	private static final String COMMA = ","; // Comma ,
+	private static final String COLON = ":"; // Colon : ,
 	private static final String QUOTE = "'"; // single quote '
 
 	private static final String hexValuePattern = "[0-9][0-9A-Fa-f]{0,4}H";
@@ -1118,6 +1249,8 @@ public class ASM {
 	private static final String r8r8Pattern = "[ABCDEHLM],[ABCDEHLM]";
 	private static final String r16dPattern = "B|BC|D|DE|H|HL|SP";
 	private static final String r8Pattern = "A|B|C|D|E|H|L|M";
+
+	private static final int SIXTEEN = 16; // 0X10
 
 	private JLabel lblSourceFilePath;
 	private JButton btnStart;
