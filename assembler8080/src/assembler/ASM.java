@@ -20,8 +20,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
@@ -122,8 +124,9 @@ public class ASM {
 
 			loadSourceFile(asmSourceFile, 1, null);
 			passOne();
-
 			showSymbolTable();
+			passTwo();
+
 			// passTwo(asmSourceFile);
 			// // passOne(asmSourceFile);
 			// // passTwo(asmSourceFile);
@@ -149,7 +152,7 @@ public class ASM {
 		} // try
 	}// clearDoc
 
-	public int loadSourceFile(File sourceFile, int lineNumber, SimpleAttributeSet attr) {
+	private int loadSourceFile(File sourceFile, int lineNumber, SimpleAttributeSet attr) {
 		try {
 			FileReader source = new FileReader(sourceFile);
 			BufferedReader reader = new BufferedReader(source);
@@ -220,11 +223,13 @@ public class ASM {
 
 	/* .................................................................................. */
 
+	/* .................................................................................. */
+
 	/**
 	 * passOne sets up the symbol table with initial value for Labels & symbols
 	 */
-	public void passOne() {
-		boolean emptyLine = true;
+	private void passOne() {
+		// boolean emptyLine = true;
 		int lineNumber;
 		String sourceLine;
 		LineParser lineParser = new LineParser();
@@ -251,7 +256,7 @@ public class ASM {
 				instructionCounter.incrementCurrentLocation(lineParser.getOpCodeSize());
 			} // if instruction
 			if (lineParser.hasDirective()) {
-				processDirective(lineParser, lineNumber);
+				processDirectiveForLineCounter(lineParser, lineNumber);
 			}
 			if (lineParser.hasSymbol()) {
 				processSymbol(lineParser, lineNumber);
@@ -260,12 +265,11 @@ public class ASM {
 		} // while
 
 		SymbolTable.passOneDone();
-		instructionCounter.reset();
 		tpListing.setCaretPosition(0);
 		scannerPassOne.close();
 	}// passOne
 
-	private void processDirective(LineParser lp, int lineNumber) {
+	private void processDirectiveForLineCounter(LineParser lp, int lineNumber) {
 		String directive = lp.getDirective();
 		String arguments = lp.getArgument();
 		String errorMsg = String.format("Directive %s on line: %04d not yet implemented", directive, lineNumber);
@@ -295,6 +299,7 @@ public class ASM {
 				scannerComma.useDelimiter(COMMA);
 				while (scannerComma.hasNext()) {
 					instructionCounter.incrementCurrentLocation(2);
+					scannerComma.next();
 				} // while
 			} else {
 				throw new AssemblerException("Directive DW on line: " + lineNumber + " needs an argument");
@@ -334,29 +339,29 @@ public class ASM {
 			break;
 		case "IF":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "ELSE":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "ENDIF":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "END":
-		//	throw new AssemblerException(errorMsg);
-			
+			// throw new AssemblerException(errorMsg);
+
 			break;
 		case "PUBLIC":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "EXTRN":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "NAME":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "STKLN":
 			throw new AssemblerException(errorMsg);
-		//	break;
+			// break;
 		case "TITLE":
 			break;
 		default:
@@ -439,76 +444,267 @@ public class ASM {
 
 	}// displayStuff
 
-	private void parseLine(LineParser lp) {
-		int currentPC = instructionCounter.getCurrentLocation();
-		// comment
-	}
+	/* .................................................................................. */
+	/* .................................................................................. */
 
-	private void parseLine(int lineNumber, String sourceLine) {
-		// int currentPC = instructionCounter.getCurrentLocation();
-		// clearElements();
-		// if (workingLine.length() == 0) {// do nothing on an empty line
-		// isEmptyLine = true;
-		// return;
-		// } // if - empty source line
-		//
-		// workingLine = checkForComment(workingLine); // check for Comment
-		//
-		// // comments have been removed from the working line
-		//
-		// if (workingLine.length() == 0) {
-		// return; // all done! the whole line was a comment
-		// } // if
-		/* =================================== */
-		// workingLine = checkForInstruction(workingLine);
-		// if (instruction == null) {
-		// workingLine = checkForDirective(workingLine, lineNumber);
-		// }//
-		//
-		// if (workingLine.length() == 0) {
-		// return; // all done!
-		// }// if
-		//
-		// // must be a label/name at begging of line
-		// workingLine = checkForSymbol(workingLine, lineNumber);
-		//
-		// if (workingLine.length() == 0) {
-		// return; // all done!
-		// }// if
-		//
-		// workingLine = checkForDirective(workingLine, lineNumber);
-		// if (directive == null) {
-		// workingLine = checkForInstruction(workingLine);
-		// }//
+	/**
+	 * passTwo makes final pass at source, using symbol table to generate the object code
+	 */
+	private void passTwo() {
+		instructionCounter.reset();
+		HashMap<Integer, Byte> memoryImage = new HashMap<Integer, Byte>();
+		int lineNumber;
+		String sourceLine, lineImage;
+		LineParser lineParser = new LineParser();
+		Scanner scannerPassTwo = new Scanner(tpSource.getText());
 
-	}// parseLine
+		while (scannerPassTwo.hasNextLine()) {
+			sourceLine = scannerPassTwo.next();
+			lineParser.parse(sourceLine);
+			lineImage = EMPTY_STRING;
+			lineNumber = lineParser.getLineNumber();
+			if (lineParser.hasInstruction()) {
+				lineImage = setMemoryBytesForInstruction(lineParser);
+			} else if (lineParser.hasDirective()) {
+				lineImage = setMemoryBytesForDirective(lineParser);
+			} // if
+			System.out.printf("[passTwo] %04d  %04X  %s%n", lineParser.getLineNumber(),
+					instructionCounter.getCurrentLocation(), lineImage);
+			int a = 0;
+		} // while
+		scannerPassTwo.close();
+	}// passTwo
 
-	private void clearElements() {
-		isEmptyLine = false; // ?
-		symbol = null;
-		// isInstruction = false; // ?
-		directive = null;
-		instruction = null;
-		arguments = null;
-		comment = null;
-	}// clearElements
+	private void saveMemoryImage(String lineImage, HashMap<Integer, Byte> memoryImage) {
+		int numOfChars = lineImage.length() / 2;
+		if (numOfChars < 1) {
+			return;
+		} // if - nothing here
+		String strValue;
+		int intValue;
+		for (int i = 0; i < numOfChars; i++) {
+			strValue = lineImage.substring(i * 2, (i + 1) * 2);
+			intValue = Integer.valueOf(strValue, 16);
+			memoryImage.put((Integer) instructionCounter.getCurrentLocation() + i, (byte) intValue);
+		}
+	}// saveMemoryImage
 
-	private String checkForComment(String lineToCheck) {
-		Pattern patternForComments = Pattern.compile(";.*");
+	private String setMemoryBytesForDirective(LineParser lineParser) {
+		switch (lineParser.getDirective().toUpperCase()) {
+		case "DB":
+		case "DW":
+		case "DS":
+			break;
+		default:
+			return EMPTY_STRING;
+		}// switch
 
-		Matcher matcher = patternForComments.matcher(lineToCheck);
-		if (matcher.find()) {// looks like a comment
-			comment = matcher.group();
-			if (comment.contains("'")) {// is there a single quote here?
-				if (lineToCheck.substring(0, matcher.start()).contains("'")) {
-					comment = null;
-				} // its all inside a string
-			} // if single quote fund
-			lineToCheck = lineToCheck.substring(0, matcher.start()).trim();
-		} // if comments found
-		return lineToCheck.trim();
-	}// checkForComment
+		if (!lineParser.hasArgument()) {
+			String msg = String.format("%s on Line %04d needs an argument", lineParser.getDirective(),
+					lineParser.getLineNumber());
+			throw new AssemblerException(msg);
+		} // if - we have arguments
 
+		String args;
+		int ansInt;
+		StringBuilder sb = new StringBuilder();
+
+		int locationCount = 0;
+
+		Scanner scannerDirective = new Scanner(lineParser.getArgument());
+		scannerDirective.useDelimiter(COMMA);
+
+		switch (lineParser.getDirective().toUpperCase()) {
+		case "DB":
+			byte aByte;
+			while (scannerDirective.hasNext()) {
+				args = scannerDirective.next();
+				if (args.matches(stringValuePattern)) { // literal
+					args.replace(QUOTE, EMPTY_STRING);
+					char[] allCharacters = args.toCharArray();
+					for (char aCharacter : allCharacters) {
+						aByte = (byte) aCharacter;
+						sb.append(String.format("%02X", aByte));
+						locationCount += 2;
+					} // for each
+				} else {
+					ansInt = resolveSimpleArgument(args, lineParser.getLineNumber()) & 0XFF;
+					sb.append(String.format("%02X", ansInt));
+					locationCount += 2;
+				} // if
+			} // while
+			break;
+		case "DW":
+			while (scannerDirective.hasNext()) {
+				args = scannerDirective.next();
+				ansInt = resolveSimpleArgument(args, lineParser.getLineNumber()) & 0XFFFF;
+				byte hiByte = (byte) (ansInt >> 8);
+				byte loByte = (byte) (ansInt & 0X00FF);
+				sb.append(String.format("%02X%02X", loByte, hiByte));
+				locationCount = 4;
+			} // while
+			break;
+		case "DS":
+			locationCount = resolveSimpleArgument(lineParser.getArgument(), lineParser.getLineNumber()) & 0XFFFF;
+			break;
+		default:
+		}// switch
+		scannerDirective.close();
+		instructionCounter.incrementCurrentLocation(locationCount);
+		return sb.toString();
+	}// setMemoryBytesForDirective
+
+	private String setMemoryBytesForInstruction(LineParser lineParser) {
+		String ans = null;
+		byte opCode;
+		byte registerValue, registerValue2;
+		int shiftValue, shiftValue2;
+		int argInt;
+		String args;
+
+		byte baseCode = lineParser.getBaseCode();
+		switch (lineParser.getOperandType()) {
+		case Instruction.ARGUMENT_NONE:
+			ans = String.format("%02X", baseCode); // only one value
+			break;
+		case Instruction.ARGUMENT_R8:
+			registerValue = Instruction.getR8Value(lineParser.getArgument());
+			shiftValue = lineParser.getOperand1Shift();
+			registerValue = (byte) (registerValue << shiftValue);
+			opCode = (byte) (baseCode | registerValue);
+			ans = String.format("%02X", opCode);
+			break;
+		case Instruction.ARGUMENT_R8_R8:
+			args = lineParser.getArgument().replace(SPACE, EMPTY_STRING);
+			if (args.matches(r8r8Pattern)) {
+				registerValue = Instruction.getR8Value(args.substring(0, 1));
+				shiftValue = lineParser.getOperand1Shift();
+				shiftValue = (byte) (registerValue << shiftValue);
+
+				registerValue2 = Instruction.getR8Value(args.substring(2));
+				shiftValue2 = lineParser.getOperand2Shift();
+				shiftValue2 = (byte) (registerValue2 << shiftValue2);
+				opCode = (byte) (baseCode | registerValue | registerValue2);
+				ans = String.format("%02X", opCode);
+			} else {
+				String msg = String.format("Bad argument - %s - on source line : 04d", lineParser.getArgument(),
+						lineParser.getLineNumber());
+				throw new AssemblerException(msg);
+			} // if
+			break;
+		case Instruction.ARGUMENT_R16D:
+			registerValue = Instruction.getR16DValue(lineParser.getArgument());
+			shiftValue = lineParser.getOperand1Shift();
+			registerValue = (byte) (registerValue << shiftValue);
+			opCode = (byte) (baseCode | registerValue);
+			ans = String.format("%02X", opCode);
+			break;
+		case Instruction.ARGUMENT_R16Q:
+			registerValue = Instruction.getR16QValue(lineParser.getArgument());
+			shiftValue = lineParser.getOperand1Shift();
+			registerValue = (byte) (registerValue << shiftValue);
+			opCode = (byte) (baseCode | registerValue);
+			ans = String.format("%02X", opCode);
+			break;
+		case Instruction.ARGUMENT_D8:
+			opCode = lineParser.getBaseCode();
+			if (lineParser.getArgument().matches(stringValuePattern)) {
+				argInt = Integer.valueOf(lineParser.getArgument().replace(QUOTE, EMPTY_STRING), 16) & 0XFF;
+			} else {
+				argInt = resolveSimpleArgument(lineParser.getArgument(), lineParser.getLineNumber());
+			} // if
+			ans = String.format("%02X%02X", opCode, argInt);
+			break;
+		case Instruction.ARGUMENT_D16:
+			opCode = lineParser.getBaseCode();
+			if (lineParser.getArgument().matches(stringValuePattern)) {
+				argInt = Integer.valueOf(lineParser.getArgument().replace(QUOTE, EMPTY_STRING), 16) & 0XFF;
+			} else {
+				argInt = resolveSimpleArgument(lineParser.getArgument(), lineParser.getLineNumber());
+			} // if
+			argInt = argInt & 0XFFFF; // mod 64K
+			args = String.format("%04X", argInt);
+			ans = String.format("%02X%%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
+			break;
+		case Instruction.ARGUMENT_R16D_D16:
+			Scanner scannerArguments = new Scanner(lineParser.getArgument());
+			scannerArguments.useDelimiter(COMMA);
+			String R16D, D16;
+			try {
+				R16D = scannerArguments.next();
+				D16 = scannerArguments.next();
+			} catch (NoSuchElementException noSuchElementException) {
+				throw new AssemblerException(
+						"Bad argument - " + lineParser.getArgument() + " on line: " + lineParser.getLineNumber());
+			} // try
+
+			if (R16D.matches(r16dPattern)) {
+				opCode = lineParser.getBaseCode();
+				registerValue = Instruction.getR16DValue(lineParser.getArgument());
+				shiftValue = lineParser.getOperand1Shift();
+				registerValue = (byte) (registerValue << shiftValue);
+				opCode = (byte) (baseCode | registerValue);
+			} else {
+				throw new AssemblerException(
+						"Bad argument - " + lineParser.getArgument() + " on line: " + lineParser.getLineNumber());
+			} // if R16D
+
+			if (D16.matches(stringValuePattern)) {
+				argInt = Integer.valueOf(D16.replace(QUOTE, EMPTY_STRING), 16) & 0XFF;
+			} else {
+				argInt = resolveSimpleArgument(D16, lineParser.getLineNumber());
+			} // if D16
+
+			argInt = argInt & 0XFFFF; // mod 64K
+			args = String.format("%04X", argInt);
+			ans = String.format("%02X%%s%s", opCode, args.substring(2), args.substring(0, 2));// Lo-Hi
+
+			break;
+		case Instruction.ARGUMENT_R8_D8:
+			scannerArguments = new Scanner(lineParser.getArgument());
+			scannerArguments.useDelimiter(COMMA);
+			String R8, D8;
+			try {
+				R8 = scannerArguments.next().trim();
+				D8 = scannerArguments.next().trim();
+			} catch (NoSuchElementException noSuchElementException) {
+				throw new AssemblerException(
+						"Bad argument - " + lineParser.getArgument() + " on line: " + lineParser.getLineNumber());
+			} // try
+
+			if (R8.matches(r8Pattern)) {
+				opCode = lineParser.getBaseCode();
+				registerValue = Instruction.getR8Value(lineParser.getArgument());
+				shiftValue = lineParser.getOperand1Shift();
+				registerValue = (byte) (registerValue << shiftValue);
+				opCode = (byte) (baseCode | registerValue);
+			} else {
+				throw new AssemblerException(
+						"Bad argument - " + lineParser.getArgument() + " on line: " + lineParser.getLineNumber());
+			} // if R8
+
+			if (D8.matches(stringValuePattern)) {
+				argInt = Integer.valueOf(D8.replace(QUOTE, EMPTY_STRING), 16) & 0XFF;
+			} else {
+				argInt = resolveSimpleArgument(D8, lineParser.getLineNumber());
+			} // if D16
+
+			ans = String.format("%02X%02X", opCode, argInt);
+			break;
+		case Instruction.ARGUMENT_P8: // RST n
+			int rv = Integer.valueOf(lineParser.getArgument(), 16);
+			registerValue = (byte) rv;
+			shiftValue = lineParser.getOperand1Shift();
+			registerValue = (byte) (registerValue << shiftValue);
+			opCode = (byte) (baseCode | registerValue);
+			ans = String.format("%02X", opCode);
+			break;
+		default:
+			// Ignore
+		}// switch
+		instructionCounter.incrementCurrentLocation(lineParser.getOpCodeSize());
+		return ans;
+	}// setMemoryBytesForInstruction
 	/* ---------------------------------------------------------------------------------- */
 	/* ---------------------------------------------------------------------------------- */
 
@@ -909,13 +1105,19 @@ public class ASM {
 	private final static String SUFFIX_MEMORY = "mem";
 
 	private static final String EMPTY_STRING = ""; // empty string
+	private static final String SPACE = " "; // Space 0X20
 	private static final String COMMA = ","; // Comma ,
+	private static final String QUOTE = "'"; // single quote '
 
 	private static final String hexValuePattern = "[0-9][0-9A-Fa-f]{0,4}H";
 	private static final String octalValuePattern = "[0-7]+[O|Q]";
 	private static final String binaryValuePattern = "[01]B";
 	private static final String decimalValuePattern = "[0-9]{1,4}D?+";
 	private static final String stringValuePattern = "\\A'.*'\\z"; // used for
+
+	private static final String r8r8Pattern = "[ABCDEHLM],[ABCDEHLM]";
+	private static final String r16dPattern = "B|BC|D|DE|H|HL|SP";
+	private static final String r8Pattern = "A|B|C|D|E|H|L|M";
 
 	private JLabel lblSourceFilePath;
 	private JButton btnStart;

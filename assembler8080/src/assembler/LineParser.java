@@ -24,19 +24,6 @@ public class LineParser {
 	boolean activeLine;
 	boolean onlyComment;
 
-	Matcher matcher;
-
-	Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
-	Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
-	Pattern patternForSymbol = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
-
-	/* semicolon inside matching quotes */
-	Pattern patternInQuotes = Pattern.compile("'.*?.*?'");
-	Pattern patternForComment = Pattern.compile(";.*");
-
-	Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
-	Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
-
 	public LineParser() {
 		// TODO Auto-generated constructor stub
 	}// Constructor
@@ -330,6 +317,21 @@ public class LineParser {
 
 		return netLine;
 	}// findInstruction
+	
+	private Matcher matcher;
+
+	private Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
+	private Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
+	private Pattern patternForSymbol = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
+
+	/* semicolon inside matching quotes */
+	private Pattern patternInQuotes = Pattern.compile("'.*?.*?'");
+	private Pattern patternForComment = Pattern.compile(";.*");
+
+	private Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
+	private Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
+
+
 
 	private static final String COMMENT_CHAR = ";"; // semicolon ;
 	private static final String SINGLE_QUOTE = "'"; // single quote '
