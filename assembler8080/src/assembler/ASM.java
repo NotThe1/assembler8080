@@ -894,6 +894,11 @@ public class ASM {
 		while (memFormatter.hasNext()) {
 			System.out.print(memFormatter.getNext());
 		}
+		HexFormatter hexFormatter = new HexFormatter(startAddress,memImage);
+		while (hexFormatter.hasNext()) {
+			System.out.println(hexFormatter.getNext());
+		}
+		System.out.println(hexFormatter.getEOF());
 
 	}// makeMemoryFile
 
@@ -939,6 +944,9 @@ public class ASM {
 		myPrefs.putInt("LocX", point.x);
 		myPrefs.putInt("LocY", point.y);
 		myPrefs.putInt("Divider", splitPane.getDividerLocation());
+		myPrefs.putBoolean("rbListing", rbListing.isSelected());
+		myPrefs.putBoolean("rbMemFile", rbMemFile.isSelected());
+		myPrefs.putBoolean("rbHexFile", rbHexFile.isSelected());
 
 		myPrefs.put("defaultDirectory", defaultDirectory);
 		myPrefs = null;
@@ -954,6 +962,9 @@ public class ASM {
 		frmAsmAssembler.setSize(myPrefs.getInt("Width", 700), myPrefs.getInt("Height", 600));
 		splitPane.setDividerLocation(myPrefs.getInt("Divider", 200));
 		defaultDirectory = myPrefs.get("defaultDirectory", DEFAULT_DIRECTORY);
+		rbListing.setSelected(myPrefs.getBoolean("rbListing", true));
+		rbMemFile.setSelected(myPrefs.getBoolean("rbMemFile", true));
+		rbHexFile.setSelected(myPrefs.getBoolean("rbHexFile", true));
 		myPrefs = null;
 
 		// symbolTable = new SymbolTable(instructionCounter);
@@ -1055,9 +1066,9 @@ public class ASM {
 		panelMain.add(panelLeft, gbc_panelLeft);
 		GridBagLayout gbl_panelLeft = new GridBagLayout();
 		gbl_panelLeft.columnWidths = new int[] { 0, 0, 0 };
-		gbl_panelLeft.rowHeights = new int[] { 0, 0, 0, 0 };
+		gbl_panelLeft.rowHeights = new int[] { 0, 0, 0, 0, 0, 0, 0, 0 };
 		gbl_panelLeft.columnWeights = new double[] { 0.0, 1.0, Double.MIN_VALUE };
-		gbl_panelLeft.rowWeights = new double[] { 0.0, 0.0, 0.0, Double.MIN_VALUE };
+		gbl_panelLeft.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE };
 		panelLeft.setLayout(gbl_panelLeft);
 
 		btnStart = new JButton("Start");
@@ -1071,13 +1082,32 @@ public class ASM {
 		gbc_btnStart.gridy = 0;
 		panelLeft.add(btnStart, gbc_btnStart);
 
-		rbSave = new JRadioButton("Save");
-		rbSave.setSelected(true);
-		GridBagConstraints gbc_rbSave = new GridBagConstraints();
-		gbc_rbSave.insets = new Insets(0, 0, 0, 5);
-		gbc_rbSave.gridx = 0;
-		gbc_rbSave.gridy = 2;
-		panelLeft.add(rbSave, gbc_rbSave);
+		rbListing = new JRadioButton("Listing");
+		rbListing.setSelected(true);
+		GridBagConstraints gbc_rbListing = new GridBagConstraints();
+		gbc_rbListing.anchor = GridBagConstraints.WEST;
+		gbc_rbListing.insets = new Insets(0, 0, 5, 5);
+		gbc_rbListing.gridx = 0;
+		gbc_rbListing.gridy = 2;
+		panelLeft.add(rbListing, gbc_rbListing);
+		
+		rbMemFile = new JRadioButton("Mem File");
+		rbMemFile.setSelected(true);
+		GridBagConstraints gbc_rbMemFile = new GridBagConstraints();
+		gbc_rbMemFile.anchor = GridBagConstraints.WEST;
+		gbc_rbMemFile.insets = new Insets(0, 0, 5, 5);
+		gbc_rbMemFile.gridx = 0;
+		gbc_rbMemFile.gridy = 4;
+		panelLeft.add(rbMemFile, gbc_rbMemFile);
+		
+		rbHexFile = new JRadioButton("Hex File");
+		rbHexFile.setSelected(true);
+		GridBagConstraints gbc_rbHexFile = new GridBagConstraints();
+		gbc_rbHexFile.anchor = GridBagConstraints.WEST;
+		gbc_rbHexFile.insets = new Insets(0, 0, 0, 5);
+		gbc_rbHexFile.gridx = 0;
+		gbc_rbHexFile.gridy = 6;
+		panelLeft.add(rbHexFile, gbc_rbHexFile);
 
 		splitPane = new JSplitPane();
 		GridBagConstraints gbc_splitPane = new GridBagConstraints();
@@ -1211,7 +1241,7 @@ public class ASM {
 	private JLabel lblListingFileName;
 	private JPanel panelStatus;
 	private JFrame frmAsmAssembler;
-	private JRadioButton rbSave;
+	private JRadioButton rbListing;
 
 	private JMenuBar menuBar;
 	private JSeparator separator;
@@ -1258,6 +1288,8 @@ public class ASM {
 	private JButton btnStart;
 	private JTextPane tpSource;
 	private JTextPane tpListing;
+	private JRadioButton rbMemFile;
+	private JRadioButton rbHexFile;
 
 	// private static final String
 
