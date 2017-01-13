@@ -7,6 +7,8 @@ public class InstructionCounter {
 	String[] allocationType = { NONE, null, null }; // ASEG,CSEG,DSEG
 	int[] location = { 0, 0, 0 }; // ASEG,CSEG,DSEG
 	int[] priorLocation = { 0, 0, 0 }; // ASEG,CSEG,DSEG - last value before change
+	
+	int lowestLocationSet = 0XFFFF;
 
 	public InstructionCounter() {
 		makeCurrent(ASEG, NONE);
@@ -39,6 +41,7 @@ public class InstructionCounter {
 	}
 	public void setCurrentLocation(int loc) {
 		 location[currentSegment] = loc;
+		 lowestLocationSet = Math.min(loc, lowestLocationSet);
 	}// getCurrentLocation
 	public void setPriorLocation(){
 		priorLocation[currentSegment] = location[currentSegment];
@@ -49,6 +52,10 @@ public class InstructionCounter {
 	public int getPriorLocation() {
 		return priorLocation[currentSegment];
 	}// getCurrentLocation
+	public int getLowestLocationSet() {
+		return lowestLocationSet;
+	}// getLowestLocationSet
+
 	
 	public int getCurrentSegment() {
 		return currentSegment;
@@ -67,6 +74,7 @@ public class InstructionCounter {
 				System.err.println(errMessage);
 			}// if error!
 		}// if INPAGE
+		lowestLocationSet = Math.min(location[currentSegment], lowestLocationSet);
 		location[currentSegment] += amount;
 
 	}// incrementCurrentLocation(amount)

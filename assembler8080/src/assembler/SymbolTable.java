@@ -99,6 +99,18 @@ public class SymbolTable {
 		return symbols.get(symbol).getSymbolType();
 	}// getType
 
+	public int getDefinedLineNumber(String symbol) {
+		return symbols.get(symbol).getDefinedLineNumber();
+	}// getDefinedLineNumber
+	
+	public List<Integer> getReferencedLineNumbers(String symbol) {
+		List<Integer> result = asSortedList(symbols.get(symbol).getReferencedLineNumbers());
+		
+		return result;
+	}// getDefinedLineNumber
+	
+	
+
 	public String getTypeName(String symbol) {
 		String ans = null;
 		switch (this.getType(symbol)) {

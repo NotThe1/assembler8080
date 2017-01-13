@@ -20,16 +20,14 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Queue;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -459,9 +457,14 @@ public class ASM {
 	 * passTwo makes final pass at source, using symbol table to generate the object code
 	 */
 	private void passTwo() {
+		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
+		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
+
+		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
+				instructionCounter.getLowestLocationSet(), hiAddress);
+
 		instructionCounter.reset();
 		clearDoc(docListing);
-		HashMap<Integer, Byte> memoryImage = new HashMap<Integer, Byte>();
 		// int lineNumber;
 		int currentLocation;
 		String sourceLine, instructionImage;
@@ -488,16 +491,17 @@ public class ASM {
 				// currentLocation, instructionImage);
 			makeListing(currentLocation, sourceLine, instructionImage, lineParser);
 			if (instructionImage != EMPTY_STRING) {
-				saveMemoryImage(currentLocation, instructionImage, memoryImage);
+				buildMemoryImage(currentLocation, instructionImage, memoryImage);
 			} // if
 		} // while
 		scannerPassTwo.close();
 		tpListing.setCaretPosition(0);
-		makeMemoryFile( memoryImage);
-		
+		makeXrefListing();
+		makeMemoryFile(memoryImage);
+
 	}// passTwo
 
-	private void saveMemoryImage(int pc, String lineImage, HashMap<Integer, Byte> memoryImage) {
+	private void buildMemoryImage(int pc, String lineImage, ByteBuffer memoryImage0) {
 		int numOfChars = lineImage.length() / 2;
 		if (numOfChars < 1) {
 			return;
@@ -507,18 +511,43 @@ public class ASM {
 		for (int i = 0; i < numOfChars; i++) {
 			strValue = lineImage.substring(i * 2, (i + 1) * 2);
 			intValue = Integer.valueOf(strValue, 16);
-			memoryImage.put((Integer) pc + i, (byte) intValue);
+			memoryImage0.put((Integer) pc + i, (byte) intValue);
 		}
 	}// saveMemoryImage
+
+	private void makeXrefListing(){
+		String stars = "************************";
+		insertListing(System.lineSeparator() +System.lineSeparator() +System.lineSeparator() +System.lineSeparator(),null);
+		insertListing(String.format("           %s   %s   %s%n%n",stars,"Xref",stars ),attrMaroon);
+		
+		List<String> symbolList = symbolTable.getAllSymbols();
+		
+		List<Integer> referenceList;
+		for( String symbol:symbolList){
+			insertListing(String.format("%04d: ", symbolTable.getDefinedLineNumber(symbol)),attrSilver);
+			SimpleAttributeSet sab = symbolTable.getType(symbol)== SymbolTable.LABEL?attrBlue:attrNavy;
+			
+			insertListing(String.format("%-15s ",symbol),sab);
+			insertListing(String.format("%04X   ", symbolTable.getValue(symbol)),attrRed);
+			
+			referenceList = symbolTable.getReferencedLineNumbers(symbol);
+			for (Integer reference:referenceList){
+				insertListing(String.format("%04d ", reference),attrBlack);
+			}//for references
+			
+			insertListing(System.lineSeparator(),null);
+		}//for
+		
+	}// makeXrefListing ,symbolTable.getDefinedLineNumber(symbol)
 
 	private void makeListing(int location, String sourceLine, String memoryImage, LineParser lineParser) {
 		String cmd;
 		SimpleAttributeSet attributeSet;
 		if (lineParser.hasInstruction()) {
-			cmd = String.format("%-6s", lineParser.getInstruction());
+			cmd = String.format("%-6s ", lineParser.getInstruction());
 			attributeSet = attrNavy;
 		} else if (lineParser.hasDirective()) {
-			cmd = String.format("%-6s", lineParser.getDirective());
+			cmd = String.format("%-6s ", lineParser.getDirective());
 			attributeSet = attrBlue;
 		} else {
 			cmd = EMPTY_STRING;
@@ -528,13 +557,13 @@ public class ASM {
 		String symbol;
 		SimpleAttributeSet attributeSet1;
 		if (lineParser.hasLabel()) {
-			symbol = String.format("%-10s", lineParser.getLabel() + COLON);
+			symbol = String.format("%-10s ", lineParser.getLabel() + COLON);
 			attributeSet1 = attrNavy;
 		} else if (lineParser.hasSymbol()) {
-			symbol = String.format("%-10s", lineParser.getSymbol());
+			symbol = String.format("%-10s ", lineParser.getSymbol());
 			attributeSet1 = attrNavy;
 		} else {
-			symbol = String.format("%-10s", EMPTY_STRING);
+			symbol = String.format("%-10s ", EMPTY_STRING);
 			attributeSet1 = null;
 		} // if
 
@@ -550,7 +579,7 @@ public class ASM {
 		} else {
 			insertListing(symbol, attributeSet1);
 			insertListing(cmd, attributeSet);
-			String argument = String.format("%-20s", lineParser.getArgument());
+			String argument = String.format("%-20s ", lineParser.getArgument());
 			insertListing(argument, attrBlack);
 			insertListing(lineParser.getComment(), attrGreen);
 		} // if only comment
@@ -856,42 +885,15 @@ public class ASM {
 		return list;
 	}// sort for key list
 
-	private void makeMemoryFile(HashMap<Integer, Byte> memoryImage) {
-		Set<Integer> locations = memoryImage.keySet();
-		List<Integer> locationsOrdered = asSortedList(locations);
-
-		Queue<Point> gaps = new LinkedList<Point>();
-		Integer lastLocation = locationsOrdered.get(0) - 1;
-
-		int gapStart = 0;
-		int gapEnd = 0;
-
-		boolean inGap = false;
-		boolean isLineComplete = false;
-
-		/* start at line boundary */
-		int location = locationsOrdered.get(0);
-		gapStart = location % SIXTEEN;
-		if (gapStart != 0) {
-			for (int g = 0; g < gapStart; g++) {
-				memoryImage.put(location - g, (byte) 00);
-			} // add locations
-		} // if
-
-		for (Integer loc : locationsOrdered) {
-
-			if (lastLocation + 1 == loc) {
-				lastLocation = loc;
-			} else {
-				gapStart = lastLocation + 1;
-				gapEnd = loc - 1;
-				gaps.add(new Point(gapStart,gapEnd));
-				lastLocation = loc;
-			} // if
-			
-		} // for location
-		
-		int a = 0;
+	private void makeMemoryFile(ByteBuffer memoryImage) {
+		int startAddress = instructionCounter.getLowestLocationSet() & 0XFFF0;
+		byte[] memImage = new byte[memoryImage.capacity() - startAddress];
+		memoryImage.position(startAddress);
+		memoryImage.get(memImage);
+		MemFormatter memFormatter = MemFormatter.memFormatterFactory(startAddress, memImage);
+		while (memFormatter.hasNext()) {
+			System.out.print(memFormatter.getNext());
+		}
 
 	}// makeMemoryFile
 
