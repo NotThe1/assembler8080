@@ -19,11 +19,17 @@ import java.awt.print.PrinterException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -71,7 +77,10 @@ public class ASM {
 	private Tokenizer tokenizer = new Tokenizer();
 
 	private String defaultDirectory;
+	private String outputPathAndBase;
 	private File asmSourceFile = null;
+	private String sourceFileBase;
+	
 	private StyledDocument docSource;
 	private StyledDocument docListing;
 	private JScrollBar sbarSource;
@@ -87,15 +96,6 @@ public class ASM {
 	private SimpleAttributeSet attrMaroon = new SimpleAttributeSet();
 	private SimpleAttributeSet attrTeal = new SimpleAttributeSet();
 
-	// private boolean isEmptyLine;
-	// private String symbol;
-	// private Directive directive;
-	// private Instruction instruction;
-	// private String arguments;
-	// private String comment;
-
-	// private int currentPC;
-
 	/* ---------------------------------------------------------------------------------- */
 	private void openFile() {
 		JFileChooser chooserOpen = MyFileChooser.getFilePicker(defaultDirectory, "Assembler Source Code",
@@ -106,12 +106,16 @@ public class ASM {
 			// txtSource.setText("");
 			// txtListing.setText("");
 			asmSourceFile = chooserOpen.getSelectedFile();
-			String[] nameParts = (asmSourceFile.getName()).split("\\.");
-			String sourceFileBase = nameParts[0];
+			String asmSourceFileName = asmSourceFile.getName();
+			// String asmSourceDirectory = asmSourceFile.getPath();
+			String[] nameParts = (asmSourceFileName.split("\\."));
+			sourceFileBase = nameParts[0];
 			lblSourceFilePath.setText(asmSourceFile.getAbsolutePath());
 			lblSourceFileName.setText(asmSourceFile.getName());
 			lblListingFileName.setText(sourceFileBase + "." + SUFFIX_LISTING);
 			defaultDirectory = asmSourceFile.getParent();
+			outputPathAndBase = defaultDirectory + FILE_SEPARATOR + sourceFileBase;
+
 			// lblSource.setText(sourceFileName);
 			// lblListing.setText(replaceWithListingFileName(sourceFileName));
 			clearDoc(docSource);
@@ -125,30 +129,95 @@ public class ASM {
 	private void start() {
 		instructionCounter.reset();
 		symbolTable.reset();
-		if (asmSourceFile != null) {
-			clearDoc(docSource);
-			clearDoc(docListing);
+		if (asmSourceFile == null) {
+			return; // do nothing
+		}
+		clearDoc(docSource);
+		clearDoc(docListing);
 
-			loadSourceFile(asmSourceFile, 1, null);
-			passOne();
-			// showSymbolTable();
-			passTwo();
+		loadSourceFile(asmSourceFile, 1, null);
+		passOne(); // make symbol table & fix labels
+		ByteBuffer memoryImage = passTwo();
 
-			// passTwo(asmSourceFile);
-			// // passOne(asmSourceFile);
-			// // passTwo(asmSourceFile);
-		} // if
+		if (rbListing.isSelected()) {
+			saveListing();
+		} // if listing
+		if (rbMemFile.isSelected() | rbHexFile.isSelected()) {
+			saveMemoryFile(memoryImage);
+		} // if memory Image
+		mnuFilePrintListing.setEnabled(true);
 
 	}// start
 
-	private void showSymbolTable() {
-		List<String> symbols = symbolTable.getAllSymbols();
-		for (String symbol : symbols) {
-			System.out.printf("[showSymbolTable]   %-10s %04d %X\t %s%n", symbol,
-					symbolTable.getEntry(symbol).getDefinedLineNumber(), symbolTable.getValue(symbol),
-					symbolTable.getTypeName(symbol));
-		} // for
-	}//
+	private void saveListing() {
+		try {
+			FileWriter fw = new FileWriter(new File(outputPathAndBase + DOT + SUFFIX_LISTING));
+			PrintWriter pw = new PrintWriter(fw);
+			Scanner scanner = new Scanner(tpListing.getText());
+			String listingLine;
+			while (scanner.hasNextLine()) {
+				listingLine = scanner.nextLine();
+				if (listingLine.equals(EMPTY_STRING)) {
+					continue; // skip
+				} // if empty line
+				pw.println(listingLine);
+			} // while
+			scanner.close();
+			pw.close();
+			fw.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} // try
+	}//saveListing
+	
+	private void saveMemoryFile(ByteBuffer memoryImage) {
+		int startAddress = instructionCounter.getLowestLocationSet() & 0XFFF0;
+		byte[] memImage = new byte[memoryImage.capacity() - startAddress];
+		memoryImage.position(startAddress);
+		memoryImage.get(memImage);
+
+		FileWriter fwMemFile = null;
+		PrintWriter pwMemFile = null;
+		FileWriter fwHexFile = null;
+		PrintWriter pwHexFile = null;
+		String memFile = outputPathAndBase + DOT + SUFFIX_MEM;
+		String hexFile = outputPathAndBase + DOT + SUFFIX_HEX;
+		try {
+
+			Files.deleteIfExists(Paths.get(memFile));
+			Files.deleteIfExists(Paths.get(hexFile));
+
+			if (rbMemFile.isSelected()) {
+				fwMemFile = new FileWriter(new File(memFile));
+				pwMemFile = new PrintWriter(fwMemFile);
+
+				MemFormatter memFormatter = MemFormatter.memFormatterFactory(startAddress, memImage);
+				while (memFormatter.hasNext()) {
+					pwMemFile.print((memFormatter.getNext()));
+				} // while Mem File
+				pwMemFile.close();
+				fwMemFile.close();
+			} // if Mem
+
+			if (rbHexFile.isSelected()) {
+				fwHexFile = new FileWriter(new File(hexFile));
+				pwHexFile = new PrintWriter(fwHexFile);
+
+				HexFormatter hexFormatter = new HexFormatter(startAddress, memImage);
+				while (hexFormatter.hasNext()) {
+					pwHexFile.println(hexFormatter.getNext());
+				} // while Hex File
+				pwHexFile.println(hexFormatter.getEOF());
+				pwHexFile.close();
+				fwHexFile.close();
+			} // if Hex
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}//try
+
+	}// makeMemoryFile
+
 
 	private void clearDoc(StyledDocument doc) {
 		try {
@@ -171,7 +240,8 @@ public class ASM {
 			while ((rawLine = reader.readLine()) != null) {
 				// // line = rawLine.toUpperCase();
 				line = rawLine;
-				outputLine = String.format("%04d %s%n", lineNumber++, line);
+				// outputLine = String.format("%04d %s%n", lineNumber++, line);
+				outputLine = String.format("%04d %s\n", lineNumber++, line);
 
 				insertSource(outputLine, attr);
 				// txtSource.append(outputLine);
@@ -183,6 +253,8 @@ public class ASM {
 				} // if
 			} // while
 			reader.close();
+			mnuFilePrintSource.setEnabled(true);
+			mnuFilePrintListing.setEnabled(false);
 		} catch (IOException e) {
 			e.printStackTrace();
 		} // TRY
@@ -213,7 +285,6 @@ public class ASM {
 		try {
 			docSource.insertString(docSource.getLength(), str, attr);
 		} catch (BadLocationException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} // try
 	}// insertSource
@@ -223,7 +294,6 @@ public class ASM {
 			// docListing.
 			docListing.insertString(docListing.getLength(), str, attr);
 		} catch (BadLocationException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} // try
 	}// insertSource
@@ -241,7 +311,6 @@ public class ASM {
 		String sourceLine;
 		LineParser lineParser = new LineParser();
 		Scanner scannerPassOne = new Scanner(tpSource.getText());
-
 		while (scannerPassOne.hasNextLine()) {
 			sourceLine = scannerPassOne.nextLine();
 			if (sourceLine.equals(EMPTY_STRING)) {
@@ -268,7 +337,7 @@ public class ASM {
 			if (lineParser.hasSymbol()) {
 				processSymbol(lineParser, lineNumber);
 			} // if has symbol
-			displayStuff(lineParser);
+				// displayStuff(lineParser);
 		} // while
 
 		SymbolTable.passOneDone();
@@ -404,51 +473,51 @@ public class ASM {
 		symbolTable.defineSymbol(label, instructionCounter.getCurrentLocation(), lineNumber, SymbolTable.LABEL);
 	}// processSymbol
 
-	private void displayStuff(LineParser lp) {
-		int lineNumber = lp.getLineNumber();
-		String msg = String.format("%04d  ", lineNumber);
-		insertListing(msg, attrGray);
-
-		/* if the line is only a comment */
-		if (lp.isOnlyComment()) {
-			insertListing(lp.getComment() + LINE_SEPARATOR, attrGreen);
-			return;
-		} // if only comment
-
-		String labelOrSymbol = null;
-		;
-		if (lp.hasLabel()) {
-			labelOrSymbol = lp.getLabel() + ":";
-		} else if (lp.hasSymbol()) {
-			labelOrSymbol = lp.getSymbol();
-		} else {
-			labelOrSymbol = EMPTY_STRING;
-		} // if Label Or Symbol
-		msg = String.format("%-10s ", labelOrSymbol);
-		insertListing(msg, attrBlack);
-
-		String insOrDir = null;
-		if (lp.hasInstruction()) {
-			insOrDir = lp.getInstruction();
-		} else if (lp.hasDirective()) {
-			insOrDir = lp.getDirective();
-		} else {
-			insOrDir = EMPTY_STRING;
-		} // if Label Or Symbol
-		msg = String.format("%-4s ", insOrDir);
-		insertListing(msg, attrBlue);
-
-		String arguments = lp.hasArgument() ? lp.getArgument() : EMPTY_STRING;
-		msg = String.format("%-15s ", arguments);
-		insertListing(msg, attrBlack);
-
-		if (lp.hasComment()) {
-			insertListing(lp.getComment(), attrGreen);
-		} // if comments
-
-		insertListing(LINE_SEPARATOR, null);
-
-	}// displayStuff
+//	private void displayStuff(LineParser lp) {
+//		int lineNumber = lp.getLineNumber();
+//		String msg = String.format("%04d  ", lineNumber);
+//		insertListing(msg, attrGray);
+//
+//		/* if the line is only a comment */
+//		if (lp.isOnlyComment()) {
+//			insertListing(lp.getComment() + LINE_SEPARATOR, attrGreen);
+//			return;
+//		} // if only comment
+//
+//		String labelOrSymbol = null;
+//		;
+//		if (lp.hasLabel()) {
+//			labelOrSymbol = lp.getLabel() + ":";
+//		} else if (lp.hasSymbol()) {
+//			labelOrSymbol = lp.getSymbol();
+//		} else {
+//			labelOrSymbol = EMPTY_STRING;
+//		} // if Label Or Symbol
+//		msg = String.format("%-10s ", labelOrSymbol);
+//		insertListing(msg, attrBlack);
+//
+//		String insOrDir = null;
+//		if (lp.hasInstruction()) {
+//			insOrDir = lp.getInstruction();
+//		} else if (lp.hasDirective()) {
+//			insOrDir = lp.getDirective();
+//		} else {
+//			insOrDir = EMPTY_STRING;
+//		} // if Label Or Symbol
+//		msg = String.format("%-4s ", insOrDir);
+//		insertListing(msg, attrBlue);
+//
+//		String arguments = lp.hasArgument() ? lp.getArgument() : EMPTY_STRING;
+//		msg = String.format("%-15s ", arguments);
+//		insertListing(msg, attrBlack);
+//
+//		if (lp.hasComment()) {
+//			insertListing(lp.getComment(), attrGreen);
+//		} // if comments
+//
+//		insertListing(LINE_SEPARATOR, null);
+//
+//	}// displayStuff
 
 	/* .................................................................................. */
 	/* .................................................................................. */
@@ -456,7 +525,7 @@ public class ASM {
 	/**
 	 * passTwo makes final pass at source, using symbol table to generate the object code
 	 */
-	private void passTwo() {
+	private ByteBuffer passTwo() {
 		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
 		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
 
@@ -481,7 +550,7 @@ public class ASM {
 
 			lineParser.parse(sourceLine);
 			instructionImage = EMPTY_STRING;
-			int lineNumber = lineParser.getLineNumber();
+//			int lineNumber = lineParser.getLineNumber();
 			if (lineParser.hasInstruction()) {
 				instructionImage = setMemoryBytesForInstruction(lineParser);
 			} else if (lineParser.hasDirective()) {
@@ -497,8 +566,8 @@ public class ASM {
 		scannerPassTwo.close();
 		tpListing.setCaretPosition(0);
 		makeXrefListing();
-		makeMemoryFile(memoryImage);
-
+		// makeMemoryFile(memoryImage);
+		return memoryImage;
 	}// passTwo
 
 	private void buildMemoryImage(int pc, String lineImage, ByteBuffer memoryImage0) {
@@ -515,29 +584,30 @@ public class ASM {
 		}
 	}// saveMemoryImage
 
-	private void makeXrefListing(){
+	private void makeXrefListing() {
 		String stars = "************************";
-		insertListing(System.lineSeparator() +System.lineSeparator() +System.lineSeparator() +System.lineSeparator(),null);
-		insertListing(String.format("           %s   %s   %s%n%n",stars,"Xref",stars ),attrMaroon);
-		
+		insertListing(System.lineSeparator() + System.lineSeparator() + System.lineSeparator() + System.lineSeparator(),
+				null);
+		insertListing(String.format("           %s   %s   %s%n%n", stars, "Xref", stars), attrMaroon);
+
 		List<String> symbolList = symbolTable.getAllSymbols();
-		
+
 		List<Integer> referenceList;
-		for( String symbol:symbolList){
-			insertListing(String.format("%04d: ", symbolTable.getDefinedLineNumber(symbol)),attrSilver);
-			SimpleAttributeSet sab = symbolTable.getType(symbol)== SymbolTable.LABEL?attrBlue:attrNavy;
-			
-			insertListing(String.format("%-15s ",symbol),sab);
-			insertListing(String.format("%04X   ", symbolTable.getValue(symbol)),attrRed);
-			
+		for (String symbol : symbolList) {
+			insertListing(String.format("%04d: ", symbolTable.getDefinedLineNumber(symbol)), attrSilver);
+			SimpleAttributeSet sab = symbolTable.getType(symbol) == SymbolTable.LABEL ? attrBlue : attrNavy;
+
+			insertListing(String.format("%-15s ", symbol), sab);
+			insertListing(String.format("%04X   ", symbolTable.getValue(symbol)), attrRed);
+
 			referenceList = symbolTable.getReferencedLineNumbers(symbol);
-			for (Integer reference:referenceList){
-				insertListing(String.format("%04d ", reference),attrBlack);
-			}//for references
-			
-			insertListing(System.lineSeparator(),null);
-		}//for
-		
+			for (Integer reference : referenceList) {
+				insertListing(String.format("%04d ", reference), attrBlack);
+			} // for references
+
+			insertListing(System.lineSeparator(), null);
+		} // for
+
 	}// makeXrefListing ,symbolTable.getDefinedLineNumber(symbol)
 
 	private void makeListing(int location, String sourceLine, String memoryImage, LineParser lineParser) {
@@ -885,37 +955,23 @@ public class ASM {
 		return list;
 	}// sort for key list
 
-	private void makeMemoryFile(ByteBuffer memoryImage) {
-		int startAddress = instructionCounter.getLowestLocationSet() & 0XFFF0;
-		byte[] memImage = new byte[memoryImage.capacity() - startAddress];
-		memoryImage.position(startAddress);
-		memoryImage.get(memImage);
-		MemFormatter memFormatter = MemFormatter.memFormatterFactory(startAddress, memImage);
-		while (memFormatter.hasNext()) {
-			System.out.print(memFormatter.getNext());
-		}
-		HexFormatter hexFormatter = new HexFormatter(startAddress,memImage);
-		while (hexFormatter.hasNext()) {
-			System.out.println(hexFormatter.getNext());
-		}
-		System.out.println(hexFormatter.getEOF());
-
-	}// makeMemoryFile
 
 	/* ---------------------------------------------------------------------------------- */
 	/* ---------------------------------------------------------------------------------- */
-
-	private void printListing() {
-
+	
+	private void printListing(JTextPane textPane,String name) {
 		try {
-			tpListing.print();
+			textPane.setFont(new Font("Courier New", Font.PLAIN, 8));
+			MessageFormat header = new MessageFormat(name);
+			MessageFormat footer = new MessageFormat(new Date().toString() + "           Page - {0}");
+			textPane.print(header, footer);
+			textPane.setFont(new Font("Courier New", Font.PLAIN, 14));
 
 		} catch (PrinterException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
-
+		}//try
 	}// printListing
+
 	/* ---------------------------------------------------------------------------------- */
 	/* ---------------------------------------------------------------------------------- */
 
@@ -977,6 +1033,9 @@ public class ASM {
 		sbarListing = spListing.getVerticalScrollBar();
 		sbarListing.setName(SBAR_LISTING);
 		sbarListing.addAdjustmentListener(adapterForASM);
+		
+		mnuFilePrintSource.setEnabled(false);
+		mnuFilePrintListing.setEnabled(false);
 
 		setAttributes();
 	}// appInit
@@ -1066,9 +1125,10 @@ public class ASM {
 		panelMain.add(panelLeft, gbc_panelLeft);
 		GridBagLayout gbl_panelLeft = new GridBagLayout();
 		gbl_panelLeft.columnWidths = new int[] { 0, 0, 0 };
-		gbl_panelLeft.rowHeights = new int[] { 0, 0, 0, 0, 0, 0, 0, 0 };
+		gbl_panelLeft.rowHeights = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		gbl_panelLeft.columnWeights = new double[] { 0.0, 1.0, Double.MIN_VALUE };
-		gbl_panelLeft.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, Double.MIN_VALUE };
+		gbl_panelLeft.rowWeights = new double[] { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+				Double.MIN_VALUE };
 		panelLeft.setLayout(gbl_panelLeft);
 
 		btnStart = new JButton("Start");
@@ -1090,7 +1150,7 @@ public class ASM {
 		gbc_rbListing.gridx = 0;
 		gbc_rbListing.gridy = 2;
 		panelLeft.add(rbListing, gbc_rbListing);
-		
+
 		rbMemFile = new JRadioButton("Mem File");
 		rbMemFile.setSelected(true);
 		GridBagConstraints gbc_rbMemFile = new GridBagConstraints();
@@ -1099,15 +1159,30 @@ public class ASM {
 		gbc_rbMemFile.gridx = 0;
 		gbc_rbMemFile.gridy = 4;
 		panelLeft.add(rbMemFile, gbc_rbMemFile);
-		
+
 		rbHexFile = new JRadioButton("Hex File");
 		rbHexFile.setSelected(true);
 		GridBagConstraints gbc_rbHexFile = new GridBagConstraints();
 		gbc_rbHexFile.anchor = GridBagConstraints.WEST;
-		gbc_rbHexFile.insets = new Insets(0, 0, 0, 5);
+		gbc_rbHexFile.insets = new Insets(0, 0, 5, 5);
 		gbc_rbHexFile.gridx = 0;
 		gbc_rbHexFile.gridy = 6;
 		panelLeft.add(rbHexFile, gbc_rbHexFile);
+
+		JButton btnTest = new JButton("test");
+		btnTest.setVisible(false);
+		btnTest.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				
+
+			}// 
+		});
+		GridBagConstraints gbc_btnTest = new GridBagConstraints();
+		gbc_btnTest.anchor = GridBagConstraints.NORTH;
+		gbc_btnTest.insets = new Insets(0, 0, 0, 5);
+		gbc_btnTest.gridx = 0;
+		gbc_btnTest.gridy = 10;
+		panelLeft.add(btnTest, gbc_btnTest);
 
 		splitPane = new JSplitPane();
 		GridBagConstraints gbc_splitPane = new GridBagConstraints();
@@ -1170,12 +1245,12 @@ public class ASM {
 		separator = new JSeparator();
 		mnuFile.add(separator);
 
-		JMenuItem mnuFilePrintSource = new JMenuItem("Print Source");
+		mnuFilePrintSource = new JMenuItem("Print Source");
 		mnuFilePrintSource.setName(MNU_FILE_PRINT_SOURCE);
 		mnuFilePrintSource.addActionListener(adapterForASM);
 		mnuFile.add(mnuFilePrintSource);
 
-		JMenuItem mnuFilePrintListing = new JMenuItem("Print Listing");
+		mnuFilePrintListing = new JMenuItem("Print Listing");
 		mnuFilePrintListing.setName(MNU_FILE_PRINT_LISTING);
 		mnuFilePrintListing.addActionListener(adapterForASM);
 		mnuFile.add(mnuFilePrintListing);
@@ -1202,9 +1277,10 @@ public class ASM {
 				openFile();
 				break;
 			case MNU_FILE_PRINT_SOURCE:
+				printListing(tpSource,sourceFileBase + DOT + SUFFIX_ASSEMBLER );
 				break;
 			case MNU_FILE_PRINT_LISTING:
-				printListing();
+				printListing(tpListing,sourceFileBase + DOT + SUFFIX_LISTING);
 				break;
 			case MNU_FILE_EXIT:
 				appClose();
@@ -1262,15 +1338,20 @@ public class ASM {
 	private static final String LINE_SEPARATOR = System.lineSeparator();
 	private static final String FILE_SEPARATOR = File.separator;
 	private static final String DEFAULT_DIRECTORY = "." + FILE_SEPARATOR + "Code" + FILE_SEPARATOR + ".";
+
 	private final static String SUFFIX_ASSEMBLER = "asm";
 	private final static String SUFFIX_LISTING = "list";
-	private final static String SUFFIX_MEMORY = "mem";
+	private final static String SUFFIX_RTF = "rtf";
+	private final static String SUFFIX_MEM = "mem";
+	private final static String SUFFIX_HEX = "hex";
 
 	private static final String EMPTY_STRING = ""; // empty string
 	private static final String SPACE = " "; // Space 0X20
 	private static final String COMMA = ","; // Comma ,
 	private static final String COLON = ":"; // Colon : ,
 	private static final String QUOTE = "'"; // single quote '
+	private static final String PERIOD = "."; // period .
+	private static final String DOT = "."; // period .
 
 	private static final String hexValuePattern = "[0-9][0-9A-Fa-f]{0,4}H";
 	private static final String octalValuePattern = "[0-7]+[O|Q]";
@@ -1290,6 +1371,8 @@ public class ASM {
 	private JTextPane tpListing;
 	private JRadioButton rbMemFile;
 	private JRadioButton rbHexFile;
+	private JMenuItem mnuFilePrintSource;
+	private JMenuItem mnuFilePrintListing;
 
 	// private static final String
 
