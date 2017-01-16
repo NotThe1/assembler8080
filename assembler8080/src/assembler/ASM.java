@@ -101,7 +101,7 @@ public class ASM {
 		JFileChooser chooserOpen = MyFileChooser.getFilePicker(defaultDirectory, "Assembler Source Code",
 				SUFFIX_ASSEMBLER);
 		if (chooserOpen.showOpenDialog(null) != JFileChooser.APPROVE_OPTION) {
-			System.out.printf("You cancelled the file open%n", "");
+			System.out.printf("%s%n", "You cancelled the file open");
 		} else {
 			// txtSource.setText("");
 			// txtListing.setText("");
@@ -142,7 +142,7 @@ public class ASM {
 		if (rbListing.isSelected()) {
 			saveListing();
 		} // if listing
-		if (rbMemFile.isSelected() | rbHexFile.isSelected()) {
+		if (rbMemFile.isSelected() || rbHexFile.isSelected()) {
 			saveMemoryFile(memoryImage);
 		} // if memory Image
 		mnuFilePrintListing.setEnabled(true);
@@ -462,7 +462,7 @@ public class ASM {
 			// ok let it go
 			break;
 		default:
-			System.out.printf("** Check line number %d directive is = %n", lineNumber, lp.getDirective());
+			System.out.printf("** Check line number %d directive is = %s%n", lineNumber, lp.getDirective());
 			// look out for Include
 		}// switch
 
@@ -473,52 +473,6 @@ public class ASM {
 		symbolTable.defineSymbol(label, instructionCounter.getCurrentLocation(), lineNumber, SymbolTable.LABEL);
 	}// processSymbol
 
-//	private void displayStuff(LineParser lp) {
-//		int lineNumber = lp.getLineNumber();
-//		String msg = String.format("%04d  ", lineNumber);
-//		insertListing(msg, attrGray);
-//
-//		/* if the line is only a comment */
-//		if (lp.isOnlyComment()) {
-//			insertListing(lp.getComment() + LINE_SEPARATOR, attrGreen);
-//			return;
-//		} // if only comment
-//
-//		String labelOrSymbol = null;
-//		;
-//		if (lp.hasLabel()) {
-//			labelOrSymbol = lp.getLabel() + ":";
-//		} else if (lp.hasSymbol()) {
-//			labelOrSymbol = lp.getSymbol();
-//		} else {
-//			labelOrSymbol = EMPTY_STRING;
-//		} // if Label Or Symbol
-//		msg = String.format("%-10s ", labelOrSymbol);
-//		insertListing(msg, attrBlack);
-//
-//		String insOrDir = null;
-//		if (lp.hasInstruction()) {
-//			insOrDir = lp.getInstruction();
-//		} else if (lp.hasDirective()) {
-//			insOrDir = lp.getDirective();
-//		} else {
-//			insOrDir = EMPTY_STRING;
-//		} // if Label Or Symbol
-//		msg = String.format("%-4s ", insOrDir);
-//		insertListing(msg, attrBlue);
-//
-//		String arguments = lp.hasArgument() ? lp.getArgument() : EMPTY_STRING;
-//		msg = String.format("%-15s ", arguments);
-//		insertListing(msg, attrBlack);
-//
-//		if (lp.hasComment()) {
-//			insertListing(lp.getComment(), attrGreen);
-//		} // if comments
-//
-//		insertListing(LINE_SEPARATOR, null);
-//
-//	}// displayStuff
-
 	/* .................................................................................. */
 	/* .................................................................................. */
 
@@ -527,9 +481,6 @@ public class ASM {
 	 */
 	private ByteBuffer passTwo() {
 		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
-//		int buffSize = hiAddress - (instructionCounter.getLowestLocationSet() & 0XFFF0);
-//		System.out.printf("passTwo[] buffSize %04X (%d)%n", buffSize,buffSize);
-//		ByteBuffer memoryImage = ByteBuffer.allocate(buffSize +1);
 		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
 
 		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
@@ -537,7 +488,6 @@ public class ASM {
 
 		instructionCounter.reset();
 		clearDoc(docListing);
-		// int lineNumber;
 		int currentLocation;
 		String sourceLine, instructionImage;
 		LineParser lineParser = new LineParser();
@@ -553,7 +503,6 @@ public class ASM {
 
 			lineParser.parse(sourceLine);
 			instructionImage = EMPTY_STRING;
-//			int lineNumber = lineParser.getLineNumber();
 			if (lineParser.hasInstruction()) {
 				instructionImage = setMemoryBytesForInstruction(lineParser);
 			} else if (lineParser.hasDirective()) {
@@ -562,7 +511,7 @@ public class ASM {
 				// System.out.printf("[passTwo] %04d %04X %s%n", lineParser.getLineNumber(),
 				// currentLocation, instructionImage);
 			makeListing(currentLocation, sourceLine, instructionImage, lineParser);
-			if (instructionImage != EMPTY_STRING) {
+			if (!instructionImage.equals(EMPTY_STRING)) {
 				buildMemoryImage(currentLocation, instructionImage, memoryImage);
 			} // if
 		} // while
@@ -768,7 +717,7 @@ public class ASM {
 				opCode = (byte) (baseCode | shiftValue | shiftValue2);
 				ans = String.format("%02X", opCode);
 			} else {
-				String msg = String.format("Bad argument - %s - on source line : 04d", lineParser.getArgument(),
+				String msg = String.format("Bad argument - %s - on source line : %04d", lineParser.getArgument(),
 						lineParser.getLineNumber());
 				throw new AssemblerException(msg);
 			} // if
