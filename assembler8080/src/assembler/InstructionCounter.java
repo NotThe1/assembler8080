@@ -42,6 +42,9 @@ public class InstructionCounter {
 	public void setCurrentLocation(int loc) {
 		 location[currentSegment] = loc;
 		 lowestLocationSet = Math.min(loc, lowestLocationSet);
+//		 if (lowestLocationSet < 0XE800){
+//			 int a = 9;
+//		 }
 	}// getCurrentLocation
 	public void setPriorLocation(){
 		priorLocation[currentSegment] = location[currentSegment];

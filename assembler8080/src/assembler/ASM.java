@@ -527,6 +527,9 @@ public class ASM {
 	 */
 	private ByteBuffer passTwo() {
 		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
+//		int buffSize = hiAddress - (instructionCounter.getLowestLocationSet() & 0XFFF0);
+//		System.out.printf("passTwo[] buffSize %04X (%d)%n", buffSize,buffSize);
+//		ByteBuffer memoryImage = ByteBuffer.allocate(buffSize +1);
 		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
 
 		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
@@ -762,7 +765,7 @@ public class ASM {
 				registerValue2 = Instruction.getR8Value(args.substring(2));
 				shiftValue2 = lineParser.getOperand2Shift();
 				shiftValue2 = (byte) (registerValue2 << shiftValue2);
-				opCode = (byte) (baseCode | registerValue | registerValue2);
+				opCode = (byte) (baseCode | shiftValue | shiftValue2);
 				ans = String.format("%02X", opCode);
 			} else {
 				String msg = String.format("Bad argument - %s - on source line : 04d", lineParser.getArgument(),
