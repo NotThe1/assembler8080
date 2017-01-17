@@ -38,7 +38,8 @@ public class InstructionCounter {
 			location[i] = 0;
 			priorLocation[i] = 0;
 		}//for - clear each segment location
-	}
+		lowestLocationSet = 0XFFFF;
+	}//reset
 	public void setCurrentLocation(int loc) {
 		 location[currentSegment] = loc;
 		 lowestLocationSet = Math.min(loc, lowestLocationSet);
