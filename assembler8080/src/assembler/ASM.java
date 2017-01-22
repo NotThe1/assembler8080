@@ -334,7 +334,7 @@ public class ASM {
 			if (lineParser.hasDirective()) {
 				processDirectiveForLineCounter(lineParser, lineNumber);
 			}
-			if (lineParser.hasSymbol()) {
+			if (lineParser.hasName()) {
 				processSymbol(lineParser, lineNumber);
 			} // if has symbol
 				// displayStuff(lineParser);
@@ -449,7 +449,7 @@ public class ASM {
 		if (!lp.hasDirective()) {
 			return; // symbol defintion needs to be on a directive line
 		} // if have a Directive?
-		String symbol = lp.getSymbol();
+		String symbol = lp.getName();
 
 		switch (lp.getDirective().toUpperCase()) {
 		case "EQU":
@@ -483,8 +483,8 @@ public class ASM {
 		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
 		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
 
-		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
-				instructionCounter.getLowestLocationSet(), hiAddress);
+//		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
+//				instructionCounter.getLowestLocationSet(), hiAddress);
 
 		instructionCounter.reset();
 		clearDoc(docListing);
@@ -581,8 +581,8 @@ public class ASM {
 		if (lineParser.hasLabel()) {
 			symbol = String.format("%-10s ", lineParser.getLabel() + COLON);
 			attributeSet1 = attrNavy;
-		} else if (lineParser.hasSymbol()) {
-			symbol = String.format("%-10s ", lineParser.getSymbol());
+		} else if (lineParser.hasName()) {
+			symbol = String.format("%-10s ", lineParser.getName());
 			attributeSet1 = attrNavy;
 		} else {
 			symbol = String.format("%-10s ", EMPTY_STRING);
@@ -1137,6 +1137,8 @@ public class ASM {
 		panelLeft.add(btnTest, gbc_btnTest);
 
 		splitPane = new JSplitPane();
+		splitPane.setDividerSize(8);
+		splitPane.setOneTouchExpandable(true);
 		GridBagConstraints gbc_splitPane = new GridBagConstraints();
 		gbc_splitPane.fill = GridBagConstraints.BOTH;
 		gbc_splitPane.gridx = 1;

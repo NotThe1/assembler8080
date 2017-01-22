@@ -16,18 +16,18 @@ public class LineParserTestSimpleStuff {
 		sourceLine = ";There are no labels";
 		lp.parse(sourceLine);
 		assertThat("There are no labels or symbols", null, equalTo(lp.getLabel()));
-		assertThat("There are no labels or symbols", null, equalTo(lp.getSymbol()));
+		assertThat("There are no labels or symbols", null, equalTo(lp.getName()));
 
 		label = "simpleLabel";
 		lp.parse(label + ":" + sourceLine);
 		assertThat("There is a labels", label, equalTo(lp.getLabel()));
 		assertThat("Has label", true, equalTo(lp.hasLabel()));
-		assertThat("There is a label, no symbol", null, equalTo(lp.getSymbol()));
+		assertThat("There is a label, no symbol", null, equalTo(lp.getName()));
 
 		label = "bad Label";
 		lp.parse(label + ":" + sourceLine);
 		assertThat("There is a bad  label", null, equalTo(lp.getLabel()));
-		assertThat("There is a bad  label", "bad", equalTo(lp.getSymbol()));
+		assertThat("There is a bad  label", "bad", equalTo(lp.getName()));
 
 		String comment = "; cannot have label in comment";
 		sourceLine = " mvi ";

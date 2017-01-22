@@ -14,7 +14,7 @@ public class LineParser {
 	String instruction;
 	String label;
 	String lineNumberStr;
-	String symbol;
+	String name;
 	int operandType;
 	int operand1Shift;
 	int operand2Shift;
@@ -25,7 +25,7 @@ public class LineParser {
 	boolean onlyComment;
 
 	public LineParser() {
-		// TODO Auto-generated constructor stub
+		
 	}// Constructor
 
 	public boolean isActiveLine() {
@@ -37,18 +37,19 @@ public class LineParser {
 	}// hasArgument
 
 	public String getArgument() {
-		return hasArgument()?this.arguments:EMPTY_STRING;
+		return hasArgument() ? this.arguments : EMPTY_STRING;
 	}// getArgument
 
-	public boolean isOnlyComment(){
+	public boolean isOnlyComment() {
 		return this.onlyComment;
-	}//isOnlyComment
+	}// isOnlyComment
+
 	public boolean hasComment() {
 		return this.comment != null;
 	}// hasComment
 
 	public String getComment() {
-		return hasComment()?this.comment:EMPTY_STRING;
+		return hasComment() ? this.comment : EMPTY_STRING;
 	}// getComment
 
 	public boolean hasDirective() {
@@ -56,7 +57,7 @@ public class LineParser {
 	}// hasDirective
 
 	public String getDirective() {
-		return hasDirective()?this.directive:EMPTY_STRING;
+		return hasDirective() ? this.directive : EMPTY_STRING;
 	}// getDirective
 
 	public boolean hasInstruction() {
@@ -64,7 +65,7 @@ public class LineParser {
 	}// hasInstruction
 
 	public String getInstruction() {
-		return hasInstruction()?this.instruction:EMPTY_STRING;
+		return hasInstruction() ? this.instruction : EMPTY_STRING;
 	}// getInstruction
 
 	public boolean hasLabel() {
@@ -72,7 +73,7 @@ public class LineParser {
 	}// hasLabel
 
 	public String getLabel() {
-		return hasLabel()?this.label:EMPTY_STRING;
+		return hasLabel() ? this.label : EMPTY_STRING;
 	}// getLabel
 
 	public boolean hasLineNumber() {
@@ -80,7 +81,7 @@ public class LineParser {
 	}// hasLineNumber
 
 	public String getLineNumberStr() {
-		return hasLineNumber()?this.lineNumberStr:EMPTY_STRING;
+		return hasLineNumber() ? this.lineNumberStr : EMPTY_STRING;
 	}// getLineNumberStr
 
 	public int getLineNumber() {
@@ -88,13 +89,13 @@ public class LineParser {
 		return ln;
 	}// getLineNumberInt
 
-	public boolean hasSymbol() {
-		return this.symbol != null;
-	}// hasSymbol
+	public boolean hasName() {
+		return this.name != null;
+	}// hasName
 
-	public String getSymbol() {
-		return hasSymbol()?this.symbol:EMPTY_STRING;
-	}// getSymbol
+	public String getName() {
+		return hasName() ? this.name : EMPTY_STRING;
+	}// getName
 
 	public int getOpCodeSize() {
 		return this.opCodeSize;
@@ -123,7 +124,7 @@ public class LineParser {
 		this.label = null;
 		this.lineNumberStr = null;
 		this.instruction = null;
-		this.symbol = null;
+		this.name = null;
 
 		this.opCodeSize = 0;
 		this.operandType = Instruction.ARGUMENT_NONE;
@@ -143,7 +144,9 @@ public class LineParser {
 	 */
 
 	public boolean parse(String sourceLine) {
-		String workingLine = sourceLine.replaceAll("\t", SPACE);
+		String workingLine = new String(sourceLine);
+
+		// String workingLine = sourceLine.replaceAll("\t", SPACE);
 		resetAtttributes();
 		if (workingLine.trim().length() == 0) {
 			activeLine = false;
@@ -154,22 +157,33 @@ public class LineParser {
 		workingLine = findLineNumber(workingLine);
 		if (workingLine.length() == 0)
 			return this.activeLine;
-
+		/* no line Number */
 		workingLine = findComment(workingLine);
-
+		/* no comment, line number */
+		workingLine = findLabel(workingLine);
+		if (workingLine.length() == 0)
+			return this.activeLine;
+		/* no label,comment,line number */
 		workingLine = findInstruction(workingLine);
 		if (workingLine.length() == 0)
 			return this.activeLine;
 
-		if (this.instruction == null) {
-			workingLine = findDirective(workingLine);
-		} // if no instruction
+		/* no instruction ( its args), labels.comments,line numbers */
+		/* only a directive line {Name} Directive {Arguments} */
+
+		workingLine = findDirective(workingLine);
+
 		if (workingLine.length() == 0)
 			return this.activeLine;
 
-		workingLine = findLabelOrSymbol(workingLine);
-		if (workingLine.length() == 0)
-			return this.activeLine;
+		System.out.printf("Ins: %6s, Dir: %6s, workingLine: %s%n", instruction, directive, workingLine);
+
+//		workingLine = findSymbol(workingLine);
+//		if (workingLine.length() == 0)
+//			return this.activeLine;
+		
+		
+		
 		// System.out.printf("%n[LineParser.parse] sourceLine: %s%n", sourceLine);
 		// System.out.printf("[LineParser.parse] \tworkingLine: %s%n", workingLine);
 		// System.out.printf("[LineParser.parse] \t\tcomment: %s%n", comment);
@@ -182,13 +196,20 @@ public class LineParser {
 	private String findDirective(String workingLine) {
 		String netLine = new String(workingLine).trim();
 		this.directive = null;
+		Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
+		Matcher matcherForDirective = patternForDirectives.matcher(netLine);
 
-		matcher = patternForDirectives.matcher(netLine);
-		if (matcher.find()) {
-			this.directive = matcher.group();
-			this.arguments = (matcher.end() < netLine.length())
-					? netLine.substring(matcher.end(), netLine.length()).trim() : null;
-			netLine = matcher.replaceFirst(EMPTY_STRING);
+		if (matcherForDirective.find()) {
+			this.directive = matcherForDirective.group();
+			this.arguments = (matcherForDirective.end() < netLine.length())
+					? netLine.substring(matcherForDirective.end(), netLine.length()).trim() : null;
+					
+			String possibleName = netLine.substring(0, matcherForDirective.start());
+			Pattern patternForName = Pattern.compile("[\\@\\?A-Za-z]{1}\\w{1,25}\\s");
+			Matcher matcherForName = patternForName.matcher(possibleName);
+			this.name = matcherForName.find()?matcherForName.group().trim():null;
+			netLine = EMPTY_STRING;
+
 		} // if
 		return netLine;
 	}// findInstruction
@@ -202,12 +223,13 @@ public class LineParser {
 		this.operand1Shift = 0;
 		this.operand2Shift = 0;
 		this.baseCode = (byte) 0X00;
+		Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
 		matcher = patternForInstructions.matcher(netLine);
 
 		if (matcher.find()) {
 			this.instruction = matcher.group().toUpperCase();
-//			this.arguments = (matcher.end() < netLine.length())
-//					? netLine.substring(matcher.end(), netLine.length() - matcher.end()) : null;
+			// this.arguments = (matcher.end() < netLine.length())
+			// ? netLine.substring(matcher.end(), netLine.length() - matcher.end()) : null;
 			this.arguments = (matcher.end() < netLine.length())
 					? netLine.substring(matcher.end(), netLine.length()).trim() : null;
 			this.opCodeSize = InstructionSet.getOpCodeSize(this.instruction);
@@ -216,37 +238,41 @@ public class LineParser {
 			this.operand2Shift = InstructionSet.getOperand2Shift(this.instruction);
 			this.baseCode = InstructionSet.getBaseCode(this.instruction);
 
-			netLine = matcher.replaceFirst(EMPTY_STRING);
-
+			// netLine = matcher.replaceFirst(EMPTY_STRING);
+			netLine = EMPTY_STRING;
 		} // if instrucion found
 		return netLine;
 	}// findInstruction
 
-	private String findLabelOrSymbol(String workingLine) {
+	private String findSymbol(String workingLine) {
 		String netLine = new String(workingLine).trim();
 		this.label = null;
-		this.symbol = null;
+		this.name = null;
+		Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
 		matcher = patternForLabel.matcher(netLine);
-		Matcher matcherSymbol = patternForSymbol.matcher(netLine);
+		Pattern patternForName = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
+
+		Matcher matcherName = patternForName.matcher(netLine);
 		if (matcher.lookingAt()) {
 			label = matcher.group().trim();
 			label = label.replaceAll(":", EMPTY_STRING);
 			netLine = matcher.replaceFirst(EMPTY_STRING);
-		} else if (matcherSymbol.lookingAt()) {
-			symbol = matcherSymbol.group().trim();
-			netLine = matcherSymbol.replaceFirst(EMPTY_STRING);
-		} // if label or symbol
+		} else if (matcherName.lookingAt()) {
+			name = matcherName.group().trim();
+			netLine = matcherName.replaceFirst(EMPTY_STRING);
+		} // if Label or Name
 		return netLine.trim();
 	}// findLabel
 
 	private String findComment(String workingLine) {
 		String netLine = new String(workingLine);
 		this.comment = null;
+		Pattern patternForComment = Pattern.compile(";.*");
 		matcher = patternForComment.matcher(netLine);
-		
+
 		if (!netLine.contains(COMMENT_CHAR)) {
 			/* just return the line - no comments here */
-		}else if (matcher.lookingAt()){
+		} else if (matcher.lookingAt()) {
 			comment = netLine;
 			netLine = EMPTY_STRING;
 			this.onlyComment = true;
@@ -269,7 +295,7 @@ public class LineParser {
 			Queue<Point> quotePairs = new LinkedList<Point>();
 			matcher = patternInQuotes.matcher(netLine);
 			while (matcher.find()) {
-				quotePairs.add(new Point(matcher.start(), matcher.end()-1));
+				quotePairs.add(new Point(matcher.start(), matcher.end() - 1));
 			} // while
 
 			boolean commentFound = true;
@@ -291,7 +317,7 @@ public class LineParser {
 
 			if (commentFound) {
 				comment = workingLine.substring(targetIndex, workingLine.length());
-				netLine = workingLine.substring(0, targetIndex );
+				netLine = workingLine.substring(0, targetIndex);
 			} // if there is a comment
 		} // if
 
@@ -304,34 +330,47 @@ public class LineParser {
 		return (limits.x <= testValue) && (testValue <= limits.y) ? true : false;
 	}// inRange
 
+	private String findLabel(String workingLine) {
+		String netLine = new String(workingLine); // .trim()
+		Pattern patternForLabel = Pattern.compile("[\\@\\?A-Za-z]{1}\\w{1,25}:{1}");
+		Matcher matcherForLabel = patternForLabel.matcher(netLine);
+		if (matcherForLabel.lookingAt()) {
+			this.label = matcherForLabel.group();
+			netLine = matcherForLabel.replaceFirst(EMPTY_STRING);
+		} else {
+			this.label = null;
+		} // if
+		return netLine;
+	}// findLabel
+
 	private String findLineNumber(String workingLine) {
 		String netLine = new String(workingLine); // .trim()
-
-		matcher = patternForLineNumber.matcher(netLine);
-		if (matcher.lookingAt()) {
-			this.lineNumberStr = matcher.group().trim();
-			netLine = matcher.replaceFirst(EMPTY_STRING);
+		Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
+		Matcher matcherForLineNumber = patternForLineNumber.matcher(netLine);
+		if (matcherForLineNumber.lookingAt()) {
+			this.lineNumberStr = matcherForLineNumber.group().trim();
+			netLine = matcherForLineNumber.replaceFirst(EMPTY_STRING);
 		} else {
 			this.lineNumberStr = null;
 		} // if
 
 		return netLine;
 	}// findInstruction
-	
+
 	private Matcher matcher;
 
-	private Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
-	private Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
-	private Pattern patternForSymbol = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
+//	private Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
+	// private Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
+	// private Pattern patternForName = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
 
 	/* semicolon inside matching quotes */
 	private Pattern patternInQuotes = Pattern.compile("'.*?.*?'");
-	private Pattern patternForComment = Pattern.compile(";.*");
+	// simplest (["'])(\\?.)*?\1
+	// this gobbles backslashes   (["'])(?:(?=(\\?))\2.)*?\1
+//	private Pattern patternForComment = Pattern.compile(";.*");
 
-	private Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
-	private Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
-
-
+//	private Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
+	// private Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
 
 	private static final String COMMENT_CHAR = ";"; // semicolon ;
 	private static final String SINGLE_QUOTE = "'"; // single quote '
