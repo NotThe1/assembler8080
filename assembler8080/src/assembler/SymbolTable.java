@@ -1,8 +1,8 @@
 package assembler;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +33,7 @@ public class SymbolTable {
 
 	public static void passOneDone() {
 		pass1 = false;
-	}
+	}//passOneDone
 
 	public void defineSymbol(String name, int value, int lineNumber, int symbolType) {
 		if (symbols.containsKey(name)) {
@@ -76,16 +76,17 @@ public class SymbolTable {
 
 	public List<String> getAllSymbols() {
 		Set<String> allSymbols = symbols.keySet();
-		List<String> symbolList = asSortedList(allSymbols);
+		List<String> symbolList = new ArrayList<String>(allSymbols);
+		Collections.sort(symbolList, new CaseInsensitiveSort());
 		return symbolList;
-
-	}// getAllSymbols
-
-	public static <T extends Comparable<? super T>> List<T> asSortedList(Collection c) {
-		List<T> list = new ArrayList<T>(c);
-		Collections.sort(list);
-		return list;
-	}// asSortedList
+	}// getAllSymbols2
+	
+	class CaseInsensitiveSort<String> implements Comparator<String> {
+		@Override
+		public int compare(String arg0, String arg1) {
+			return ((java.lang.String) arg0).compareToIgnoreCase((java.lang.String) arg1);
+		}// compare
+	}// CaseInsensitiveSort
 
 	public SymbolTableEntry getEntry(String symbol) {
 		return symbols.get(symbol);
@@ -102,14 +103,10 @@ public class SymbolTable {
 	public int getDefinedLineNumber(String symbol) {
 		return symbols.get(symbol).getDefinedLineNumber();
 	}// getDefinedLineNumber
-	
+
 	public List<Integer> getReferencedLineNumbers(String symbol) {
-		List<Integer> result = asSortedList(symbols.get(symbol).getReferencedLineNumbers());
-		
-		return result;
+		return symbols.get(symbol).getReferencedLineNumbers();
 	}// getDefinedLineNumber
-	
-	
 
 	public String getTypeName(String symbol) {
 		String ans = null;

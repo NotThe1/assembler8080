@@ -1,6 +1,7 @@
 package assembler;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class SymbolTableEntry {
 	private String name;
@@ -34,14 +35,12 @@ public class SymbolTableEntry {
 		
 	}//Constructor - SymbolTable - used when referencing a new symbol
 
-
 	String getName() {
 		return name;
 	}//getName
 	void setName(String name) {
 		this.name = name;
 	}//setName
-
 
 	int getValue() {
 		return value;
@@ -50,14 +49,12 @@ public class SymbolTableEntry {
 		this.value = value;
 	}//setValue
 
-
 	int getSymbolType() {
 		return symbolType;
 	}//getSymbolType
 	void setSymbolType(int symbolType) {
 		this.symbolType = symbolType;
 	}//setSymbolType
-
 
 	int getSymbolScope() {
 		return symbolScope;
@@ -66,7 +63,6 @@ public class SymbolTableEntry {
 		this.symbolScope = symbolScope;
 	}//setSymbolScope
 
-
 	Integer getDefinedLineNumber() {
 		return definedLineNumber;
 	}//getDefinedLineNumber
@@ -74,21 +70,20 @@ public class SymbolTableEntry {
 		this.definedLineNumber = definedLineNumber;
 	}//setDefinedLineNumber
 
-
 	ArrayList<Integer> getReferencedLineNumbers() {
-		return referencedLineNumbers;
+		ArrayList<Integer> lineNumbers = (ArrayList<Integer>) this.referencedLineNumbers.clone();
+		Collections.sort(lineNumbers);
+		return lineNumbers;
 	}//getReferencedLineNumbers
-//	void setReferencedLineNumber(ArrayList<Integer> referencedLineNumber) {
-//		this.referencedLineNumber = referencedLineNumber;
-//	}//setReferencedLineNumber
+	
 	Integer getReferencedLineNumberSize(){
 		return referencedLineNumbers.size();
 	}//getReferencedLineNumberSize
+	
 	void addReferenceLineNumber(int lineNumber){
 		if(!referencedLineNumbers.contains(lineNumber)){
 			referencedLineNumbers.add(lineNumber);
 		}//do not want duplicate references
-		
 	}//addReferenceLineNumber
 
 }//class SymbolTable
