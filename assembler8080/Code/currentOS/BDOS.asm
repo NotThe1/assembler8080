@@ -257,7 +257,6 @@ fWriteRandom:					; func34 (34 - 22) Write Random record
 ;*****************************************************************
 ;return file size (0-65536)
 ;IN  - (DE) FCB address
- (Next record position/ virtual file size)
 fComputeFileSize:					; func35 (35 - 23) Compute File Size
 	CALL	Reselect
 	JMP	GetFileSize

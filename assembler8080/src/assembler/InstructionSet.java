@@ -48,6 +48,7 @@ public class InstructionSet {
 		return sb.toString();
 	}//getRegex
 	
+	
 	public static Set<String> getInstructionSet(){
 		 return instructions.keySet();
 	}//getInstructionSet

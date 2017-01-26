@@ -1,9 +1,6 @@
 package assembler;
 
 import java.awt.Point;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +22,7 @@ public class LineParser {
 	boolean onlyComment;
 
 	public LineParser() {
-		
+
 	}// Constructor
 
 	public boolean isActiveLine() {
@@ -175,44 +172,36 @@ public class LineParser {
 
 		if (workingLine.length() == 0)
 			return this.activeLine;
-
-		System.out.printf("Ins: %6s, Dir: %6s, workingLine: %s%n", instruction, directive, workingLine);
-
-//		workingLine = findSymbol(workingLine);
-//		if (workingLine.length() == 0)
-//			return this.activeLine;
-		
-		
-		
-		// System.out.printf("%n[LineParser.parse] sourceLine: %s%n", sourceLine);
-		// System.out.printf("[LineParser.parse] \tworkingLine: %s%n", workingLine);
-		// System.out.printf("[LineParser.parse] \t\tcomment: %s%n", comment);
-		// System.out.printf("[LineParser.parse] \t\tlabel: %s%n", label);
-		// System.out.printf("[LineParser.parse] \t\tInstruction: %s%n", instruction);
-		// System.out.printf("[LineParser.parse] \t\tDirective: %s%n", directive);
+		System.err.printf("Ins: %6s, Dir: %6s, workingLine: %s%n", instruction, directive, workingLine);
 		return this.activeLine;
 	}// parse
+
+
 
 	private String findDirective(String workingLine) {
 		String netLine = new String(workingLine).trim();
 		this.directive = null;
-		Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
+		String compoundRegex = "('[^']*')|(" + DirectiveSet.getRegex() + ")";
+
+		Pattern patternForDirectives = Pattern.compile(compoundRegex);
 		Matcher matcherForDirective = patternForDirectives.matcher(netLine);
 
 		if (matcherForDirective.find()) {
-			this.directive = matcherForDirective.group();
-			this.arguments = (matcherForDirective.end() < netLine.length())
-					? netLine.substring(matcherForDirective.end(), netLine.length()).trim() : null;
-					
-			String possibleName = netLine.substring(0, matcherForDirective.start());
-			Pattern patternForName = Pattern.compile("[\\@\\?A-Za-z]{1}\\w{1,25}\\s");
-			Matcher matcherForName = patternForName.matcher(possibleName);
-			this.name = matcherForName.find()?matcherForName.group().trim():null;
-			netLine = EMPTY_STRING;
+			if ((matcherForDirective.group(1) == null) && (matcherForDirective.group(2) != null)) {
+				this.directive = matcherForDirective.group();
+				this.arguments = (matcherForDirective.end() < netLine.length())
+						? netLine.substring(matcherForDirective.end(), netLine.length()).trim() : null;
 
-		} // if
+				String possibleName = netLine.substring(0, matcherForDirective.start());
+				Pattern patternForName = Pattern.compile("[\\@\\?A-Za-z]{1}\\w{1,25}\\s");
+				Matcher matcherForName = patternForName.matcher(possibleName);
+				this.name = matcherForName.find() ? matcherForName.group().trim() : null;
+				netLine = EMPTY_STRING;
+			}
+		} // outer if
 		return netLine;
-	}// findInstruction
+	}// findDirective
+
 
 	private String findInstruction(String workingLine) {
 		String netLine = new String(workingLine).trim();
@@ -223,25 +212,27 @@ public class LineParser {
 		this.operand1Shift = 0;
 		this.operand2Shift = 0;
 		this.baseCode = (byte) 0X00;
-		Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
-		matcher = patternForInstructions.matcher(netLine);
+		String compoundRegex = "('[^']*')|(" + InstructionSet.getRegex() + ")";
+		Pattern patternForInstructions = Pattern.compile(compoundRegex);
+		Matcher matcherForInstruction = patternForInstructions.matcher(netLine);
 
-		if (matcher.find()) {
-			this.instruction = matcher.group().toUpperCase();
-			// this.arguments = (matcher.end() < netLine.length())
-			// ? netLine.substring(matcher.end(), netLine.length() - matcher.end()) : null;
-			this.arguments = (matcher.end() < netLine.length())
-					? netLine.substring(matcher.end(), netLine.length()).trim() : null;
-			this.opCodeSize = InstructionSet.getOpCodeSize(this.instruction);
-			this.operandType = InstructionSet.getOperandType(this.instruction);
-			this.operand1Shift = InstructionSet.getOperand1Shift(this.instruction);
-			this.operand2Shift = InstructionSet.getOperand2Shift(this.instruction);
-			this.baseCode = InstructionSet.getBaseCode(this.instruction);
-
-			// netLine = matcher.replaceFirst(EMPTY_STRING);
-			netLine = EMPTY_STRING;
-		} // if instrucion found
+		if (matcherForInstruction.find()) {
+			if ((matcherForInstruction.group(1) == null) && (matcherForInstruction.group(2) != null)) {
+				this.instruction = matcherForInstruction.group().toUpperCase();
+				// this.arguments = (matcher.end() < netLine.length())
+				// ? netLine.substring(matcher.end(), netLine.length() - matcher.end()) : null;
+				this.arguments = (matcherForInstruction.end() < netLine.length())
+						? netLine.substring(matcherForInstruction.end(), netLine.length()).trim() : null;
+				this.opCodeSize = InstructionSet.getOpCodeSize(this.instruction);
+				this.operandType = InstructionSet.getOperandType(this.instruction);
+				this.operand1Shift = InstructionSet.getOperand1Shift(this.instruction);
+				this.operand2Shift = InstructionSet.getOperand2Shift(this.instruction);
+				this.baseCode = InstructionSet.getBaseCode(this.instruction);
+				netLine = EMPTY_STRING;
+			} // inner if - it is an instruction
+		} // outer if instruction found
 		return netLine;
+
 	}// findInstruction
 
 	private String findSymbol(String workingLine) {
@@ -264,64 +255,88 @@ public class LineParser {
 		return netLine.trim();
 	}// findLabel
 
-	private String findComment(String workingLine) {
-		String netLine = new String(workingLine);
+	private String findComment1(String workingLine) {
 		this.comment = null;
-		Pattern patternForComment = Pattern.compile(";.*");
-		matcher = patternForComment.matcher(netLine);
-
-		if (!netLine.contains(COMMENT_CHAR)) {
-			/* just return the line - no comments here */
-		} else if (matcher.lookingAt()) {
-			comment = netLine;
-			netLine = EMPTY_STRING;
-			this.onlyComment = true;
-		} else if (!netLine.contains(SINGLE_QUOTE)) {
-			matcher.reset();
-			matcher.find();
-			comment = matcher.group();
-			netLine = matcher.replaceFirst(EMPTY_STRING);
-			/* simple comment */
-		} else {
-			Integer commentCharIndex = netLine.indexOf(COMMENT_CHAR);
-			Queue<Integer> commentCharIndexes = new LinkedList<Integer>();
-
-			while (commentCharIndex != -1) {
-				commentCharIndexes.add(commentCharIndex);
-				commentCharIndex = netLine.indexOf(COMMENT_CHAR, commentCharIndex + 1);
-			} // while - get all COMMENT_CHARs
-
-			/* if there are quotes, there might be literal commentChars */
-			Queue<Point> quotePairs = new LinkedList<Point>();
-			matcher = patternInQuotes.matcher(netLine);
-			while (matcher.find()) {
-				quotePairs.add(new Point(matcher.start(), matcher.end() - 1));
-			} // while
-
-			boolean commentFound = true;
-			Integer targetIndex = -1;
-			Iterator indexIterator = commentCharIndexes.iterator();
-			while (indexIterator.hasNext()) {
-				commentFound = true;
-				targetIndex = (Integer) indexIterator.next();
-				for (Point p : quotePairs) {
-					if (inRange(targetIndex, p)) {
-						commentFound = false; /* comment char in quotes */
-						continue;
-					} // if in range
-				} // for points
-				if (commentFound) {
-					break;
-				} // get outta here
-			} // while
-
-			if (commentFound) {
-				comment = workingLine.substring(targetIndex, workingLine.length());
-				netLine = workingLine.substring(0, targetIndex);
-			} // if there is a comment
+		String netLine = new String(workingLine);
+		if (!netLine.contains(";")) {
+			return netLine; /* no comments */
 		} // if
 
+		Pattern patternForComment = Pattern.compile("('[^']*')|(;)");
+		Matcher matcherForComment = patternForComment.matcher(netLine);
+		int startFindLoc = 0;
+		while (!matcherForComment.hitEnd()) {
+			if (matcherForComment.find(startFindLoc)) {
+				if ((matcherForComment.group(1) == null) && (matcherForComment.group(2) != null)) {
+					comment = netLine.substring(matcherForComment.end(2) - 1);
+					netLine = netLine.substring(0, matcherForComment.end(2) - 1);
+					break; // found the comment
+				} // if this is it
+				startFindLoc = Math.max(matcherForComment.end(1), matcherForComment.end(2));
+			} // if any match
+		} // while
 		return netLine.trim();
+	}// findComment1
+
+	private String findComment(String workingLine) {
+		return findComment1(workingLine);
+		// String netLine = new String(workingLine);
+		// this.comment = null;
+		// Pattern patternForComment = Pattern.compile(";.*");
+		// matcher = patternForComment.matcher(netLine);
+		//
+		// if (!netLine.contains(COMMENT_CHAR)) {
+		// /* just return the line - no comments here */
+		// } else if (matcher.lookingAt()) {
+		// comment = netLine;
+		// netLine = EMPTY_STRING;
+		// this.onlyComment = true;
+		// } else if (!netLine.contains(SINGLE_QUOTE)) {
+		// matcher.reset();
+		// matcher.find();
+		// comment = matcher.group();
+		// netLine = matcher.replaceFirst(EMPTY_STRING);
+		// /* simple comment */
+		// } else {
+		// Integer commentCharIndex = netLine.indexOf(COMMENT_CHAR);
+		// Queue<Integer> commentCharIndexes = new LinkedList<Integer>();
+		//
+		// while (commentCharIndex != -1) {
+		// commentCharIndexes.add(commentCharIndex);
+		// commentCharIndex = netLine.indexOf(COMMENT_CHAR, commentCharIndex + 1);
+		// } // while - get all COMMENT_CHARs
+		//
+		// /* if there are quotes, there might be literal commentChars */
+		// Queue<Point> quotePairs = new LinkedList<Point>();
+		// matcher = patternInQuotes.matcher(netLine);
+		// while (matcher.find()) {
+		// quotePairs.add(new Point(matcher.start(), matcher.end() - 1));
+		// } // while
+		//
+		// boolean commentFound = true;
+		// Integer targetIndex = -1;
+		// Iterator indexIterator = commentCharIndexes.iterator();
+		// while (indexIterator.hasNext()) {
+		// commentFound = true;
+		// targetIndex = (Integer) indexIterator.next();
+		// for (Point p : quotePairs) {
+		// if (inRange(targetIndex, p)) {
+		// commentFound = false; /* comment char in quotes */
+		// continue;
+		// } // if in range
+		// } // for points
+		// if (commentFound) {
+		// break;
+		// } // get outta here
+		// } // while
+		//
+		// if (commentFound) {
+		// comment = workingLine.substring(targetIndex, workingLine.length());
+		// netLine = workingLine.substring(0, targetIndex);
+		// } // if there is a comment
+		// } // if
+		//
+		// return netLine.trim();
 
 	}// findComment
 
@@ -359,17 +374,17 @@ public class LineParser {
 
 	private Matcher matcher;
 
-//	private Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
+	// private Pattern patternForLineNumber = Pattern.compile("^\\d{4}\\s");
 	// private Pattern patternForLabel = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}:");
 	// private Pattern patternForName = Pattern.compile("^[$\\?\\@\\w][\\w$]{1,25}\\s|[$\\?\\@\\w][\\w$]{1,25}\b");
 
 	/* semicolon inside matching quotes */
 	private Pattern patternInQuotes = Pattern.compile("'.*?.*?'");
 	// simplest (["'])(\\?.)*?\1
-	// this gobbles backslashes   (["'])(?:(?=(\\?))\2.)*?\1
-//	private Pattern patternForComment = Pattern.compile(";.*");
+	// this gobbles backslashes (["'])(?:(?=(\\?))\2.)*?\1
+	// private Pattern patternForComment = Pattern.compile(";.*");
 
-//	private Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
+	// private Pattern patternForInstructions = Pattern.compile(InstructionSet.getRegex());
 	// private Pattern patternForDirectives = Pattern.compile(DirectiveSet.getRegex());
 
 	private static final String COMMENT_CHAR = ";"; // semicolon ;
