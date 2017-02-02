@@ -80,7 +80,7 @@ public class ASM {
 	private String outputPathAndBase;
 	private File asmSourceFile = null;
 	private String sourceFileBase;
-	
+
 	private StyledDocument docSource;
 	private StyledDocument docListing;
 	private JScrollBar sbarSource;
@@ -157,6 +157,7 @@ public class ASM {
 			String listingLine;
 			while (scanner.hasNextLine()) {
 				listingLine = scanner.nextLine();
+				listingLine = listingLine.replaceAll("\\s++$", EMPTY_STRING);
 				if (listingLine.equals(EMPTY_STRING)) {
 					continue; // skip
 				} // if empty line
@@ -168,8 +169,8 @@ public class ASM {
 		} catch (IOException e) {
 			e.printStackTrace();
 		} // try
-	}//saveListing
-	
+	}// saveListing
+
 	private void saveMemoryFile(ByteBuffer memoryImage) {
 		int startAddress = instructionCounter.getLowestLocationSet() & 0XFFF0;
 		byte[] memImage = new byte[memoryImage.capacity() - startAddress];
@@ -214,10 +215,9 @@ public class ASM {
 
 		} catch (IOException e) {
 			e.printStackTrace();
-		}//try
+		} // try
 
 	}// makeMemoryFile
-
 
 	private void clearDoc(StyledDocument doc) {
 		try {
@@ -483,8 +483,8 @@ public class ASM {
 		int hiAddress = ((((instructionCounter.getCurrentLocation() - 1) / SIXTEEN) + 1) * SIXTEEN) - 1;
 		ByteBuffer memoryImage = ByteBuffer.allocate(hiAddress + 1);
 
-//		System.out.printf("[passTwo]  lowest location: %04X, highest Location: %04X%n",
-//				instructionCounter.getLowestLocationSet(), hiAddress);
+		// System.out.printf("[passTwo] lowest location: %04X, highest Location: %04X%n",
+		// instructionCounter.getLowestLocationSet(), hiAddress);
 
 		instructionCounter.reset();
 		clearDoc(docListing);
@@ -907,11 +907,10 @@ public class ASM {
 		return list;
 	}// sort for key list
 
+	/* ---------------------------------------------------------------------------------- */
+	/* ---------------------------------------------------------------------------------- */
 
-	/* ---------------------------------------------------------------------------------- */
-	/* ---------------------------------------------------------------------------------- */
-	
-	private void printListing(JTextPane textPane,String name) {
+	private void printListing(JTextPane textPane, String name) {
 		try {
 			textPane.setFont(new Font("Courier New", Font.PLAIN, 8));
 			MessageFormat header = new MessageFormat(name);
@@ -921,7 +920,7 @@ public class ASM {
 
 		} catch (PrinterException e) {
 			e.printStackTrace();
-		}//try
+		} // try
 	}// printListing
 
 	/* ---------------------------------------------------------------------------------- */
@@ -985,7 +984,7 @@ public class ASM {
 		sbarListing = spListing.getVerticalScrollBar();
 		sbarListing.setName(SBAR_LISTING);
 		sbarListing.addAdjustmentListener(adapterForASM);
-		
+
 		mnuFilePrintSource.setEnabled(false);
 		mnuFilePrintListing.setEnabled(false);
 
@@ -1125,9 +1124,8 @@ public class ASM {
 		btnTest.setVisible(false);
 		btnTest.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
-				
 
-			}// 
+			}//
 		});
 		GridBagConstraints gbc_btnTest = new GridBagConstraints();
 		gbc_btnTest.anchor = GridBagConstraints.NORTH;
@@ -1231,10 +1229,10 @@ public class ASM {
 				openFile();
 				break;
 			case MNU_FILE_PRINT_SOURCE:
-				printListing(tpSource,sourceFileBase + DOT + SUFFIX_ASSEMBLER );
+				printListing(tpSource, sourceFileBase + DOT + SUFFIX_ASSEMBLER);
 				break;
 			case MNU_FILE_PRINT_LISTING:
-				printListing(tpListing,sourceFileBase + DOT + SUFFIX_LISTING);
+				printListing(tpListing, sourceFileBase + DOT + SUFFIX_LISTING);
 				break;
 			case MNU_FILE_EXIT:
 				appClose();
