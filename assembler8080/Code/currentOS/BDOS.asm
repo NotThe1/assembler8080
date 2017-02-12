@@ -1,35 +1,35 @@
 ; BDOS.asm
-;extended from part of newOS (newBDOS)
-; 2014-01-16
+
+; 2017-02-12 fixed allocate 16 bit problem
+; 2014-01-16 extended from part of newOS (newBDOS)
 ; 2014-03-14  :  Frank Martyn
-; TODO ------
+
+
 	$Include ../Headers/osHeader.asm
 	$Include ../Headers/stdHeader.asm
 	
-VERSION	EQU	20H				; dvers version 2.0
-STACK_SIZE	EQU	20H			; make stak big enough
-EOD	EQU	-1				; enddir End of Directory
-;WORD	EQU	02				; number of bytes for a word
-;BYTE	EQU	01				; number of bytes for a byte
+VERSION		EQU		20H					; dvers version 2.0
+STACK_SIZE	EQU		20H					; make stak big enough
+EOD			EQU		-1					; enddir End of Directory
 
 ;	bios access constants
-bcBoot	EQU	BIOSEntry+3*0			; bootf	cold boot function
-bcWboot	EQU	BIOSEntry+3*1			; wbootf	warm boot function
-bcConst	EQU	BIOSEntry+3*2			; constf	console status function
-bcConin	EQU	BIOSEntry+3*3			; coninf	console input function
-bcConout	EQU	BIOSEntry+3*4			; conoutf	console output function
-bcList	EQU	BIOSEntry+3*5			; listf	list output function
-bcPunch	EQU	BIOSEntry+3*6			; punchf	punch output function
-bcReader	EQU	BIOSEntry+3*7			; readerf	reader input function
-bcHome	EQU	BIOSEntry+3*8			; homef	disk home function
-bcSeldsk	EQU	BIOSEntry+3*9			; seldskf	select disk function
-bcSettrk	EQU	BIOSEntry+3*10			; settrkf	set track function
-bcSetsec	EQU	BIOSEntry+3*11			; setsecf	set sector function
-bcSetdma	EQU	BIOSEntry+3*12			; setdmaf	set dma function
-bcRead	EQU	BIOSEntry+3*13			; readf	read disk function
-bcWrite	EQU	BIOSEntry+3*14			; writef	write disk function
-bcListst	EQU	BIOSEntry+3*15			; liststf	list status function
-bcSectran	EQU	BIOSEntry+3*16			; sectran	sector translate
+bcBoot		EQU		BIOSEntry+3*0		; bootf	cold boot function
+bcWboot		EQU		BIOSEntry+3*1		; wbootf	warm boot function
+bcConst		EQU		BIOSEntry+3*2		; constf	console status function
+bcConin		EQU		BIOSEntry+3*3		; coninf	console input function
+bcConout	EQU		BIOSEntry+3*4		; conoutf	console output function
+bcList		EQU		BIOSEntry+3*5		; listf	list output function
+bcPunch		EQU		BIOSEntry+3*6		; punchf	punch output function
+bcReader	EQU		BIOSEntry+3*7		; readerf	reader input function
+bcHome		EQU		BIOSEntry+3*8		; homef	disk home function
+bcSeldsk	EQU		BIOSEntry+3*9		; seldskf	select disk function
+bcSettrk	EQU		BIOSEntry+3*10		; settrkf	set track function
+bcSetsec	EQU		BIOSEntry+3*11		; setsecf	set sector function
+bcSetdma	EQU		BIOSEntry+3*12		; setdmaf	set dma function
+bcRead		EQU		BIOSEntry+3*13		; readf	read disk function
+bcWrite		EQU		BIOSEntry+3*14		; writef	write disk function
+bcListst	EQU		BIOSEntry+3*15		; liststf	list status function
+bcSectran	EQU		BIOSEntry+3*16		; sectran	sector translate
 	                              
 	ORG	BDOSBase
 CodeStart:
@@ -37,115 +37,115 @@ CodeStart:
 ; Enter here from the user's program with function number in c,
 ; and information address in d,e
 ;BDOSEntry:
-	JMP	BdosStart				;past parameter block
+	JMP		BdosStart					;past parameter block
 	
 BdosStart:
-	MOV	A,C
-	STA	Cvalue
-	XCHG					; swap DE and HL
-	SHLD	paramDE				; save the original value of DE
-	XCHG					; restore DE
-	MOV	A,E				; Byte argument
-	STA	paramE
-	LXI	HL,0000H
+	MOV		A,C
+	STA		Cvalue
+	XCHG								; swap DE and HL
+	SHLD	paramDE						; save the original value of DE
+	XCHG								; restore DE
+	MOV		A,E							; Byte argument
+	STA		paramE
+	LXI		HL,0000H
 	SHLD	statusBDOSReturn			; assume alls well for return
-						; Save users Stack pointer
-	DAD	SP
+; Save users Stack pointer
+	DAD		SP
 	SHLD	usersStack
-	LXI	SP,bdosStack			; use our own stack area
-						; initialize variables
-	XRA	A
-	STA	fcbDisk				; initalize to 00
-	STA	fResel				; clear reselection flag
-	LXI	HL,RetCaller			; exit to caller vector
-	PUSH	HL				; makes a JMP to RetCaller = RET
+	LXI		SP,bdosStack				; use our own stack area
+; initialize variables
+	XRA		A
+	STA		fcbDisk						; initalize to 00
+	STA		fResel						; clear reselection flag
+	LXI		HL,RetCaller				; exit to caller vector
+	PUSH	HL							; makes a JMP to RetCaller = RET
 	
-	MOV	A,C				; get the Function Number
-	CPI	functionCount			; make sure its a good number
-	RNC					; exit if not a valid function
+	MOV		A,C							; get the Function Number
+	CPI		functionCount				; make sure its a good number
+	RNC									; exit if not a valid function
 	
-	MOV	C,E				; might be a single byte argument
-	LXI	HL,functionTable			; get table base
-	MOV	E,A				; function number in E
-	MVI	D,0				; setting up DE = function number
-	DAD	DE
-	DAD	DE				; Vector is (2 * Function number) + table base
-	MOV	E,M				; get LSB of vector
-	INX	HL
-	MOV	D,M				; get MSB of vector
-	XCHG					; Vector now in HL
-	PCHL					; move vector to Program Counter ie JMP (HL)
+	MOV		C,E							; might be a single byte argument
+	LXI		HL,functionTable			; get table base
+	MOV		E,A							; function number in E
+	MVI		D,0							; setting up DE = function number
+	DAD		DE
+	DAD		DE							; Vector is (2 * Function number) + table base
+	MOV		E,M							; get LSB of vector
+	INX		HL
+	MOV		D,M							; get MSB of vector
+	XCHG								; Vector now in HL
+	PCHL								; move vector to Program Counter ie JMP (HL)
 ;*****************************************************************
 ;arrive here at end of processing to return to user
-RetCaller:					; goback
-	LDA	fResel				; get reselction flag
-	ORA	A				; is it set?
-	JZ	RetDiskMon
-	;reselection may have taken place
+RetCaller:							; goback
+	LDA		fResel					; get reselction flag
+	ORA		A						; is it set?
+	JZ		RetDiskMon
+;reselection may have taken place
 	LHLD	paramDE
-	MVI	M,0
-	LDA	fcbDisk
-	ORA	A				; Disk = 0?
-	JZ	RetDiskMon			; exit if yes
+	MVI		M,0
+	LDA		fcbDisk
+	ORA		A						; Disk = 0?
+	JZ		RetDiskMon				; exit if yes
 	
-	MOV	M,A
-	LDA	entryDisk				; get back original Disk
-	STA	paramE				; and select it
+	MOV		M,A
+	LDA		entryDisk				; get back original Disk
+	STA		paramE					; and select it
 	CALL	SelectCurrent	
 
 ; return from the disk monitor
-RetDiskMon:					; retmon
-	LHLD	 usersStack
-	SPHL					; Restore callers stack
+RetDiskMon:	
+	LHLD	usersStack
+	SPHL							; restore callers stack
 	LHLD	statusBDOSReturn
-	MOV	A,L
-	MOV	B,H				; BA = statusBDOSReturn
+	MOV		A,L
+	MOV		B,H						; BA = statusBDOSReturn
 	RET		
 ;*****************************************************************
 ;------------------- Function Table -------------------------------
 functionTable:
-	DW	bcBoot				; Function  0 - System Reset
-	DW	fConsoleIn			; Function  1 - Console Input
-	DW	fConsoleOut			; Function  2 - Console Output
-	DW	DUMMY				; Function  3 - Reader Input
-	DW	DUMMY				; Function  4 - Punch Output
-	DW	DUMMY				; Function  5 - List Output
-	DW	fDirectConIO			; Function  6 - Direct Console I/O
-	DW	fGetIOBYTE			; Function  7 - Get I/O Byte
-	DW	fSetIOBYTE			; Function  8 - Set I/O Byte
-	DW	fPrintString			; Function  9 - Print String
-	DW	fReadString			; Function  A - Read Console String
-	DW	fGetConsoleStatus			; Function  B - Get Console Status
-diskf	EQU	($-functionTable)/2			; disk functions
-	DW	fGetVersion			; Function  C - Return Version Number
-	DW	fResetSystem			; Function  D - Reset Disk System
-	DW	fSelectDisk			; Function  E - Select Disk
-	DW	fOpenFile				; Function  F - Open File
-	DW	fCloseFile			; Function 10 - Close File
-	DW	fFindFirst			; Function 11 - Search For First
-	DW	fFindNext				; Function 12 - Search for Next
-	DW	fDeleteFile			; Function 13 - Delete File
-	DW	fReadSeq				; Function 14 - Read Sequential
-	DW	fWriteSeq				; Function 15 - Write Sequential
-	DW	fMakeFile				; Function 16 - Make File
-	DW	fRenameFile			; Function 17 - Rename File
-	DW	fGetLoginVector			; Function 18 - Return Login Vector
-	DW	fGetCurrentDisk			; Function 19 - Return Current Disk
-	DW	fSetDMA				; Function 1A - Set DMA address
-	DW	fGetAllocAddr			; Function 1B - Get ADDR (ALLOC)
-	DW	fWriteProtectDisk			; Function 1C - Write Protect Disk
-	DW	fGetRoVector			; Function 1D - Get Read/Only Vector
-	DW	fSetFileAttributes			; Function 1E - Set File Attributes ??
-	DW	fGetDiskParamBlock			; Function 1F - Get ADDR (Disk Parameters)
-	DW	fGetSetUserNumber			; Function 20 - Set/Get User Code
-	DW	fReadRandom			; Function 21 - Read Random
-	DW	fWriteRandom			; Function 22 - Write Random
-	DW	fComputeFileSize			; Function 23 - Compute File Size
-	DW	fSetRandomRecord			; Function 24 - Set Random Record
-	DW	DUMMY				; Function 25 - Reset Drive
-	DW	DUMMY				; Function 26 - Access Drive (not supported)
-	DW	DUMMY				; Function 27 - Free Drive (not supported)
-	DW	DUMMY				; Function 28 - Write random w/Fill
+	DW		bcBoot					; Function  0 - System Reset
+	DW		fConsoleIn				; Function  1 - Console Input
+	DW		fConsoleOut				; Function  2 - Console Output
+	DW		DUMMY					; Function  3 - Reader Input
+	DW		DUMMY					; Function  4 - Punch Output
+	DW		DUMMY					; Function  5 - List Output
+	DW		fDirectConIO			; Function  6 - Direct Console I/O
+	DW		fGetIOBYTE				; Function  7 - Get I/O Byte
+	DW		fSetIOBYTE				; Function  8 - Set I/O Byte
+	DW		fPrintString			; Function  9 - Print String
+	DW		fReadString				; Function  A - Read Console String
+	DW		fGetConsoleStatus		; Function  B - Get Console Status
+diskf	EQU	($-functionTable)/2		; disk functions
+	DW		fGetVersion				; Function  C - Return Version Number
+	DW		fResetSystem			; Function  D - Reset Disk System
+	DW		fSelectDisk				; Function  E - Select Disk
+	DW		fOpenFile				; Function  F - Open File
+	DW		fCloseFile				; Function 10 - Close File
+	DW		fFindFirst				; Function 11 - Search For First
+	DW		fFindNext				; Function 12 - Search for Next
+	DW		fDeleteFile				; Function 13 - Delete File
+	DW		fReadSeq				; Function 14 - Read Sequential
+	DW		fWriteSeq				; Function 15 - Write Sequential
+	DW		fMakeFile				; Function 16 - Make File
+	DW		fRenameFile				; Function 17 - Rename File
+	DW		fGetLoginVector			; Function 18 - Return Login Vector
+	DW		fGetCurrentDisk			; Function 19 - Return Current Disk
+	DW		fSetDMA					; Function 1A - Set DMA address
+	DW		fGetAllocAddr			; Function 1B - Get ADDR (ALLOC)
+	DW		fWriteProtectDisk		; Function 1C - Write Protect Disk
+	DW		fGetRoVector			; Function 1D - Get Read/Only Vector
+	DW		fSetFileAttributes		; Function 1E - Set File Attributes ??
+	DW		fGetDiskParamBlock		; Function 1F - Get ADDR (Disk Parameters)
+	DW		fGetSetUserNumber		; Function 20 - Set/Get User Code
+	DW		fReadRandom				; Function 21 - Read Random
+	DW		fWriteRandom			; Function 22 - Write Random
+	DW		fComputeFileSize		; Function 23 - Compute File Size
+	DW		fSetRandomRecord		; Function 24 - Set Random Record
+	DW		DUMMY					; Function 25 - Reset Drive
+	DW		DUMMY					; Function 26 - Access Drive (not supported)
+	DW		DUMMY					; Function 27 - Free Drive (not supported)
+	DW		DUMMY					; Function 28 - Write random w/Fill
 functionCount	EQU	($-functionTable)/2 				; Number of  functions
 
 DUMMY:
@@ -886,7 +886,7 @@ SelectDisk:					; selectdisk
 	
 SelectDisk1:
 	MVI	A,TRUE
-	ORA	A				; Set Carry and Sign reset Zero
+	ORA	A				; Set Sign, reset Carry and   Zero
 	RET
 
 ;---------------
@@ -1694,9 +1694,9 @@ Allocate16Bit:					; allocwd:
 	MVI	B,0				; double(diskMapIndex)
 	DAD	BC
 	DAD	BC				; HL=.fcb(diskMapIndex*2)
-	MOV	M,E
+	MOV	M,D
 	INX	HL
-	MOV	M,D				; double wd
+	MOV	M,E				; double wd
 DiskWrite2:					; diskwru:
 						; disk write to previously unallocated block
 	MVI	C,2				; marked as unallocated write

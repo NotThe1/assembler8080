@@ -978,122 +978,77 @@ ReadFlag:
 ;---------------------------------------------------------------------------
 DiskParameterHeaders:				; described in chapter 3
 
-; Logical Disk A: (3.25" ED 2.88MB Diskette)
-	DW	0000H				; Floppy5SkewTable  - No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
-	DW	DirectoryBuffer
-	DW	ParameterBlock3ED
+; Logical Disk A: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; Floppy5SkewTable  - No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
+	DW	DirectoryBuffer			; all disks use this buffer
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskAWorkArea
 	DW	DiskAAllocationVector
 	
-; Logical Disk B: (3.25" ED 2.88MB Diskette)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk B: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3ED
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskBWorkArea
 	DW	DiskBAllocationVector
 	
-; Logical Disk C: (5.5" DD 360 KB Floppy)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk C: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock5DD
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskCWorkArea
 	DW	DiskCAllocationVector
 	
-; Logical Disk D: (5.5" DD 360 KB Floppy)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk D: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock5DD			; Disk Parameter Block
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskDWorkArea
 	DW	DiskDAllocationVector
 	
- ;;	DB	Floppy5DD
-;;	DB	Floppy5DD + NeedDeblocking
-;; Disk block parameters for F5DD - 5.25 DD   360 KB Floppy
-dpb5ddSPT	EQU	0048H				; 128-byte sectors per track- (72)
-dpb5ddBSH	EQU	04H				; Block shift ( 4=> 2K)
-dpb5ddBLM	EQU	0FH				; Block mask
-dpb5ddEXM	EQU	01H				; Extent mask 
-dpb5ddDSM	EQU	00AEH 				; Maximum allocation block number (174)
-dpb5ddDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb5ddAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
-dpb5ddAL1	EQU	00H				;  for file directory
-dpb5ddCKS	EQU	0020H				; Disk change work area size (32)
-dpb5ddOFF	EQU	0001H				; Number of tracks before directory
-
-dpb5ddNOH	EQU	02H				;Number of heads
+ 
 ;-----------------------------------------------------------	
 ;; Disk block parameters for F3HD - 3.5 HD   1.44 MB Diskette
-dpb3hdSPT	EQU	0090H				; 128-byte sectors per track- (144)
+dpb3hdSPT	EQU	0090H			; 128-byte sectors per track- (144)
 dpb3hdBSH	EQU	04H				; Block shift ( 4=> 2K)
 dpb3hdBLM	EQU	0FH				; Block mask
 dpb3hdEXM	EQU	00H				; Extent mask 
-dpb3hdDSM	EQU	02C6H 				; Maximum allocation block number (710)
-dpb3hdDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb3hdAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
+dpb3hdDSM	EQU	02C6H 			; Maximum allocation block number (710)
+dpb3hdDRM	EQU	007FH 			; Number of directory entries - 1 (127)
+dpb3hdAL0	EQU	0C0H			; Bit map for reserving 1 alloc. block
 dpb3hdAL1	EQU	00H				;  for file directory
-dpb3hdCKS	EQU	0020H				; Disk change work area size (32)
-dpb3hdOFF	EQU	0001H				; Number of tracks before directory
+dpb3hdCKS	EQU	0020H			; Disk change work area size (32)
+dpb3hdOFF	EQU	0001H			; Number of tracks before directory
 
 dpb3hdNOH	EQU	02H				;Number of heads
-;-----------------------------------------------------------	
-;;  Disk block parameters for F3ED - 3.5 ED   2.88 MB Diskette
-dpb3edSPT	EQU	0120H				; 128-byte sectors per track- (288)
-dpb3edBSH	EQU	04H				; Block shift ( 4=> 2K)
-dpb3edBLM	EQU	0FH				; Block mask
-dpb3edEXM	EQU	00H				; Extent mask 
-dpb3edDSM	EQU	058DH 				; Maximum allocation block number (1,421)
-dpb3edDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb3edAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
-dpb3edAL1	EQU	00H				;  for file directory
-dpb3edCKS	EQU	0020H				; Disk change work area size (32)
-dpb3edOFF	EQU	0001H				; Number of tracks before directory
 
-dpb3edNOH	EQU	02H				;Number of heads
-;-----------------------------------------------------------	
 	
-ParameterBlock3ED:
-	DW	dpb3edSPT				; 128-byte sectors per track- (288)
-	DB	dpb3edBSH				; Block shift ( 4=> 2K)
-	DB	dpb3edBLM				; Block mask
-	DB	dpb3edEXM				; Extent mask 
-	DW	dpb3edDSM				; Maximum allocation block number (1,421)
-	DW	dpb3edDRM				; Number of directory entries - 1 (127)
-	DB	dpb3edAL0				; Bit map for reserving 1 alloc. block
-	DB	dpb3edAL1				;  for file directory
-	DW	dpb3edCKS				; Disk change work area size (32)
-	DW	dpb3edOFF				; Number of tracks before directory
+ParameterBlock3HD:
+	DW	dpb3hdSPT				; 128-byte sectors per track- (144)
+	DB	dpb3hdBSH				; Block shift ( 4=> 2K)
+	DB	dpb3hdBLM				; Block mask
+	DB	dpb3hdEXM				; Extent mask 
+	DW	dpb3hdDSM				; Maximum allocation block number (710)
+	DW	dpb3hdDRM				; Number of directory entries - 1 (127)
+	DB	dpb3hdAL0				; Bit map for reserving 1 alloc. block
+	DB	dpb3hdAL1				;  for file directory
+	DW	dpb3hdCKS				; Disk change work area size (32)
+	DW	dpb3hdOFF				; Number of tracks before directory
 	
-	DB	(dpb3edSPT/4)/dpb3edNOH		; number of Sectors/Head	
+	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
 	
-ParameterBlock5DD:
-	DW	dpb5ddSPT				; 128-byte sectors per track- (72)
-	DB	dpb5ddBSH				; Block shift ( 4=> 2K)
-	DB	dpb5ddBLM				; Block mask
-	DB	dpb5ddEXM				; Extent mask
-	DW	dpb5ddDSM				; Maximum allocation block number (174)
-	DW	dpb5ddDRM				; Number of directory entries - 1 (127)
-	DB	dpb5ddAL0				; Bit map for reserving 1 alloc. block
-	DB	dpb5ddAL1				;  for file directory
-	DW	dpb5ddCKS				; Disk change work area size (32)
-	DW	dpb5ddOFF				; Number of tracks before directory
-	
-	DB	(dpb5ddSPT/4)/dpb5ddNOH		; number of Sectors/Head	
-	
-						; Standard 8" floppy
-						; extra byte prefixed to DPB for 
-						;  this version of the BIOS
 
 
 ;---------------------------------------------------------------------------
@@ -1103,10 +1058,10 @@ ParameterBlock5DD:
 ; change of diskette. The BDOS will automatically set
 ; such a changed diskette to read-only status.
 	
-DiskAWorkArea:	DS	dpb3edCKS			; A:  020H
-DiskBWorkArea:	DS	dpb3edCKS			; B:  020H
-DiskCWorkArea:	DS	dpb5ddCKS			; C:  020H
-DiskDWorkArea:	DS	dpb5ddCKS			; D:  060H
+DiskAWorkArea:	DS	dpb3hdCKS			; A:  020H
+DiskBWorkArea:	DS	dpb3hdCKS			; B:  020H
+DiskCWorkArea:	DS	dpb3hdCKS			; C:  020H
+DiskDWorkArea:	DS	dpb3hdCKS			; D:  060H
 
 ;---------------------------------------------------------------------------
 ;	Disk allocation vectors
@@ -1117,40 +1072,31 @@ DiskDWorkArea:	DS	dpb5ddCKS			; D:  060H
 ; One byte is used for eight allocation blocks, hence the
 ; expression of the form (allocation blocks/8)+1
 
-DiskAAllocationVector:	DS	(dpb3edDSM/8)+1 	; A:
-DiskBAllocationVector:	DS	(dpb3edDSM/8)+1 	; B:
+DiskAAllocationVector:	DS	(dpb3hdDSM/8)+1 	; A:
+DiskBAllocationVector:	DS	(dpb3hdDSM/8)+1 	; B:
 						
-DiskCAllocationVector:	DS	(dpb5ddDSM/8)+1 	; C:
-DiskDAllocationVector:	DS	(dpb5ddDSM/8)+1 	; D:
+DiskCAllocationVector:	DS	(dpb3hdDSM/8)+1 	; C:
+DiskDAllocationVector:	DS	(dpb3hdDSM/8)+1 	; D:
 ;---------------------------------------------------------------------------
 ;	Disk Buffer
 ;---------------------------------------------------------------------------
-DirBuffSize	EQU	128
+DirBuffSize			EQU	128
 DirectoryBuffer:	DS	DirBuffSize
 ;---------------------------------------------------------------------------
 ;**********************************************************************************
 ;	Disk Control table image for warm boot
 ;**********************************************************************************
 BootControlPart1:
-	DB	01H				; Read function
-	DB	00H				; unit number
-	DB	00H				; head number
-	DB	00H				; track number
-	DB	02H				; Starting sector number (skip cold boot sector)
+	DB	01H						; Read function
+	DB	00H						; unit number
+	DB	00H						; head number
+	DB	00H						; track number
+	DB	02H						; Starting sector number (skip cold boot sector)
 	DW	11 * 512				; Number of bytes to read ( rest of the head)
 	DW	CCPEntry				; read into this address
 	DW	DiskStatusBlock			; pointer to next block - no linking
 	DW	DiskControlByte			; pointer to next table- no linking
-;ootControlPart2:
-;	DB	01H				; Read function
-;	DB	00H				; unit number
-;	DB	01H				; head number - next head
-;	DB	00H				; track number
-;	DB	01H				; Starting sector number
-;	DW	3 * 512				; Number of bytes to read (Rest of BDOS)
-;	DW	CCPEntry + ( 8 * 512)		; Pick up where 1st read left off
-;	DW	DiskStatusBlock			; pointer to next block - no linking
-;	DW	DiskControlByte			; pointer to next table - no linking
+
 ;
 ;**********************************************************************************	
 ;	Warm Boot
@@ -1160,43 +1106,43 @@ BootControlPart1:
 ; Two prefabricated control tables are used.
 ;**********************************************************************************	
 WBOOT:
-	LXI	SP,DMABuffer		; DefaultDiskBuffer
-	LXI	D,BootControlPart1
+	LXI		SP,DMABuffer		; DefaultDiskBuffer
+	LXI		D,BootControlPart1
 	CALL	WarmBootRead
 	
 ;	LXI	D,BootControlPart2
 ;	CALL	WarmBootRead
-	JMP	EnterCPM
+	JMP		EnterCPM
 	
 WarmBootRead:
-	LXI	H,DiskControlTable			; get pointer to the Floppy's Device Control Table
-	SHLD	DiskCommandBlock			; put it into the Command block for drive A:
-	MVI	C,13				; set byte count for move
+	LXI		H,DiskControlTable	; get pointer to the Floppy's Device Control Table
+	SHLD	DiskCommandBlock	; put it into the Command block for drive A:
+	MVI		C,13				; set byte count for move
 WarmByteMove:
-	LDAX	D				; Move the coded Control block into the Command Block
-	MOV	M,A
-	INX	H
-	INX	D
-	DCR	C
-	JNZ	WarmByteMove
+	LDAX	D					; Move the coded Control block into the Command Block
+	MOV		M,A
+	INX		H
+	INX		D
+	DCR		C
+	JNZ		WarmByteMove
 	
-	LXI	H,DiskControlByte
-	MVI	M,080H				; activate the controller 
+	LXI		H,DiskControlByte
+	MVI		M,080H				; activate the controller 
 	
 WaitForBootComplete:
-	MOV	A,M				; Get the control byte
-	ORA	A				; Reset to 0 (Completed operation) ?
-	JNZ	WaitForBootComplete			; if not try again
+	MOV		A,M					; Get the control byte
+	ORA		A					; Reset to 0 (Completed operation) ?
+	JNZ		WaitForBootComplete	; if not try again
 	
-	LDA	DiskStatusBlock			; after operation what's the status?
-	CPI	080H				; any errors ?
-	JC	WarmBootError			; Yup
-	RET					; else we are done!
+	LDA		DiskStatusBlock		; after operation what's the status?
+	CPI		080H				; any errors ?
+	JC		WarmBootError		; Yup
+	RET							; else we are done!
 
 WarmBootError:
-	LXI	H,WarmBootErroMessage		; point at error message
+	LXI		H,WarmBootErroMessage	; point at error message
 	CALL	DisplayMessage			; sent it. and
-	JMP	WBOOT				; try again.
+	JMP		WBOOT					; try again.
 	
 WarmBootErroMessage:
 	DB	CR,LF
@@ -1215,40 +1161,40 @@ WarmBootErroMessage:
 ;---------------End of Cold Boot Initialization Code--------------
 
 	
-BOOT:
-	JMP	EnterCPM
-							; HL points at a Zero-Byte terminated string to be output
-	
+
+;	JMP	EnterCPM
+								; HL points at a Zero-Byte terminated string to be output
+BOOT:	
 EnterCPM:
-	MVI	A,0C3H				; JMP op code
-	STA	0000H				; set up the jump in location 0000H
-	STA	0005H				; and at location 0005H
+	MVI		A,0C3H				; JMP op code
+	STA		0000H				; set up the jump in location 0000H
+	STA		0005H				; and at location 0005H
 	
-	LXI	H,WarmBootEntry			; get BIOS vector address
+	LXI		H,WarmBootEntry			; get BIOS vector address
 	SHLD	0001H				; put address in location 1
 	
-	LXI	H,BDOSEntry			; Get BDOS entry point address
+	LXI		H,BDOSEntry			; Get BDOS entry point address
 	SHLD	0006H				; put address at location 5
 	
-	LXI	B,DMABuffer			; DefaultDiskBuffer set disk I/O address to default
+	LXI		B,DMABuffer			; DefaultDiskBuffer set disk I/O address to default
 	CALL	SETDMA				; use normal BIOS routine
 	
 	EI
-	LDA	CurDisk			; DefaultDisk  Transfer current default disk to
-	MOV	C,A				; Console Command Processor
-	JMP	CCPEntry				; transfer to CCP
+	LDA		CurDisk				; DefaultDisk  Transfer current default disk to
+	MOV		C,A					; Console Command Processor
+	JMP		CCPEntry			; transfer to CCP
 	
 DisplayMessage:
-	MOV	A,M				; get next message byte
-	ORA	A				; terminator (a = 0)?
-	RZ					; Yes, thes return to caller
+	MOV		A,M					; get next message byte
+	ORA		A					; terminator (a = 0)?
+	RZ							; Yes, thes return to caller
 	
-	MOV	C,A				; prepare for output
-	PUSH	HL				; save message pointer
+	MOV		C,A					; prepare for output
+	PUSH	HL					; save message pointer
 	CALL	CONOUT				; go to main console output routine *******
-	POP	H
-	INX	H 				; point at next character
-	JMP	DisplayMessage			; loop till done
+	POP		H
+	INX		H 					; point at next character
+	JMP		DisplayMessage		; loop till done
 
 ;-------------------------------------------------
 
