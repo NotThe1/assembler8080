@@ -6,17 +6,43 @@
 ; using command ASM TEST.ABC will assemble TEST.ASM with drive designations
 ; following period. A=ASM file drive, B=HEX file drive, C=SYM file drive
 
-	ORG	0100H
+; Page Zero equates
 
-H0000	EQU	0000H		; Cold re-entry to system
-H0005	EQU	0005H		; BDOS
-H005C	EQU	005CH		; FCB
-H0080	EQU	0080H		; DMA
+RAM			EQU		0					; Start of RAM ( and the Base page)
+WarmBoot	EQU		RAM + 0				; Contains a JMP instruction to warm boot in BIOS
+TPA			EQU		RAM + 0100H			; Start of Transient program Area
+BDOSE		EQU		RAM + 5				; Contains a JMP to BDOS entry
+FCB1		EQU		RAM + 05CH			; File Control Block #1
+DMABuffer	EQU		RAM + 080H			; Default "DMA" address used as buffer
 
-	LXI	SP,H0200	; Set stack
-	LHLD	H0005+1
-	SHLD	H01CD		; Set end of memory = BDOS base
-	JMP	H0200
+; Standard Equates
+
+LF			EQU		0AH					; Line Feed
+CR			EQU		0DH					; Carriage Return
+SPACE		EQU		20H					; Space
+
+L_PAREN		EQU 28H						; Left Paenthesis (
+R_PAREN		EQU 29H						; Right Paenthesis )
+ASTERISK	EQU	2AH						; Asterisk *
+PLUS_SIGN	EQU	2BH						; Plus sign +
+COMMA		EQU	2CH						; Comma
+DASH		EQU	2DH						; Dash Hyphen -
+PERIOD		EQU	2EH						; Period
+SLASH		EQU	2FH						; /
+
+; System call Equates
+fGetCurrentDisk			EQU 19H			; Return Current Disk
+
+
+;--------------------------------------------------------------
+
+			ORG	TPA
+
+	LXI		SP,TopOfStack			; Set stack
+	LHLD	BDOSE+1
+	SHLD	H01CD					; Set end of memory = BDOS base
+	JMP		Start
+;----------------------------------------------------------------	
 H010C:	DB	' '		; 120 byte line buffer for PRN output
 H010D:	DB	'C'		; If H010C is non-space then contains error code:
 				; B = unknown
@@ -33,7 +59,7 @@ H010D:	DB	'C'		; If H010C is non-space then contains error code:
 				; V = bad value
 H010E:	DB	'OPY'
 H0111:	DB	'R'
-H0112:	DB	'IGHT(C) 1978, DIGITAL RESEARCH '
+H0112:	DB	'IGHT(C) 1978  DIGITAL RESEARCH '
 	DS	53H
 H0184:	DS	01H		; Index into H010C PRN buffer
 H0185:	DS	01H		; Char type. 4=EOL 3=literal 2=digit 1=alpha
@@ -49,15 +75,17 @@ H01CF:	DS	01H		; Assembly pass count 0=build symbol table 1=table done
 H01D0:	DS	02H		; Address counter (for HEX file also)
 H01D2:	DS	02H		; Address printed at start of line in PRN file
 H01D4:	DW	H20F0		; Start of symbol table (fixed)
-H01D6:	DS	2AH		; Stack space below H0200
-H0200:	JMP	H0CE0		; Cold start
+H01D6:	DS	2AH		; Stack space below TopOfStack
+TopOfStack:
+;<><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+Start:	JMP	ColdStart		; Cold start
 H0203:	JMP	H0DA1		; Open ASM file
 H0206:	JMP	H0DCA		; Get char from H029D ASM file buffer.
 				; Reads disk as needed.
 	JMP	H0E34		; Write byte in ACC reg to PRN file. all regs preserved
 	JMP	H0EAA		; Write ACC reg to HEX file (direct - after processed)
-	JMP	H0EDE		; Write ACC reg to console
-H0212:	JMP	H0CBC		; Print string at (HL). terminates with cr
+	JMP	regAtoConsole		; Write ACC reg to console
+H0212:	JMP	displayMsgInHL		; Print string at (HL). terminates with cr
 H0215:	JMP	H0F00		; Print H010C line buffer to PRN file w/echo to console
 H0218:	JMP	H0F2F		; Put error code from ACC reg into H010C flag
 H021B:	JMP	H104C		; Write byte in ACC reg to HEX file in ASCII form
@@ -65,7 +93,7 @@ H021E:	JMP	H0F39		; Close files and exit
 H0221:	DS	02H		; HEX file pointer (base address of line)
 H0223:	DS	01H		; Index into line of H0224
 H0224:	DS	10H		; Obj code line buffer for PRN and HEX use
-H0234:	DS	01H		; Current disk
+CurrentDisk:	DS	01H		; Current disk
 H0235:	DS	01H		; ASM file drive designation
 H0236:	DS	01H		; PRN file drive designation
 H0237:	DS	01H		; HEX file drive designation
@@ -85,68 +113,74 @@ H069D:	DS	02H		; Index into H069F buffer
 H069F:	DS	300H		; Buffer for PRN file write
 H099F:	DS	02H		; Index into H09A1 buffer
 H09A1:	DS	300H		; Buffer for HEX file write
-H0CA1:	LXI	H,H0234		; Select drive in ACC reg and make it the current drive
+H0CA1:	LXI	H,CurrentDisk		; Select drive in ACC reg and make it the current drive
 	CMP	M
 	RZ
 	MOV	M,A
 	MOV	E,A
 	MVI	C,0EH
-	CALL	H0005
+	CALL	BDOSE
 	RET
 H0CAE:	INX	H
 	MOV	A,M
-	CPI	20H
+	CPI	SPACE
 	JZ	H0CB8
 	SBI	41H
 	RET
-H0CB8:	LDA	H0234
+H0CB8:	LDA	CurrentDisk
 	RET
-H0CBC:	MOV	A,M		; Print string at (HL). terminate w/cr
-	CALL	H0EDE
-	MOV	A,M
-	INX	H
-	CPI	0DH
-	JNZ	H0CBC
-	MVI	A,0AH
-	CALL	H0EDE
+	; Print string at (HL). terminate w/cr	
+displayMsgInHL:
+	MOV		A,M	
+	CALL	regAtoConsole
+	MOV		A,M
+	INX		H
+	CPI		CR
+	JNZ		displayMsgInHL
+	MVI		A,LF
+	CALL	regAtoConsole
 	RET
-H0CCD:	LXI	D,H005C		; Move 9 bytes from FCB to (HL)
+	
+H0CCD:	LXI	D,FCB1		; Move 9 bytes from FCB to (HL)
 	MVI	B,09H		; Error exit if '?' found
 H0CD2:	LDAX	D
 	CPI	3FH
-	JZ	H0DBB
+	JZ	ErrExitBadSource
 	MOV	M,A
 	INX	H
 	INX	D
 	DCR	B
 	JNZ	H0CD2
 	RET
-H0CE0:	LXI	H,H0FA0		; Cold start
-	CALL	H0CBC		; Print title
-	JMP	H0D3F
+	
+;?????????????????????????????????????????????????????????????	
+ColdStart:	LXI	H,msgStart		; Cold start
+	CALL	displayMsgInHL		; Print title
+	JMP	Start
+	
 H0CE9:	MVI	C,0FH		; Open file
-	CALL	H0005
+	CALL	BDOSE
 	CPI	0FFH
 	RNZ
-	LXI	H,H0FB9
-	CALL	H0CBC
-	JMP	H0000
+	LXI	H,eMsgNoSourceFile
+	CALL	displayMsgInHL
+	JMP	WarmBoot
 H0CFA:	MVI	C,10H		; Close file
-	CALL	H0005
+	CALL	BDOSE
 	CPI	0FFH
 	RNZ
-	LXI	H,H1029
-	CALL	H0CBC
-	JMP	H0000
+	LXI	H,eMsgBadFileClose
+	CALL	displayMsgInHL
+	JMP	WarmBoot
 H0D0B:	MVI	C,13H		; Delete file. (DE) = FCB
-	JMP	H0005
+	JMP	BDOSE
 H0D10:	MVI	C,16H		; Make file. (DE) = FCB
-	CALL	H0005		; Error exit if disk full
+	CALL	BDOSE		; Error exit if disk full
 	CPI	0FFH
 	RNZ
-	LXI	H,H0FD0
-	CALL	H0CBC
-	JMP	H0000
+	LXI	H,eMsgNoDirSpace
+	CALL	displayMsgInHL
+	JMP	WarmBoot
 H0D21:	LDA	H0235		; Select ASM file drive
 	CALL	H0CA1
 	RET
@@ -161,13 +195,16 @@ H0D31:	LDA	H0236		; Select PRN file drive
 H0D38:	LDA	H0237		; Select HEX file drive
 	CALL	H0CA1
 	RET
-H0D3F:	LDA	H005C		; Drive designation
-	CPI	20H
-	JZ	H0DBB		; Error exit
-	MVI	C,19H
-	CALL	H0005		; Get current disk
-	STA	H0234
-	LXI	H,0064H		; Get optional drive designations following '.'
+;------------------------------------------------	
+Start:
+	LDA		FCB1					; Drive designation
+	CPI		SPACE
+	JZ		ErrExitBadSource		; Error exit
+	
+	MVI		C,fGetCurrentDisk
+	CALL	BDOSE					; Get current disk into A
+	STA		CurrentDisk
+	LXI		H,0064H					; Get optional drive designations following '.'
 	CALL	H0CAE		; After filename else use current drive
 	STA	H0235
 	CALL	H0CAE
@@ -210,9 +247,12 @@ H0DA1:	LXI	H,0400H		; Open ASM file. force reading of first byte
 	LXI	D,H0238
 	CALL	H0CE9
 	RET
-H0DBB:	LXI	H,H0FE3		; 'source filename error' exit
-	CALL	H0CBC
-	JMP	H0000
+	
+; source filename error exit
+ErrExitBadSource:	LXI	H,eMsgBadSourceName		
+	CALL	displayMsgInHL
+	JMP	WarmBoot
+	
 H0DC4:	MOV	A,D
 	CMP	H
 	RNZ
@@ -235,13 +275,13 @@ H0DE7:	PUSH	B
 	PUSH	H
 	MVI	C,14H
 	LXI	D,H0238
-	CALL	H0005
+	CALL	BDOSE
 	POP	H
 	POP	B
 	ORA	A
 	MVI	C,80H
 	JNZ	H0E0D
-	LXI	D,H0080
+	LXI	D,DMABuffer
 	MVI	C,80H		; Extra code not needed (see 3 lines previous)
 H0DFE:	LDAX	D
 	MOV	M,A
@@ -270,9 +310,9 @@ H0E19:	LXI	D,H029D
 	POP	D
 	POP	B
 	RET
-H0E2B:	LXI	H,H0FFA		; 'source file read error' exit
-	CALL	H0CBC
-	JMP	H0000
+H0E2B:	LXI	H,eMsgSourceReadErr		; 'source file read error' exit
+	CALL	displayMsgInHL
+	JMP	WarmBoot
 H0E34:	PUSH	B		; Output char in ACC reg to PRN designation:
 	MOV	B,A		; Z = null, X = console, else to H069F buffer
 	LDA	H0236		; And write to disk as needed
@@ -281,7 +321,7 @@ H0E34:	PUSH	B		; Output char in ACC reg to PRN designation:
 	CPI	17H		; 'X'
 	MOV	A,B
 	JNZ	H0E4A
-	CALL	H0EDE		; Write to console
+	CALL	regAtoConsole		; Write to console
 	JMP	H0E51
 H0E4A:	PUSH	D
 	PUSH	H
@@ -314,7 +354,7 @@ H0E7A:	MOV	A,M		; Write HEX file comes here
 	PUSH	B
 	PUSH	D
 	MVI	C,80H
-	LXI	D,H0080
+	LXI	D,DMABuffer
 H0E85:	MOV	A,M
 	STAX	D
 	INX	H
@@ -325,7 +365,7 @@ H0E85:	MOV	A,M
 	PUSH	D
 	PUSH	H
 	MVI	C,15H		; Write sequential
-	CALL	H0005
+	CALL	BDOSE
 	POP	H
 	POP	D
 	POP	B
@@ -334,8 +374,8 @@ H0E85:	MOV	A,M
 	DCR	B
 	RZ
 	JMP	H0E7A
-H0EA1:	LXI	H,H1011
-	CALL	H0CBC
+H0EA1:	LXI	H,eMsgOutWriteErr
+	CALL	displayMsgInHL
 	JMP	H0F77
 H0EAA:	PUSH	B		; Write ACC to HEX file with disk buffering
 	PUSH	D
@@ -364,26 +404,30 @@ H0EB4:	LHLD	H099F
 	LXI	D,H027A
 	MVI	B,06H
 	JMP	H0E7A
-H0EDE:	PUSH	B		; Write ACC reg to console
+	
+; Write ACC reg to console	
+regAtoConsole:
+	PUSH	B		
 	PUSH	D
 	PUSH	H
-	MVI	C,02H
-	MOV	E,A
-	CALL	H0005
-	POP	H
-	POP	D
-	POP	B
+	MVI		C,02H		; Console Output
+	MOV		E,A			; Ascii character in E
+	CALL	BDOSE		; Call BDOS
+	POP		H
+	POP		D
+	POP		B
 	RET
+	
 H0EEB:	MOV	C,A		; Write ACC reg to PRN designation. echo error
 	CALL	H0E34		; To console if H010C is non-space
 	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	RZ
 	LDA	H0236
 	CPI	17H
 	RZ
 	MOV	A,C
-	CALL	H0EDE		; Echo to console
+	CALL	regAtoConsole		; Echo to console
 	RET
 H0F00:	LDA	H0184		; Print H010C line buffer to PRN file with
 	LXI	H,H010C		; Echo to console. H0184 = # of chars in line
@@ -397,13 +441,13 @@ H0F06:	ORA	A
 	DCR	A
 	JMP	H0F06
 H0F15:	STA	H0184		; Write CR to PRN file then clear line buffer
-	MVI	A,0DH
+	MVI	A,CR
 	CALL	H0EEB
-	MVI	A,0AH
+	MVI	A,LF
 	CALL	H0EEB
 	LXI	H,H010C
 	MVI	A,78H
-H0F27:	MVI	M,20H
+H0F27:	MVI	M,SPACE
 	INX	H
 	DCR	A
 	JNZ	H0F27
@@ -411,7 +455,7 @@ H0F27:	MVI	M,20H
 H0F2F:	MOV	B,A
 	LXI	H,H010C
 	MOV	A,M
-	CPI	20H
+	CPI	SPACE
 	RNZ
 	MOV	M,B
 	RET
@@ -451,25 +495,36 @@ H0F86:	LDA	H0237		; Check HEX designation
 	CALL	H0D38		; Select HEX file drive
 	LXI	D,H027A
 	CALL	H0CFA		; Close HEX file
-H0F97:	LXI	H,H103C
-	CALL	H0CBC
-	JMP	H0000
-H0FA0:	DB	'CP/M ASSEMBLER - VER 2.0'
-	DB	0DH
-H0FB9:	DB	'NO SOURCE FILE PRESENT'
-	DB	0DH
-H0FD0:	DB	'NO DIRECTORY SPACE'
-	DB	0DH
-H0FE3:	DB	'SOURCE FILE NAME ERROR'
-	DB	0DH
-H0FFA:	DB	'SOURCE FILE READ ERROR'
-	DB	0DH
-H1011:	DB	'OUTPUT FILE WRITE ERROR'
-	DB	0DH
-H1029:	DB	'CANNOT CLOSE FILES'
-	DB	0DH
-H103C:	DB	'END OF ASSEMBLY'
-	DB	0DH
+H0F97:	LXI	H,msgEndOfAssembly
+	CALL	displayMsgInHL
+	JMP	WarmBoot
+;  messages	.............................................
+msgStart:
+	DB	'CP/M ASSEMBLER - VER 2.0'
+	DB	CR
+eMsgNoSourceFile:
+	DB	'NO SOURCE FILE PRESENT'
+	DB	CR
+eMsgNoDirSpace:
+	DB	'NO DIRECTORY SPACE'
+	DB	CR
+eMsgBadSourceName:
+	DB	'SOURCE FILE NAME ERROR'
+	DB	CR
+eMsgSourceReadErr:
+	DB	'SOURCE FILE READ ERROR'
+	DB	CR
+eMsgOutWriteErr:
+	DB	'OUTPUT FILE WRITE ERROR'
+	DB	CR
+eMsgBadFileClose:
+	DB	'CANNOT CLOSE FILES'
+	DB	CR
+msgEndOfAssembly:
+	DB	'END OF ASSEMBLY'
+	DB	CR
+; end of  Messages ....................................
+
 H104C:	PUSH	B		; Write ACC reg to HEX file
 	MOV	B,A
 	LDA	H0237
@@ -560,9 +615,9 @@ H10DF:	MOV	A,M
 H10E8:	XRA	A
 	SUB	D		; Checksum
 	CALL	H109A		; Write checksum to HEX file
-	MVI	A,0DH
+	MVI	A,CR
 	CALL	H0EAA
-	MVI	A,0AH
+	MVI	A,LF
 	CALL	H0EAA
 	RET
 	DB	0,0,0,0,0,0,0,0
@@ -578,9 +633,9 @@ H110A:	NOP			; Last char read from ASM file
 H110B:	NOP			; Base 2,8,10 or 16 for numeric value
 H110C:	CALL	H0206		; Get char from ASM file and store in
 	PUSH	PSW		; H010C PRN line buffer
-	CPI	0DH
+	CPI	CR
 	JZ	H1130
-	CPI	0AH
+	CPI	LF
 	JZ	H1130
 	LDA	H0184
 	CPI	78H
@@ -599,7 +654,7 @@ H1130:	POP	PSW		; Restore char
 H1132:	CALL	H1149		; Print CR/LF to PRN file
 	STA	H110A
 	STA	H0184
-	MVI	A,0AH
+	MVI	A,LF
 	STA	H1109
 	CALL	H0215		; Print PRN line buffer
 	MVI	A,10H
@@ -631,7 +686,7 @@ H116A:	MOV	A,M		; Null out '$' at (HL)
 	RET
 H1171:	LDA	H110A		; Return z clear if '0-9' digit
 	SUI	30H
-	CPI	0AH
+	CPI	0AH			; ?? Possible LF
 	RAL
 	ANI	01H
 	RET
@@ -665,7 +720,7 @@ H11AD:	CALL	H110C		; Get char and store in PRN line buffer
 	STA	H110A		; Save in last char
 	JMP	H132D		; Go convert lower/upper conditionally
 	RET			; Bogus
-H11B7:	CPI	0DH
+H11B7:	CPI	0DH		; ?? POSSIBLE CR
 	RZ
 	CPI	1AH
 	RZ
@@ -682,14 +737,14 @@ H11C7:	LDA	H110A		; Each char loops here
 	CPI	2AH
 	JNZ	H11ED
 	LDA	H1109
-	CPI	0AH
+	CPI	0AH				; ?? Possible LF
 	JNZ	H11ED
 H11E1:	CALL	H11AD		; Search ahead to EOL
 	CALL	H11B7
 	JZ	H11FA
 	JMP	H11E1
-H11ED:	ORI	20H
-	CPI	20H
+H11ED:	ORI	SPACE
+	CPI	SPACE
 	JNZ	H11FA
 H11F4:	CALL	H11AD		; Get next char
 	JMP	H11C7		; Loop for next char
@@ -708,13 +763,13 @@ H1210:	LDA	H110A
 	STA	H110A
 	MVI	A,03H
 	JMP	H1239
-H1221:	CPI	0AH
+H1221:	CPI	0AH			; ?? Possible LF
 	JNZ	H1237
 	LDA	H01CF		; Assembly pass count
 	ORA	A
 	CNZ	H0215		; On 2nd pass print line to PRN file
 	LXI	H,H010C
-	MVI	M,20H		; Clear error char
+	MVI	M,SPACE		; Clear error char
 	MVI	A,10H
 	STA	H0184		; Index to label field for PRN file
 H1237:	MVI	A,04H
@@ -809,7 +864,7 @@ H12F7:	DAD	B
 	JNZ	H12C6
 	RET
 H1302:	LDA	H110A
-	CPI	0DH
+	CPI	0DH			;  ??  Possible CR
 	JZ	H131E
 	CPI	27H
 	JNZ	H123C
@@ -999,7 +1054,7 @@ H1541:	LXI	H,H154A
 	CALL	H0212
 	JMP	H021E
 H154A:	DB	'SYMBOL TABLE OVERFLOW'
-	DB	0DH
+	DB	CR
 H1560:	RAL
 	RAL
 	RAL
@@ -1067,12 +1122,22 @@ H15BA:	DW	H16BD		; Length = 1
 	DW	H16EF		; Length = 3
 	DW	H1757		; Length = 4
 	DW	H176D		; Length = 5
-H15C4:	DB	0DH
+H15C4:	DB	0DH		; ?? Posible CR
 
 ; the following tables must have at least two words in table and words must be
 ; in alphabetical order
 
-	DB	'()*+,-/ABCDEHLM'
+;	DB	'()*+,-/ABCDEHLM'
+	DB	L_PAREN
+	DB	R_PAREN
+	DB	ASTERISK
+	DB	PLUS_SIGN
+	DB	COMMA
+	DB	DASH
+	DB	SLASH
+	
+	DB	'ABCDEHLM'			; single Registers
+	
 H15D4:	DB	'DBDIDSDWEIIFINORSP'
 H15E6:	DB	'ACIADCADDADIANAANDANICMACMCCMPCPIDAADADDCRDCXENDEQUHLTINRINXJMPL'
 	DB	'DALXIMODMOVMVINOPNOTORAORGORIOUTPOPPSWRALRARRETRLCRRCRSTSBBSBISE'
@@ -1177,7 +1242,7 @@ H17DB:	LDA	H0188
 	CPI	02H
 	JNZ	H180D
 	LXI	H,H018B
-	MVI	M,20H
+	MVI	M,SPACE
 H17F2:	LXI	B,0008H
 	LXI	D,H1773
 H17F8:	LXI	H,H018A
@@ -1490,7 +1555,7 @@ H1A04:	LDA	H0185
 	CPI	04H
 	RNZ
 	LDA	H0189
-	CPI	0DH
+	CPI	0DH		; ?? Possible CR
 	RZ
 	CPI	3BH
 	RZ
@@ -1524,13 +1589,13 @@ H1A48:	LDA	H1892
 	CPI	02H
 	CNZ	H1B85		; Call 'E' error
 	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	RNZ
 	LHLD	H1881
 	SHLD	H01C9
 	RET
 H1A5D:	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	JNZ	H1B7F
 	LDA	H0185		; Char type
 	CPI	03H
@@ -1595,7 +1660,7 @@ H1AB9:	PUSH	B
 	JMP	H1AB9
 H1ADE:	POP	B
 	MOV	A,C
-	CPI	0DH
+	CPI	0DH				; ?? Possible CR
 	JNZ	H1B03
 	LXI	H,H1891
 	MOV	A,M
@@ -1819,21 +1884,21 @@ H1CC3:	CALL	H1ED1
 H1CDE:	CALL	H200A		; F(END)
 	CALL	H20A6		; Print final PRN line addr to buffer
 	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	JNZ	H1F31
 	CALL	H1ED1		; Get addr to HL of symbol following END (if any
 	LDA	H010C		; END w/o symbol gives 'E' error (both passes)
-	CPI	20H
+	CPI	SPACE
 	JNZ	H1CFA
 	SHLD	H20ED		; Value of symbol after END. possibly EOF addr?
-H1CFA:	MVI	A,20H
+H1CFA:	MVI	A,SPACE
 	STA	H010C
 	CALL	H1106
 	LDA	H0185
 	CPI	04H
 	JNZ	H1F7C
 	LDA	H0189
-	CPI	0AH
+	CPI	0AH				; ?? Possible LF
 	JNZ	H1F7C
 	JMP	H1F8B
 H1D15:	JMP	H1DD1		; F(ENDIF)
@@ -1855,7 +1920,7 @@ H1D1E:	CALL	H2000		; F(EQU)
 H1D40:	CALL	H200A		; F(IF)
 	CALL	H1ED1
 	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	JNZ	H1F31
 	MOV	A,L
 	RAR
@@ -1884,7 +1949,7 @@ H1D87:	CALL	H20E3		; F(MACRO) gives 'N' error (not supported)
 	JMP	H1F31
 H1D8D:	CALL	H1ED1		; F(ORG)
 	LDA	H010C
-	CPI	20H
+	CPI	SPACE
 	JNZ	H1F31
 	SHLD	H01D2		; ORG address for PC counters
 	SHLD	H01D0
@@ -2019,7 +2084,7 @@ H1EBA:	LDA	H0185
 	RZ
 	CPI	3BH
 	RZ
-	CPI	0DH
+	CPI	0DH				; ?? Possible CR
 	CNZ	H20D1
 	RET
 H1ED1:	PUSH	B		; Get 16 bit reg value or label address into HL reg.
@@ -2075,7 +2140,7 @@ H1F31:	CALL	H200A
 	CPI	04H
 	JNZ	H1F7C
 	LDA	H0189
-	CPI	0DH
+	CPI	0DH			; ?? Possible CR
 	JNZ	H1F4A
 	CALL	H1106
 	JMP	H1BBC
@@ -2087,7 +2152,7 @@ H1F52:	CALL	H1106
 	CPI	04H
 	JNZ	H1F52
 	LDA	H0189
-	CPI	0AH
+	CPI	0AH	; ?? Possible LF
 	JZ	H1BBC
 	CPI	1AH
 	JZ	H1F8B
@@ -2116,7 +2181,7 @@ H1F8B:	LXI	H,H01CF		; Assembler pass count
 	CALL	H1106		; Here after 2nd pass
 	CALL	H20A6
 	LXI	H,H0111
-	MVI	M,0DH
+	MVI	M,0DH			; ?? Possible CR
 	LXI	H,H010D
 	CALL	H0212
 	LHLD	H01CB
@@ -2144,7 +2209,7 @@ H1FCB:	LDAX	D		; Put 'USE FACTOR' in PRN buffer
 	INX	D
 	JMP	H1FCB
 H1FD6:	DB	'H USE FACTOR'
-	DB	0DH,00H
+	DB	0DH,00H			; ?? Possible CR
 H1FE4:	LXI	H,H010E
 	CALL	H0212
 	LHLD	H20ED
@@ -2206,7 +2271,7 @@ H2048:	LDA	H01CF		; Store byte in B reg
 	PUSH	B
 	CALL	H021B		; Write byte to HEX file
 	LDA	H010D
-	CPI	20H
+	CPI	SPACE
 	LHLD	H01D2		; PC counter of PRN line
 	CZ	H20A9		; Print PC at start of PRN line (if no error)
 	LDA	H20EF		; PRN file line index

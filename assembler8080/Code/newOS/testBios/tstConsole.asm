@@ -38,3 +38,12 @@ mess1:	DB	'tstConsole concluded !',xx_LF,xx_CR,xx_LF,xx_CR,xx_EOM
 		$Include ../../Headers/debug1Header.asm
 				
 CodeEnd:
+
+; output
+
+;A>E
+;;0110 = 00
+;0110 = 0021
+;0110
+;tstConsole concluded !
+

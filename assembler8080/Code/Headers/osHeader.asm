@@ -1,7 +1,7 @@
 ; osHeader.asm
 
 
-RAM				EQU	0			; Start of RAM ( and the Base page)
+RAM				EQU	0					; Start of RAM ( and the Base page)
 
 WarmBoot		EQU	RAM + 0				; Contains a JMP instruction to warm boot in BIOS
 BIOSPAGE		EQU	RAM + 2				; BIOS Jump Vector Page
@@ -23,16 +23,16 @@ ComTailCount	EQU ComTail + 1			; Count of the number of char in tail
 ComTailChars	EQU	ComTailCount + 1	; Complete Command tail up-cased, w/o trailing CR
 
 
-DMABuffer		EQU	RAM + 080H		; Default "DMA" address used as buffer
+DMABuffer		EQU	RAM + 080H			; Default "DMA" address used as buffer
 
 ; where programs are loaded and executed
-TPA				EQU	RAM + 0100H		; Start of Transient program Area
+TPA				EQU	RAM + 0100H			; Start of Transient program Area
 						
 MemorySize		EQU	64
 
-CCPLength		EQU	0800H			; Constant
-BDOSLength		EQU	0E00H			; Constant 0E00H
-BIOSLength		EQU	0A00H			; Constant 0900H
+CCPLength		EQU	0800H				; Constant
+BDOSLength		EQU	0E00H				; Constant 0E00H
+BIOSLength		EQU	0A00H				; Constant 0900H
 
 LengthInK		EQU	((CCPLength + BDOSLength + BIOSLength) /1024) + 1
 LengthInBytes	EQU	CCPLength + BDOSLength + BIOSLength

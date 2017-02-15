@@ -978,52 +978,52 @@ ccpSave:						; save save memory image
 ;	JMP	CcpTemp				; send message and go ack for more
 	CALL	GetNumberFromCmdLine		; value to register a
 	PUSH	PSW				; save it for later
-						; should be followed by a file to save the memory image
+							; should be followed by a file to save the memory image
 	CALL	FillFCB0
-	JNZ	CommandError			; cannot be ambiguous
-	CALL	SetDisk4Cmd			; may be a disk change
-	LXI	DE,commandFCB
+	JNZ		CommandError	; cannot be ambiguous
+	CALL	SetDisk4Cmd		; may be a disk change
+	LXI		DE,commandFCB
 	PUSH	DE
-	CALL	DeleteFile			; existing file removed
+	CALL	DeleteFile		; existing file removed
 	POP 	DE
-	CALL	MakeFile				; create a new file on disk
-	JZ	ccpSaveError			; no directory space
-	XRA	A
-	STA	currentRecord			; clear next record field
-	POP	PSW				; #pages to write is in a, change to #sectors
-	MOV	L,A
-	MVI	H,0
-	DAD	H
+	CALL	MakeFile		; create a new file on disk
+	JZ		ccpSaveError	; no directory space
+	XRA		A
+	STA		currentRecord	; clear next record field
+	POP		PSW				; #pages to write is in a, change to #sectors
+	MOV		L,A
+	MVI		H,0
+	DAD		H
 	
-	LXI	DE,TPA				; h,l is sector count, d,e is load address
-ccpSave1:						; save0 check for sector count zero
-	MOV	A,H
-	ORA	L
-	JZ	ccpSave2				; may be completed
-	DCX	HL				; sector count = sector count - 1
+	LXI		DE,TPA			; h,l is sector count, d,e is load address
+ccpSave1:					; save0 check for sector count zero
+	MOV		A,H
+	ORA		L
+	JZ		ccpSave2		; may be completed
+	DCX		HL				; sector count = sector count - 1
 	PUSH	HL				; save it for next time around
-	LXI	HL,128
-	DAD	DE
+	LXI		HL,128
+	DAD		DE
 	PUSH	HL				; next dma address saved
 	CALL	SetDMA				; current dma address set
-	LXI	DE,commandFCB
+	LXI		DE,commandFCB
 	CALL	DiskWrite
-	POP	DE
-	POP	HL				; dma address, sector count
-	JNZ	ccpSaveError			; may be disk full case
-	JMP	ccpSave1				; for another sector
+	POP		DE
+	POP		HL				; dma address, sector count
+	JNZ		ccpSaveError	; may be disk full case
+	JMP		ccpSave1		; for another sector
 
-ccpSave2:						; save1 end of dump, close the file
-	LXI	DE,commandFCB
+ccpSave2:					; save1 end of dump, close the file
+	LXI		DE,commandFCB
 	CALL	CloseFile
-	INR	A				; 255 becomes 00 if error
-	JNZ	ccpSaveExit			; for another command
+	INR		A				; 255 becomes 00 if error
+	JNZ		ccpSaveExit			; for another command
 ccpSaveError:					; saverr must be full or read only disk
-	LXI	BC,msgNoSpace
+	LXI		BC,msgNoSpace
 	CALL	PrintCrLfStringNull
 ccpSaveExit:					; retsave:
 	CALL	SetDefaultDMA			; reset dma buffer
-	JMP	ResetDiskAtCmdEnd
+	JMP		ResetDiskAtCmdEnd
 	
 msgNoSpace:					; fullmsg:
 	DB 'NO SPACE',0

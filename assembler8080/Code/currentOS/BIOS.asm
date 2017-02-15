@@ -1,4 +1,7 @@
 ; BIOS.asm
+;2017-02-08
+; all disk drives are 3.5 DH disks (1.44MB)
+;
 ;extended from part of newOS (newBios)
 ; 2014-01-16
 ; 2014-03-14  :  Frank Martyn
@@ -33,31 +36,31 @@ OUTopCode	EQU	0D3H
 ;--------------------------------------------------------------------------------	
 
 	ORG	BIOSEntry				; Assemble code at BIOS address
-						; BIOS jum Vector
+								; BIOS jum Vector
 CodeStart:
 	
-	JMP	BOOT				; 00  Not Yet Checked
+	JMP		BOOT				; 00  Not Yet Checked
 WarmBootEntry:
-	JMP	WBOOT				; 01 Not Yet Checked
-	JMP	CONST				; 02 Checked
-	JMP	CONIN				; 03 Checked
-	JMP	CONOUT				; 04 Checked
-	JMP	LIST				; 05 Checked
-	JMP	PUNCH				; 06 Not Yet Checked *
-	JMP	READER				; 07 Not Yet Checked *
-	JMP	HOME				; 08 Checked
-	JMP	SELDSK				; 09 Checked
-	JMP	SETTRK				; 0A Checked
-	JMP	SETSEC				; 0B Checked
-	JMP	SETDMA				; 0C Checked
-	JMP	READ				; 0D Not Yet Checked
-	JMP	WRITE				; 0E Not Yet Checked
-	JMP	LISTST				; 0F Not Yet Checked *
-	JMP	SECTRAN				; 10 Checked
+	JMP		WBOOT				; 01 Not Yet Checked
+	JMP		CONST				; 02 Checked
+	JMP		CONIN				; 03 Checked
+	JMP		CONOUT				; 04 Checked
+	JMP		LIST				; 05 Checked
+	JMP		PUNCH				; 06 Not Yet Checked *
+	JMP		READER				; 07 Not Yet Checked *
+	JMP		HOME				; 08 Checked
+	JMP		SELDSK				; 09 Checked
+	JMP		SETTRK				; 0A Checked
+	JMP		SETSEC				; 0B Checked
+	JMP		SETDMA				; 0C Checked
+	JMP		READ				; 0D Not Yet Checked
+	JMP		WRITE				; 0E Not Yet Checked
+	JMP		LISTST				; 0F Not Yet Checked *
+	JMP		SECTRAN				; 10 Checked
 	
 ;-------------------------------------------------
 	ORG	(($+10H)/10H) * 10H
-PhysicalSectorSize	EQU	512			; for the 5.25" disk the 8" size is 128 
+PhysicalSectorSize	EQU	512			; for the 3.5" disk
 DiskBuffer:
 	DS	PhysicalSectorSize	
 AfterDiskBuffer	EQU	$
@@ -71,163 +74,162 @@ AfterDiskBuffer	EQU	$
 
 ;-------------------------------------------------
 
-TTYStatusPort		EQU	0EDH
-TTYDataPort		EQU	0ECH
-TTYOutputReady		EQU	01H		; Status Mask
-TTYInputReady		EQU	02H		; Status Mask
+TTYStatusPort			EQU	0EDH
+TTYDataPort				EQU	0ECH
+TTYOutputReady			EQU	01H		; Status Mask
+TTYInputReady			EQU	02H		; Status Mask
 
 TerminalStatusPort		EQU	02H
 TerminalDataPort		EQU	01H
 TerminalOutputReady		EQU	80H		; Status Mask - ready for output
-TerminalInputReady		EQU	07FH		; Status Mask - bytes yet to have been read
+TerminalInputReady		EQU	07FH	; Status Mask - bytes yet to have been read
                                                   
 CommunicationStatusPort	EQU	0EDH      
 CommunicationDataPort	EQU	0ECH      
-CommunicationOutputReady	EQU	01H		; Status Mask
+CommunicationOutputReady	EQU	01H	; Status Mask
 CommunicationInputReady	EQU	02H		; Status Mask
 
-;CommunicationBaudMode	EQU	0DFH
-;CommunicationBaudRate	EQU	0DEH
 TTYTable:
-	DB	TTYStatusPort
-	DB	TTYDataPort
-	DB	TTYOutputReady
-	DB	TTYInputReady
+	DB		TTYStatusPort
+	DB		TTYDataPort
+	DB		TTYOutputReady
+	DB		TTYInputReady
 TerminalTable:
-	DB	TerminalStatusPort
-	DB	TerminalDataPort
-	DB	TerminalOutputReady
-	DB	TerminalInputReady
+	DB		TerminalStatusPort
+	DB		TerminalDataPort
+	DB		TerminalOutputReady
+	DB		TerminalInputReady
 CommunicationTable:
-	DB	CommunicationStatusPort
-	DB	CommunicationDataPort
-	DB	CommunicationOutputReady
-	DB	CommunicationInputReady
+	DB		CommunicationStatusPort
+	DB		CommunicationDataPort
+	DB		CommunicationOutputReady
+	DB		CommunicationInputReady
 	
 SelectRoutine:	
-						; SelectRoutine. When called, the calling code has a vector table immediately following it.
-						; it is used to get the correct physical routine determined by the IOBYTE bits for the
-						; logical device. (00,01,10,11). 
-						; It will transfer control to a specified address following its calling address
-						; according to the values in bits 1, 0 in A.	
 
-	RLC					; Shift select values into bits 2,1 in order to do word arithmetic
-SelectRoutine21:					; entry point if bits already in 2,1
-	ANI	06H				; isolate bits 2 and 1
-	XTHL					; HL-> first word of address after CALL instruction
-	MOV	E,A				; Add on selection value to address table base
-	MVI	D,00H
-	DAD	D				; HL-> now has the selected routine
-	MOV	A,M				; LS Byte
-	INX	H				; HL-> MS byte
-	MOV	H,M				; MS byte
-	MOV	L,A				; HL->routine
-	XTHL					; top of stack -> routine
-	RET					; transfer control to the selected routine
+; SelectRoutine. When called, the calling code has a vector table immediately following it.
+; it is used to get the correct physical routine determined by the IOBYTE bits for the
+; logical device. (00,01,10,11). 
+; It will transfer control to a specified address following its calling address
+; according to the values in bits 1, 0 in A.	
+
+	RLC							; Shift select values into bits 2,1 in order to do word arithmetic
+SelectRoutine21:				; entry point if bits already in 2,1
+	ANI		06H					; isolate bits 2 and 1
+	XTHL						; HL-> first word of address after CALL instruction
+	MOV		E,A					; Add on selection value to address table base
+	MVI		D,00H	
+	DAD		D					; HL-> now has the selected routine
+	MOV		A,M					; LS Byte
+	INX		H					; HL-> MS byte
+	MOV		H,M					; MS byte
+	MOV		L,A					; HL->routine
+	XTHL						; top of stack -> routine
+	RET							; transfer control to the selected routine
 ;----------------------routines called by SelectRoutine----------------------------	
 TTYInStatus:
-	LXI	H,TTYTable			;HL-> control table
-	JMP	InputStatus			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TTYTable			;HL-> control table
+	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
 TerminalInStatus:                                 
-	LXI	H,TerminalTable			;HL-> control table
-	JMP	InputStatus			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TerminalTable		;HL-> control table
+	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
 CommunicationInStatus:                            
-	LXI	H,CommunicationTable		;HL-> control table
-	JMP	InputStatus			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,CommunicationTable;HL-> control table
+	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
 DummyInStatus:
-	MVI	A,0FFH				; Dummy always indicates data ready
+	MVI		A,0FFH				; Dummy always indicates data ready
 	RET
 	
 TTYOutStatus:
-	LXI	H,TTYTable			;HL-> control table
-	JMP	OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,TTYTable			; HL-> control table
+	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
 TerminalOutStatus:                                
-	LXI	H,TerminalTable			;HL-> control table
-	JMP	OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,TerminalTable		; HL-> control table
+	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
 CommunicationOutStatus:                           
-	LXI	H,CommunicationTable		;HL-> control table
-	JMP	OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,CommunicationTable; HL-> control table
+	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
 DummyOutStatus:
-	MVI	A,0FFH				; Dummy always indicates ready to output data
+	MVI		A,0FFH				; Dummy always indicates ready to output data
 	RET
 
 ;--------------------------------------------------------------------------------
 TTYInput:
-	LXI	H,TTYTable			;HL-> control table
-	JMP	InputData				; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TTYTable			; HL-> control table
+	JMP		InputData			; use of JMP, InputStatus will execute thr RETurn
 TerminalInput:
-	LXI	H,TerminalTable			;HL-> control table
-	CALL	InputData				;** special **
-	ANI	07FH				; Strip off high order bit
+	LXI		H,TerminalTable		; HL-> control table
+	CALL	InputData			;** special **
+	ANI		07FH				; Strip off high order bit
 	RET		
 CommunicationInput:
-	LXI	H,CommunicationTable		;HL-> control table
-	JMP	InputData				; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,CommunicationTable; HL-> control table
+	JMP		InputData			; use of JMP, InputStatus will execute thr RETurn
 DummyInput:
-	MVI	A,01AH				; Dummy always returns EOF
+	MVI		A,01AH				; Dummy always returns EOF
 	RET
 ;---------------------------------------------------------------------------
 InputStatus:					; return- A = 00H no incoming data
-	MOV	A,M				; get status port
-	STA	InputStatusPort			; ** self modifying code
-	DB	INopCode				; IN opcode
+	MOV		A,M					; get status port
+	STA		InputStatusPort		; ** self modifying code
+	DB		INopCode			; IN opcode
 InputStatusPort:
-	DB	00H				; <- set from above
-	INX	H				; move HL to point to input data mask
-	INX	H
-	INX	H
-	ANA	M				; mask with input status
-	RET					; return with status (00 nothing, FF - data available)
+	DB		00H					; <- set from above
+	INX		H					; move HL to point to input data mask
+	INX		H
+	INX		H
+	ANA		M					; mask with input status
+	RET							; return with status (00 nothing, FF - data available)
 ;---------------------------------------------------------------------------
-InputData:					; return with next character
-	PUSH	H				; save control table pointer
+InputData:						; return with next character
+	PUSH	H					; save control table pointer
 	CALL	InputStatus
-	POP	H				; restore the control table
-	JZ	InputData				; wait until incoming data
-	INX	H				; HL <- data port
-	MOV	A,M				; get data port
-	STA	InputDataPort			; modify code here
-	DB	INopCode				; do the actual I/O
+	POP		H					; restore the control table
+	JZ		InputData			; wait until incoming data
+	INX		H					; HL <- data port
+	MOV		A,M					; get data port
+	STA		InputDataPort		; modify code here
+	DB		INopCode			; do the actual I/O
 InputDataPort:
-	DB	00H				; <- set from above
-	RET					; return with data in A
+	DB		00H					; <- set from above
+	RET							; return with data in A
 ;---------------------------------------------------------------------------
 OutputStatus:					; return - A = 00H not ready
-	MOV	A,M
-	STA	OutputStatusPort
-	DB	INopCode				; IN opcode
+	MOV		A,M
+	STA		OutputStatusPort
+	DB		INopCode			; IN opcode
 OutputStatusPort:
-	DB	00H				; <- set from above
-	INX	H				;HL , Output status mask
-	INX	H
-	ANA	M				; mask with output status, 00 = Not ready
+	DB		00H					; <- set from above
+	INX		H					; HL , Output status mask
+	INX		H
+	ANA		M					; mask with output status, 00 = Not ready
 	RET
 ;---------------------------------------------------------------------------
-OutputData:					; data in Register C is output
-	PUSH	H				; save control table pointer
-	CALL	OutputStatus
-	POP	H				; restore table pointer
-	JZ	OutputData			; wait until incoming data
-	INX	H				; HL <- data port
-	MOV	A,M				; get data port
-	STA	OutputDataPort			; store it here Modify the code
-	MOV	A,C				; get the data to output
-	DB	OUTopCode				; Do the I/O here !!
-OutputDataPort:
-	DB	00H				; <- set from above
+OutputData:						; data in Register C is output
+	PUSH	H					; save control table pointer
+	CALL	OutputStatus	
+	POP		H					; restore table pointer
+	JZ		OutputData			; wait until incoming data
+	INX		H					; HL <- data port
+	MOV		A,M					; get data port
+	STA		OutputDataPort		; store it here Modify the code
+	MOV		A,C					; get the data to output
+	DB		OUTopCode			; Do the I/O here !!
+OutputDataPort:	
+	DB		00H					; <- set from above
 	RET
 ;---------------------------------------------------------------------------
 TTYOutput:
-	LXI	H,TTYTable			;HL-> control table
-	JMP	OutputData			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TTYTable			; HL-> control table
+	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
 TerminalOutput:                                   
-	LXI	H,TerminalTable			;HL-> control table
-	JMP	OutputData			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TerminalTable		 ;HL-> control table
+	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
 CommunicationOutput:                              
-	LXI	H,CommunicationTable		;HL-> control table
-	JMP	OutputData			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,CommunicationTable; HL-> control table
+	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
 DummyOutput:
-	RET					; Dummy always discards the data
+	RET							; Dummy always discards the data
 ;---------------------------------------------------------------------------
 
 ;---------------------------------------------------------------------------
@@ -237,19 +239,19 @@ DummyOutput:
 ;
 
 CONST:
-	CALL	GetConsoleStatus			; return A= zero or not zero
-	ORA	A
-	RZ					; if 0 no returning data
-	MVI	A,0FFH				; else indicate there is data
+	CALL	GetConsoleStatus	; return A= zero or not zero
+	ORA		A
+	RZ							; if 0 no returning data
+	MVI		A,0FFH				; else indicate there is data
 	RET
 ;---------------------------------------------------------------------------
 GetConsoleStatus:
-	LDA	IOBYTE				; Get IO redirection byte
-	CALL	SelectRoutine			; these routines return to the caller of GetConsoleStatus
-	DW	TTYInStatus			; 00  <- IOBYTE bits 1,0
-	DW	TerminalInStatus			; 01
-	DW	CommunicationInStatus		; 10
-	DW	DummyInStatus			; 11
+	LDA		IOBYTE				; Get IO redirection byte
+	CALL	SelectRoutine		; these routines return to the caller of GetConsoleStatus
+	DW		TTYInStatus			; 00  <- IOBYTE bits 1,0
+	DW		TerminalInStatus	; 01
+	DW		CommunicationInStatus	; 10
+	DW		DummyInStatus		; 11
 
 ;---------------------------------------------------------------------------
 ;	Console In  BIOS 03
@@ -823,12 +825,10 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ;;NeedDeblocking	EQU 	080H			; Sector size > 128 bytes
 
 ;**************************************************************************************************
-;  There are two "smart" disk controllers on this system, one for the 8" floppy diskette drives,
-; and one for the 5 1/4" mini-diskette drives
+;  There id one "smart" disk controllers on this system, for the 3.5 HD drive ( 1.44MB)
 ;
-;  The controllers are "hard-wired" to monitor certain locations in memory to detect when they are to
-; perform some disk operation. The 8" controller monitors location 0040H, and the 5 1/4 controller
-; monitors location 0045H. These are called their disk control bytes.
+;  The controller is "hard-wired" to monitor memory locations 0X45 to detect when it is to
+; perform some disk operation.  These are called its disk control byte.
 ; If the most significant bit of  disk control byte is set, the controller will look at the word
 ; following the respective control bytes. This word must contain the address of  valid disk control
 ; table that specifies the exact disk operation to be performed.
@@ -836,42 +836,40 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ;  Once the operation has been completed. the controller resets its disk control byte to OOH.
 ; This indicates completion to the disk driver code.
 ;
-;  The controller also sets a return code in a disk status block -both controllers use the SAME location
-; for this, 0043H. If the first byte of this status block is less than 80H. then a disk error
+;  The controller also sets a return code in a disk status block - location 0X43H.
+; If the first byte of this status block is less than 80H. then a disk error
 ; has occurred. For this simple BIOS. no further details of the status settings are relevant.
 ; Note that the disk controller has built-in retry logic -- reads and writes are attempted
 ; ten times before the controller returns an error
 ;
-;  The disk control table layout is shown below. Note that the controllers have the capability
+;  The disk control table layout is shown below. Note that the controller has the capability
 ; for control tables to be chained together so that a sequence of disk operations can be initiated.
 ; In this BIOS this feature is not used. However. the controller requires that the chain pointers
 ; in the disk control tables be pointed back to the main control bytes in order to indicate
 ; the end of the chain
 ;**************************************************************************************************
 
-;;DiskControl8	EQU	040H			; 8" control byte
-;;CommandBlock8	EQU	041H			; Control Table Pointer
+                                                 
+DiskStatusBlock	EQU	043H			;  status block
                                                   
-DiskStatusBlock	EQU	043H			; 8" and 5 1/4" status block
+DiskControlByte	EQU	045H			; " control byte
+DiskCommandBlock	EQU	046H		; Control Table Pointer
                                                   
-DiskControlByte	EQU	045H			; 8" control byte
-DiskCommandBlock	EQU	046H			; Control Table Pointer
-                                                  
-DiskReadCode	EQU	01H			; Code for Read
-DiskWriteCode	EQU	02H			; Code for Write
+DiskReadCode	EQU	01H				; Code for Read
+DiskWriteCode	EQU	02H				; Code for Write
 ;***************************************************************************
 ;	Disk Control tables
 ;***************************************************************************
 DiskControlTable:
-DCTCommand:		DB	00H		; Command
-DCTUnit:			DB	00H		; unit (drive) number = 0 or 1
-DCTHead:			DB	00H		; head number = 0 or 1
-DCTTrack:			DB	00H		; track number
-DCTSector:		DB	00H		; sector number
-DCTByteCount:		DW	0000H		; number of bytes to read/write
-DCTDMAAddress:		DW	0000H		; transfer address
-DCTNextStatusBlock:		DW	0000H		; pointer to next status block
-DCTNextControlLocation:	DW	0000H		; pointer to next control byte
+DCTCommand:				DB	00H		; Command
+DCTUnit:				DB	00H		; unit (drive) number = 0 or 1
+DCTHead:				DB	00H		; head number = 0 or 1
+DCTTrack:				DB	00H		; track number
+DCTSector:				DB	00H		; sector number
+DCTByteCount:			DW	0000H	; number of bytes to read/write
+DCTDMAAddress:			DW	0000H	; transfer address
+DCTNextStatusBlock:		DW	0000H	; pointer to next status block
+DCTNextControlLocation:	DW	0000H	; pointer to next control byte
 
 ;*******************************************************************************
 ;	 More tables
@@ -885,12 +883,12 @@ DCTNextControlLocation:	DW	0000H		; pointer to next control byte
 ; in the Physical Buffer. If a read request is for a 128 byte CP/M "sector"
 ; that is already in the physical buffer, then no disk access occurs
 ;*******************************************************************************
-AllocationBlockSize	EQU	0800H			; 2048
-PhysicalSecPerTrack	EQU	012H			; 18
-CPMSecPerPhysical	EQU	PhysicalSectorSize/128
-CPMSecPerTrack	EQU	CPMSecPerPhysical * PhysicalSecPerTrack
-SectorMask	EQU	CPMSecPerPhysical - 1
-SectorBitShift	EQU	02H			; LOG2(CPMSecPerPhysical)
+AllocationBlockSize		EQU	0800H				; 2048
+PhysicalSecPerTrack		EQU	024H				; 36
+CPMSecPerPhysical		EQU	PhysicalSectorSize/128
+CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack
+SectorMask				EQU	CPMSecPerPhysical - 1
+SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
 ;***************************************************************************
 
 ; the following has been moved to osHeader.asm
@@ -906,7 +904,7 @@ SectorBitShift	EQU	02H			; LOG2(CPMSecPerPhysical)
 ;WriteUnallocated	EQU	02H
 ;------------------------------
 
-WriteType:	DB	00H			; The type of write indicated by BDOS
+WriteType:		DB	00H			; The type of write indicated by BDOS
 
 						; variables for physical sector
 						; These are moved and compared as a group, DO NOT ALTER
@@ -915,45 +913,57 @@ InBufferDisk:	DB	00H
 InBufferTrack:	DW	00H
 InBufferSector:	DB	00H
 
-DataInDiskBuffer:	DB	00H			; when non-zero, the disk buffer has data from disk
-                                                  
-MustWriteBuffer:	DB	00H			; Non-zero when data has been written into DiskBuffer,
-						; but not yet written out to the disk
+DataInDiskBuffer:
+				DB	00H			; when non-zero, the disk buffer has data from disk                                  
+MustWriteBuffer:
+				DB	00H			; Non-zero when data has been written into DiskBuffer,
+								; but not yet written out to the disk
 ;---------------------------------------------------------------------------
 ;	Disk Storage area
 ;---------------------------------------------------------------------------
 ;     variables for selected disk, track and sector
 ; These are moved and compared as a group, DO NOT ALTER
-SelectedDskSecsPerHead:	DB	00H		; Sectors / head 
+SelectedDskSecsPerHead:
+				DB	00H		; Sectors / head 
 
 SelectedDkTrkSec:
-SelectedDisk:		DB	00H
-SelectedTrack:		DW	00H
-SelectedSector:		DB	00H
+SelectedDisk:
+				DB	00H
+SelectedTrack:
+				DW	00H
+SelectedSector:	
+				DB	00H
 
-DMAAddress:		DW	00H			; DMA address
+DMAAddress:
+				DW	00H			; DMA address
 
 						;Selected physical sector derived from selected (CP/M) sector by shifting it
 						; right the number of of bits specified by SectorBitShift
-SelectedPhysicalSector:	DB	00H
+SelectedPhysicalSector:
+				DB	00H
 
 						; Parameters for writing to a previously unallocated allocation block
 						; These are moved and compared as a group, DO NOT ALTER
 UnallocatedDkTrkSec:
-UnallocatedDisk:		DB	00H
-UnallocatedTrack:		DW	00H
-UnallocatedSector:		DB	00H
-UnalocatedlRecordCount:	DB	00H		; Number of unallocated "records"in current previously unallocated allocation block.
+UnallocatedDisk:
+				DB	00H
+UnallocatedTrack:
+				DW	00H
+UnallocatedSector:
+				DB	00H
+UnalocatedlRecordCount:
+				DB	00H		; Number of unallocated "records"in current previously unallocated allocation block.
                                                   
-DiskErrorFlag:		DB	00H		; Non-Zero - unrecoverable error output "Bad Sector" message
+DiskErrorFlag:
+				DB	00H		; Non-Zero - unrecoverable error output "Bad Sector" message
                                                   
-						; Flags used inside the de-blocking code
-PrereadSectorFlag:		DB	00H		; non-zero if physical sector must be read into the disk buffer
-						; either before a write to a allocated block can occur, or
-						; for a normal CP/M 128 byte sector read
-ReadFlag:			DB	00H		; Non-zero when a CP/M 128 byte sector is to be read
-;DiskType:			DB	00H		; Indicate 8" or 5 1/4" selected  (set in SELDSK)
-;;DeblockingRequired:	DB	00H			; Non-zero when the selected disk needs de-blocking (set in SELDSK)
+							; Flags used inside the de-blocking code
+PrereadSectorFlag:
+				DB	00H		; non-zero if physical sector must be read into the disk buffer
+							; either before a write to a allocated block can occur, or
+							; for a normal CP/M 128 byte sector read
+ReadFlag:
+				DB	00H		; Non-zero when a CP/M 128 byte sector is to be read
 
 ;---------------------------------------------------------------------------
 
@@ -967,122 +977,77 @@ ReadFlag:			DB	00H		; Non-zero when a CP/M 128 byte sector is to be read
 ;---------------------------------------------------------------------------
 DiskParameterHeaders:				; described in chapter 3
 
-; Logical Disk A: (3.25" ED 2.88MB Diskette)
-	DW	0000H				; Floppy5SkewTable  - No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
-	DW	DirectoryBuffer
-	DW	ParameterBlock3ED
+; Logical Disk A: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; Floppy5SkewTable  - No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
+	DW	DirectoryBuffer			; all disks use this buffer
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskAWorkArea
 	DW	DiskAAllocationVector
 	
-; Logical Disk B: (3.25" ED 2.88MB Diskette)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk B: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3ED
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskBWorkArea
 	DW	DiskBAllocationVector
 	
-; Logical Disk C: (5.5" DD 360 KB Floppy)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk C: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock5DD
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskCWorkArea
 	DW	DiskCAllocationVector
 	
-; Logical Disk D: (5.5" DD 360 KB Floppy)
-	DW	0000H				; No Skew table
-	DW	0000H				; Rel pos for file (0-3)
-	DW	0000H				; Last Selected Track #
-	DW	0000H				; Last Selected Sector #
+; Logical Disk D: (3.25" HD 1.44MB Diskette)
+	DW	0000H					; No Skew table
+	DW	0000H					; Rel pos for file (0-3)
+	DW	0000H					; Last Selected Track #
+	DW	0000H					; Last Selected Sector #
 	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock5DD			; Disk Parameter Block
+	DW	ParameterBlock3HD		; specific to disk's parameters
 	DW	DiskDWorkArea
 	DW	DiskDAllocationVector
 	
- ;;	DB	Floppy5DD
-;;	DB	Floppy5DD + NeedDeblocking
-;; Disk block parameters for F5DD - 5.25 DD   360 KB Floppy
-dpb5ddSPT	EQU	0048H				; 128-byte sectors per track- (72)
-dpb5ddBSH	EQU	04H				; Block shift ( 4=> 2K)
-dpb5ddBLM	EQU	0FH				; Block mask
-dpb5ddEXM	EQU	01H				; Extent mask 
-dpb5ddDSM	EQU	00AEH 				; Maximum allocation block number (174)
-dpb5ddDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb5ddAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
-dpb5ddAL1	EQU	00H				;  for file directory
-dpb5ddCKS	EQU	0020H				; Disk change work area size (32)
-dpb5ddOFF	EQU	0001H				; Number of tracks before directory
-
-dpb5ddNOH	EQU	02H				;Number of heads
+ 
 ;-----------------------------------------------------------	
 ;; Disk block parameters for F3HD - 3.5 HD   1.44 MB Diskette
-dpb3hdSPT	EQU	0090H				; 128-byte sectors per track- (144)
+dpb3hdSPT	EQU	0090H			; 128-byte sectors per track- (144)
 dpb3hdBSH	EQU	04H				; Block shift ( 4=> 2K)
 dpb3hdBLM	EQU	0FH				; Block mask
 dpb3hdEXM	EQU	00H				; Extent mask 
-dpb3hdDSM	EQU	02C6H 				; Maximum allocation block number (710)
-dpb3hdDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb3hdAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
+dpb3hdDSM	EQU	02C6H 			; Maximum allocation block number (710)
+dpb3hdDRM	EQU	007FH 			; Number of directory entries - 1 (127)
+dpb3hdAL0	EQU	0C0H			; Bit map for reserving 1 alloc. block
 dpb3hdAL1	EQU	00H				;  for file directory
-dpb3hdCKS	EQU	0020H				; Disk change work area size (32)
-dpb3hdOFF	EQU	0001H				; Number of tracks before directory
+dpb3hdCKS	EQU	0020H			; Disk change work area size (32)
+dpb3hdOFF	EQU	0001H			; Number of tracks before directory
 
 dpb3hdNOH	EQU	02H				;Number of heads
-;-----------------------------------------------------------	
-;;  Disk block parameters for F3ED - 3.5 ED   2.88 MB Diskette
-dpb3edSPT	EQU	0120H				; 128-byte sectors per track- (288)
-dpb3edBSH	EQU	04H				; Block shift ( 4=> 2K)
-dpb3edBLM	EQU	0FH				; Block mask
-dpb3edEXM	EQU	00H				; Extent mask 
-dpb3edDSM	EQU	058DH 				; Maximum allocation block number (1,421)
-dpb3edDRM	EQU	007FH 				; Number of directory entries - 1 (127)
-dpb3edAL0	EQU	0C0H				; Bit map for reserving 1 alloc. block
-dpb3edAL1	EQU	00H				;  for file directory
-dpb3edCKS	EQU	0020H				; Disk change work area size (32)
-dpb3edOFF	EQU	0001H				; Number of tracks before directory
 
-dpb3edNOH	EQU	02H				;Number of heads
-;-----------------------------------------------------------	
 	
-ParameterBlock3ED:
-	DW	dpb3edSPT				; 128-byte sectors per track- (288)
-	DB	dpb3edBSH				; Block shift ( 4=> 2K)
-	DB	dpb3edBLM				; Block mask
-	DB	dpb3edEXM				; Extent mask 
-	DW	dpb3edDSM				; Maximum allocation block number (1,421)
-	DW	dpb3edDRM				; Number of directory entries - 1 (127)
-	DB	dpb3edAL0				; Bit map for reserving 1 alloc. block
-	DB	dpb3edAL1				;  for file directory
-	DW	dpb3edCKS				; Disk change work area size (32)
-	DW	dpb3edOFF				; Number of tracks before directory
+ParameterBlock3HD:
+	DW	dpb3hdSPT				; 128-byte sectors per track- (144)
+	DB	dpb3hdBSH				; Block shift ( 4=> 2K)
+	DB	dpb3hdBLM				; Block mask
+	DB	dpb3hdEXM				; Extent mask 
+	DW	dpb3hdDSM				; Maximum allocation block number (710)
+	DW	dpb3hdDRM				; Number of directory entries - 1 (127)
+	DB	dpb3hdAL0				; Bit map for reserving 1 alloc. block
+	DB	dpb3hdAL1				;  for file directory
+	DW	dpb3hdCKS				; Disk change work area size (32)
+	DW	dpb3hdOFF				; Number of tracks before directory
 	
-	DB	(dpb3edSPT/4)/dpb3edNOH		; number of Sectors/Head	
+	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
 	
-ParameterBlock5DD:
-	DW	dpb5ddSPT				; 128-byte sectors per track- (72)
-	DB	dpb5ddBSH				; Block shift ( 4=> 2K)
-	DB	dpb5ddBLM				; Block mask
-	DB	dpb5ddEXM				; Extent mask
-	DW	dpb5ddDSM				; Maximum allocation block number (174)
-	DW	dpb5ddDRM				; Number of directory entries - 1 (127)
-	DB	dpb5ddAL0				; Bit map for reserving 1 alloc. block
-	DB	dpb5ddAL1				;  for file directory
-	DW	dpb5ddCKS				; Disk change work area size (32)
-	DW	dpb5ddOFF				; Number of tracks before directory
-	
-	DB	(dpb5ddSPT/4)/dpb5ddNOH		; number of Sectors/Head	
-	
-						; Standard 8" floppy
-						; extra byte prefixed to DPB for 
-						;  this version of the BIOS
 
 
 ;---------------------------------------------------------------------------
@@ -1092,10 +1057,10 @@ ParameterBlock5DD:
 ; change of diskette. The BDOS will automatically set
 ; such a changed diskette to read-only status.
 	
-DiskAWorkArea:	DS	dpb3edCKS			; A:  020H
-DiskBWorkArea:	DS	dpb3edCKS			; B:  020H
-DiskCWorkArea:	DS	dpb5ddCKS			; C:  020H
-DiskDWorkArea:	DS	dpb5ddCKS			; D:  060H
+DiskAWorkArea:	DS	dpb3hdCKS			; A:  020H
+DiskBWorkArea:	DS	dpb3hdCKS			; B:  020H
+DiskCWorkArea:	DS	dpb3hdCKS			; C:  020H
+DiskDWorkArea:	DS	dpb3hdCKS			; D:  060H
 
 ;---------------------------------------------------------------------------
 ;	Disk allocation vectors
@@ -1106,86 +1071,77 @@ DiskDWorkArea:	DS	dpb5ddCKS			; D:  060H
 ; One byte is used for eight allocation blocks, hence the
 ; expression of the form (allocation blocks/8)+1
 
-DiskAAllocationVector:	DS	(dpb3edDSM/8)+1 	; A:
-DiskBAllocationVector:	DS	(dpb3edDSM/8)+1 	; B:
+DiskAAllocationVector:	DS	(dpb3hdDSM/8)+1 	; A:
+DiskBAllocationVector:	DS	(dpb3hdDSM/8)+1 	; B:
 						
-DiskCAllocationVector:	DS	(dpb5ddDSM/8)+1 	; C:
-DiskDAllocationVector:	DS	(dpb5ddDSM/8)+1 	; D:
+DiskCAllocationVector:	DS	(dpb3hdDSM/8)+1 	; C:
+DiskDAllocationVector:	DS	(dpb3hdDSM/8)+1 	; D:
 ;---------------------------------------------------------------------------
 ;	Disk Buffer
 ;---------------------------------------------------------------------------
-DirBuffSize	EQU	128
+DirBuffSize			EQU	128
 DirectoryBuffer:	DS	DirBuffSize
 ;---------------------------------------------------------------------------
 ;**********************************************************************************
 ;	Disk Control table image for warm boot
 ;**********************************************************************************
 BootControlPart1:
-	DB	01H				; Read function
-	DB	00H				; unit number
-	DB	00H				; head number
-	DB	00H				; track number
-	DB	02H				; Starting sector number (skip cold boot sector)
+	DB	01H						; Read function
+	DB	00H						; unit number
+	DB	00H						; head number
+	DB	00H						; track number
+	DB	02H						; Starting sector number (skip cold boot sector)
 	DW	11 * 512				; Number of bytes to read ( rest of the head)
 	DW	CCPEntry				; read into this address
 	DW	DiskStatusBlock			; pointer to next block - no linking
 	DW	DiskControlByte			; pointer to next table- no linking
-;ootControlPart2:
-;	DB	01H				; Read function
-;	DB	00H				; unit number
-;	DB	01H				; head number - next head
-;	DB	00H				; track number
-;	DB	01H				; Starting sector number
-;	DW	3 * 512				; Number of bytes to read (Rest of BDOS)
-;	DW	CCPEntry + ( 8 * 512)		; Pick up where 1st read left off
-;	DW	DiskStatusBlock			; pointer to next block - no linking
-;	DW	DiskControlByte			; pointer to next table - no linking
+
 ;
 ;**********************************************************************************	
 ;	Warm Boot
 ;  On warm boot. the CCP and BDOS must be reloaded into memory.
-; In this BIOS. only the 5 1/4" diskettes will be used.
+; In this BIOS. only the 3.5 " diskettes will be used.
 ; Therefore this code is hardware specific to the controller.
 ; Two prefabricated control tables are used.
 ;**********************************************************************************	
 WBOOT:
-	LXI	SP,DMABuffer		; DefaultDiskBuffer
-	LXI	D,BootControlPart1
+	LXI		SP,DMABuffer		; DefaultDiskBuffer
+	LXI		D,BootControlPart1
 	CALL	WarmBootRead
 	
 ;	LXI	D,BootControlPart2
 ;	CALL	WarmBootRead
-	JMP	EnterCPM
+	JMP		EnterCPM
 	
 WarmBootRead:
-	LXI	H,DiskControlTable			; get pointer to the Floppy's Device Control Table
-	SHLD	DiskCommandBlock			; put it into the Command block for drive A:
-	MVI	C,13				; set byte count for move
+	LXI		H,DiskControlTable	; get pointer to the Floppy's Device Control Table
+	SHLD	DiskCommandBlock	; put it into the Command block for drive A:
+	MVI		C,13				; set byte count for move
 WarmByteMove:
-	LDAX	D				; Move the coded Control block into the Command Block
-	MOV	M,A
-	INX	H
-	INX	D
-	DCR	C
-	JNZ	WarmByteMove
+	LDAX	D					; Move the coded Control block into the Command Block
+	MOV		M,A
+	INX		H
+	INX		D
+	DCR		C
+	JNZ		WarmByteMove
 	
-	LXI	H,DiskControlByte
-	MVI	M,080H				; activate the controller 
+	LXI		H,DiskControlByte
+	MVI		M,080H				; activate the controller 
 	
 WaitForBootComplete:
-	MOV	A,M				; Get the control byte
-	ORA	A				; Reset to 0 (Completed operation) ?
-	JNZ	WaitForBootComplete			; if not try again
+	MOV		A,M					; Get the control byte
+	ORA		A					; Reset to 0 (Completed operation) ?
+	JNZ		WaitForBootComplete	; if not try again
 	
-	LDA	DiskStatusBlock			; after operation what's the status?
-	CPI	080H				; any errors ?
-	JC	WarmBootError			; Yup
-	RET					; else we are done!
+	LDA		DiskStatusBlock		; after operation what's the status?
+	CPI		080H				; any errors ?
+	JC		WarmBootError		; Yup
+	RET							; else we are done!
 
 WarmBootError:
-	LXI	H,WarmBootErroMessage		; point at error message
+	LXI		H,WarmBootErroMessage	; point at error message
 	CALL	DisplayMessage			; sent it. and
-	JMP	WBOOT				; try again.
+	JMP		WBOOT					; try again.
 	
 WarmBootErroMessage:
 	DB	CR,LF
@@ -1204,40 +1160,40 @@ WarmBootErroMessage:
 ;---------------End of Cold Boot Initialization Code--------------
 
 	
-BOOT:
-	JMP	EnterCPM
-							; HL points at a Zero-Byte terminated string to be output
-	
+
+;	JMP	EnterCPM
+								; HL points at a Zero-Byte terminated string to be output
+BOOT:	
 EnterCPM:
-	MVI	A,0C3H				; JMP op code
-	STA	0000H				; set up the jump in location 0000H
-	STA	0005H				; and at location 0005H
+	MVI		A,0C3H				; JMP op code
+	STA		0000H				; set up the jump in location 0000H
+	STA		0005H				; and at location 0005H
 	
-	LXI	H,WarmBootEntry			; get BIOS vector address
+	LXI		H,WarmBootEntry			; get BIOS vector address
 	SHLD	0001H				; put address in location 1
 	
-	LXI	H,BDOSEntry			; Get BDOS entry point address
+	LXI		H,BDOSEntry			; Get BDOS entry point address
 	SHLD	0006H				; put address at location 5
 	
-	LXI	B,DMABuffer			; DefaultDiskBuffer set disk I/O address to default
+	LXI		B,DMABuffer			; DefaultDiskBuffer set disk I/O address to default
 	CALL	SETDMA				; use normal BIOS routine
 	
 	EI
-	LDA	CurDisk			; DefaultDisk  Transfer current default disk to
-	MOV	C,A				; Console Command Processor
-	JMP	CCPEntry				; transfer to CCP
+	LDA		CurDisk				; DefaultDisk  Transfer current default disk to
+	MOV		C,A					; Console Command Processor
+	JMP		CCPEntry			; transfer to CCP
 	
 DisplayMessage:
-	MOV	A,M				; get next message byte
-	ORA	A				; terminator (a = 0)?
-	RZ					; Yes, thes return to caller
+	MOV		A,M					; get next message byte
+	ORA		A					; terminator (a = 0)?
+	RZ							; Yes, thes return to caller
 	
-	MOV	C,A				; prepare for output
-	PUSH	HL				; save message pointer
+	MOV		C,A					; prepare for output
+	PUSH	HL					; save message pointer
 	CALL	CONOUT				; go to main console output routine *******
-	POP	H
-	INX	H 				; point at next character
-	JMP	DisplayMessage			; loop till done
+	POP		H
+	INX		H 					; point at next character
+	JMP		DisplayMessage		; loop till done
 
 ;-------------------------------------------------
 
