@@ -1204,48 +1204,39 @@ SeekDir:						; seekdir seek$dir
 	LHLD	dirCounter			; directory counter to HL
 	MVI	C,dskshf				; 4 entries per CP/M sector ?
 	CALL	ShiftRightHLbyC ; value to HL
-	SHLD	currentRecord
+	SHLD	currentBlock
 	SHLD	dirRecord ;ready for seek
 	JMP	Seek
 	;ret
 
 ;---------------------------
 Seek:						; seek
-	;seek the track given by currentRecord (actual record)
-	;local equates for registers
-						; arech  equ b
-						; arecl  equ c ;currentRecord = BC
-						; crech  equ d
-						; crecl  equ e ;currec  = DE
-						; ctrkh  equ h
-						; ctrkl  equ l ;curtrk  = HL  
-						; tcrech equ h
-						; tcrecl equ l ;tcurrec = HL
-	;load the registers from memory
+	;seek the track given by currentBlock (actual record number)
 	
-	LXI	HL,currentRecord
-	MOV	C,M				; arecl,m
-	INX	HL
-	MOV	B,M				; arech,m
-	LHLD	caSector 				; physical record
-	MOV	E,M				; crecl,m
-	INX	HL
-	MOV	D,M				; crech,m
-	LHLD	caTrack 
-	MOV	A,M
-	INX	HL
-	MOV	H,M				; ctrkh,M
-	MOV	L,A				; ctrkl,a
-;(BC) - Record Count
+	LXI		HL,currentBlock					; contains the cpm record number
+	MOV		C,M								; Actual Record Number Low
+	INX		HL
+	MOV		B,M								; Actual Record Number High
+	LHLD	caSector		 				; Current Sector
+	MOV		E,M								; Current Sector Number Low
+	INX		HL
+	MOV		D,M								; Current Sector Number High
+	LHLD	caTrack 						; Current track
+	MOV		A,M								; Current track Number Low - temp
+	INX		HL
+	MOV		H,M								; Current track Number High
+	MOV		L,A								; Current track Number Low 
+;(BC) - cpmRecord Number
 ;(DE) - Current Sector
 ;(HL) - Current Track
-	;loop while currentRecord < currec
+
+	;loop while currentBlock < currec   ?????
 Seek0:
-	MOV	A,C				; a,arecl
-	SUB	E				; crecl
-	MOV	A,B				; a,arech
-	SBB	D				; crech
-	JNC	Seek1				; skip if currentRecord >= currec
+	MOV		A,C							;   Current Sector
+	SUB		E							; 
+	MOV		A,B							; - cpmRecord Number
+	SBB		D							; 
+	JNC		Seek1						; skip if cpmRecord Number >= Current Sector
 						; currec = currec - dpbSPT
 	PUSH	HL				; ctrkh
 	LHLD	dpbSPT				; sectors per track
@@ -1261,16 +1252,16 @@ Seek0:
 	JMP	Seek0				; for another try
 	
 Seek1:
-	;look while currentRecord >= (t:=currec + dpbSPT)
-	PUSH	HL				; ctrkh
-	LHLD	dpbSPT				; sectors per track
-	DAD	D				; crech ;HL = currec+dpbSPT
-	MOV	A,C				; a,arecl
-	SUB	L				; tcrecl
-	MOV	A,B				; a,arech
-	SBB	H				; tcrech
-	JC	Seek2				; skip if t > currentRecord
-						; currec = t
+	
+	PUSH	HL							; Save Current Track
+	LHLD	dpbSPT						; records per track
+	DAD		D							; HL = Current Sector + sectorsPerClynder
+	MOV		A,C							;     cpmRecord Number
+	SUB		L							;
+	MOV		A,B							;  - HL (above)
+	SBB		H							; 
+	JC	Seek2							; skip if cpmRecord Number > HL (above)
+						
 	XCHG
 						; curtrk = curtrk + 1
 	POP	HL				; ctrkh
@@ -1278,43 +1269,42 @@ Seek1:
 	JMP	Seek1				; for another try
 	
 Seek2:
-	POP	HL				; ctrkh
-						; arrive here with updated values in each register
-	PUSH	BC				; arech
-	PUSH	DE				; crech
-	PUSH	HL				; ctrkh ;to stack for later
-						; stack contains (lowest) BC=currentRecord, DE=currec, HL=curtrk
-	XCHG
-	LHLD	dpbOFF				; offset tracks at beginning
-	DAD	D				; HL = curtrk+dpbOFF
-	MOV	B,H
-	MOV	C,L
-	CALL	bcSettrk				; track set up
+	POP		HL							; retreive Current Track
+	PUSH	BC							; save  cpmRecord Number
+	PUSH	DE							; save  Current Sector
+	PUSH	HL							; save CurrentTrack
+; stack contains CurrentTrack , Current Sector, cpmRecord Number
+	XCHG								; DE => CurrentTrack, HL => Current Sector
+	LHLD	dpbOFF						; Block Zero starting Track
+	DAD		D							; HL =  actual physical Track number
+	MOV		B,H
+	MOV		C,L							; BC has physical Track number
+	CALL	bcSettrk					; track set up
 						; note that BC - curtrk is difference to move in bios
-	POP	DE				; recall curtrk
-	LHLD	caTrack
-	MOV	M,E
-	INX	H
-	MOV	M,D				; curtrk updated
-						; now compute sector as currentRecord-currec
-	POP	DE				; crech ;recall currec
-	LHLD	caSector
-	MOV	M,E				; m,crecl
-	INX	HL
-	MOV	M,D				; m,crech
-	POP	BC				; arech ;BC=currentRecord, DE=currec
-	MOV	A,C				; a,arecl
-	SUB	E				; crecl
-	MOV	C,A				; arecl,a
-	MOV	A,B				; a,arech
-	SBB	D				; crech
-	MOV	B,A				; arech,a
+	POP		DE							; recall CurrentTrack
+	LHLD	caTrack						; point at current Track
+	MOV		M,E
+	INX		H
+	MOV		M,D							; current Track updated
+; now compute sector as currentBlock-currec
+	POP		DE							; recall Current Sector
+	LHLD	caSector					; point at current Sector
+	MOV		M,E
+	INX		HL
+	MOV		M,D							; current sector updated / DE has currentSector
+	POP		BC							; recall cpmRecord Number
+	MOV		A,C							; cpmRecord Number
+	SUB		E	
+	MOV		C,A							; - currentSector
+	MOV		A,B
+	SBB		D	
+	MOV		B,A							; back into BC
 	LHLD	caSkewTable
-	XCHG					; BC=sector#, DE=.tran
-	CALL	bcSectran				; HL = tran(sector)
-	MOV	C,L
-	MOV	B,H				; BC = tran(sector)
-	JMP	bcSetsec				; sector selected
+	XCHG								; BC=sector#, DE=.tran
+	CALL	bcSectran					; HL = tran(sector)
+	MOV		C,L
+	MOV		B,H							; BC = tran(sector)
+	JMP	bcSetsec						; sector selected
 	;ret	
 ;************* CheckSum *******************************
 ; compute current checksum record
@@ -1397,38 +1387,38 @@ StillInDirectory:					; compcdr
 ;compute reccnt and NEXT_RECORD addresses for get/setfcb
 GetFcbAddress:					; getfcba
 	LHLD	paramDE
-	LXI	DE,reccnt
-	DAD	DE
+	LXI		DE,reccnt
+	DAD		DE
 	XCHG					; DE=.fcb(reccnt)
-	LXI	HL,(NEXT_RECORD-reccnt)
-	DAD	DE				; HL=.fcb(NEXT_RECORD)
+	LXI		HL,(NEXT_RECORD-reccnt)
+	DAD		DE				; HL=.fcb(NEXT_RECORD)
 	RET
 ;---------------------
-;set variables from currently addressed fcb
-SetFcbVariables:					; getfcb
-	CALL	GetFcbAddress			; addresses in DE, HL
-	MOV	A,M
-	STA	vrecord 				; vrecord=fcb(NEXT_RECORD)
+;set variables from currently fcb - NEXT_RECORD, RC, EXM
+SetRecordVars:	
+	CALL	GetFcbAddress			; DE => reccnt(RC) , HL => NEXT_RECORD
+	MOV		A,M
+	STA		cpmRecord 				; cpmRecord=fcb(NEXT_RECORD)
 	XCHG
-	MOV	A,M
-	STA	rcount				; rcount=fcb(reccnt)
-	CALL	GetExtentAddress			; HL=.fcb(extnum)
-	LDA	dpbEXM				; extent mask to a
-	ANA	M				; fcb(extnum) and dpbEXM
-	STA	extval				; save extent number
+	MOV		A,M
+	STA		rcount					; rcount=fcb(reccnt)
+	CALL	GetExtentAddress		; HL=.fcb(extnum)
+	LDA		dpbEXM					; extent mask to a
+	ANA		M						; fcb(extnum) and dpbEXM
+	STA		extentValue				; save extent number
 	RET
 ;---------------------
-;set variables from currently addressed fcb
-PutFcbVariables:					; setfcb
-	CALL	GetFcbAddress			; addresses to DE, HL
-	LDA	seqReadFlag
-	MOV	C,A				; =1 if sequential i/o
-	LDA	vrecord
-	ADD	C
-	MOV	M,A				; fcb(NEXT_RECORD)=vrecord+seqReadFlag
+;update variables from I/O in  fcb
+UpdateRecordVars:
+	CALL	GetFcbAddress			; DE => reccnt(RC) , HL => NEXT_RECORD
+	LDA		seqReadFlag
+	MOV		C,A						; =1 if sequential i/o
+	LDA		cpmRecord					; get NEXT_RECORD
+	ADD		C
+	MOV		M,A						; fcb(NEXT_RECORD)=cpmRecord+seqReadFlag
 	XCHG
-	LDA	rcount
-	MOV	M,A				; fcb(reccnt)=rcount
+	LDA		rcount
+	MOV		M,A						; fcb(reccnt)=rcount
 	RET
 ;---------------------
 ;set file Attributes for current fcb
@@ -1584,19 +1574,19 @@ DiskRead:						; diskread
 	MVI	A,TRUE
 	STA	readModeFlag			; read mode flag = true (OpenNextExt)
 						; read the next record from the current fcb
-	CALL	SetFcbVariables			; sets parameters for the read
-	LDA	vrecord
+	CALL	SetRecordVars			; sets record parameters for the read
+	LDA	cpmRecord
 	LXI	HL,rcount
-	CMP	M				; vrecord-rcount
-						; skip if rcount > vrecord
+	CMP	M				; cpmRecord-rcount
+						; skip if rcount > cpmRecord
 	JC	RecordOK
 						; not enough records in the extent
 						; record count must be 128 to continue
-	CPI	128				; vrecord = 128?
-	JNZ	DiskEOF				; skip if vrecord<>128
+	CPI	128				; cpmRecord = 128?
+	JNZ	DiskEOF				; skip if cpmRecord<>128
 	CALL	OpenNextExt			; go to next extent if so
 	XRA	A
-	STA	vrecord				; vrecord=00
+	STA	cpmRecord				; cpmRecord=00
 						; now check for open ok
 	LDA	lowReturnStatus
 	ORA	A
@@ -1606,63 +1596,62 @@ RecordOK:						; recordok:
 	CALL	GetBlockNumber
 						; error 2 if reading unwritten data
 						; (returns 1 to be compatible with 1.4)
-	CALL	IsAllocated			; currentRecord=0000?
+	CALL	IsAllocated			; currentBlock=0000?
 	JZ	DiskEOF
 						; record has been allocated, read it
-	CALL	SetActualRecordAdd			; currentRecord now a disk address
+	CALL	SetActualRecordAdd			; currentBlock now a disk address
 	CALL	Seek				; to proper track,sector
 	CALL	ReadBuffer			; to dma address
-	CALL	PutFcbVariables			; replace parameters
+	CALL	UpdateRecordVars	;update variables from I/O in  fcb
 	RET
 DiskEOF:						; diskeof:
 	JMP	SetLowReturnTo1			; lowReturnStatus = 1
 	;ret
 ;-----------------------------------------------------------------
 ;sequential disk write
-DiskWriteSeq:					; seqdiskwrite
+DiskWriteSeq:						; seqdiskwrite
 	MVI	A,1
 	STA seqReadFlag
 ;--------
 ;disk write
-DiskWrite:					; diskwrite
-	MVI	A,FALSE
-	STA	readModeFlag
-						; write record to currently selected file
-	CALL	CheckWrite			; in case write protected
-	LHLD	paramDE				; HL = .fcb(0)
-	CALL	CheckROFile			; may be a read-only file
-	CALL	SetFcbVariables			; to set local parameters
-	LDA	vrecord
-	CPI	lastRecordNumber + 1		; vrecord-128
-						; skip if vrecord > lastRecordNumber
-	JC	DiskWrite1
-						; vrecord = 128, cannot open next extent
+DiskWrite:							; diskwrite
+	MVI		A,FALSE
+	STA		readModeFlag
+									; write record to currently selected file
+	CALL	CheckWrite				; in case write protected
+	LHLD	paramDE					; HL = .fcb(0)
+	CALL	CheckROFile				; may be a read-only file
+	CALL	SetRecordVars			; Set local Record parameters
+	LDA		cpmRecord
+	CPI		highestRecordNumber + 1	; Still in the same extent?				
+	JC		DiskWrite1				; skip if in the same Extent
 	CALL	SetLowReturnTo1
-	RET					; lowReturnStatus = 1
-DiskWrite1:					; diskwr0:
-						; can write the next record, so continue
-	CALL	GetBlockNumber
+	RET								; Exit ???????????
+	
+; can write the next record, so continue	
+DiskWrite1:
+	CALL	GetBlockNumber			; sets up actual block number
 	CALL	IsAllocated
-	MVI	C,0				; marked as normal write operation for WriteBuffer
-	JNZ	DiskWrite3
-						; not allocated
-						; the argument to getblock is the starting
-						; position for the disk search, and should be
-						; the last allocated block for this file, or
-						; the value 0 if no space has been allocated
-	CALL	ComputeDmPosition
-	STA	diskMapIndex			; save for later
-	LXI	BC,0000h				; may use block zero
-	ORA	A
-	JZ	FirstBlock			; skip if no previous block
-						; previous block exists at A
-	MOV	C,A
-	DCX	BC				; previous block # in BC
-	CALL	GetDiskMapValue			; previous block # to HL
-	MOV	B,H
-	MOV	C,L				; BC=prev block#
-FirstBlock:					; nopblock:
-						; BC = 0000, or previous block #
+	MVI		C,W_NORMAL				; Assume a normal write operation for WriteBuffer
+	JNZ		DiskWrite3
+; not allocated -
+; the argument to getblock is the starting position for the disk search
+; and should be the last allocated block for this file,
+; or the value 0 if no space has been allocated
+
+	CALL	GetDiskMapIndex				; return with Disk Map index in Acc
+	STA		diskMapIndex				; save for later
+	LXI		BC,0000h					; may use block zero
+	ORA		A
+	JZ		FirstBlock					; skip if no previous block
+; previous block exists 
+	MOV		C,A
+	DCX		BC							; previous block # in BC
+	CALL	GetDiskMapValue				; previous block # to HL
+	MOV		B,H
+	MOV		C,L							; BC=prev block#
+; BC = 0000, or previous block #
+FirstBlock:			
 	CALL	GetClosestBlock			; block # to HL
 						; arrive here with block# or zero
 	MOV	A,L
@@ -1675,7 +1664,7 @@ FirstBlock:					; nopblock:
 	
 BlockOK:						; blockok:
 						; allocated block number is in HL
-	SHLD	currentRecord
+	SHLD	currentBlock
 	XCHG					; block number to DE
 	LHLD	paramDE
 	LXI	BC,diskMap
@@ -1697,37 +1686,40 @@ Allocate16Bit:					; allocwd:
 	MOV	M,D
 	INX	HL
 	MOV	M,E				; double wd
-DiskWrite2:					; diskwru:
-						; disk write to previously unallocated block
-	MVI	C,2				; marked as unallocated write
-DiskWrite3:					; diskwr1:
-						; continue the write operation of no allocation error
-						; C = 0 if normal write, 2 if to prev unalloc block
-	LDA	lowReturnStatus
-	ORA	A
-	RNZ					; stop if non zero returned value
-	PUSH	BC				; save write flag
-	CALL	SetActualRecordAdd			; currentRecord set
-	CALL	Seek				; to proper file position
-	POP	BC
-	PUSH	BC				; restore/save write flag (C=2 if new block)
+; disk write to previously unallocated block
+DiskWrite2:
+	MVI	C,W_NEW_BLOCK				; marked as unallocated write
+	
+; continue the write operation of no allocation error
+; C = 0 if normal write, 2 if to prev unalloc block
+	
+DiskWrite3:
+	LDA		lowReturnStatus
+	ORA		A
+	RNZ									; stop if non zero returned value
+	
+	PUSH	BC							; save write flag ( in C see above)
+	CALL	SetActualRecordAdd			; currentBlock set to actual record number
+	CALL	Seek						; to proper file position
+	POP		BC							; get write flag
+	PUSH	BC							; restore/save write flag (C=2 if new block)
 	CALL	WriteBuffer			; written to disk
 	POP	BC				; C = 2 if a new block was allocated, 0 if not
-						; increment record count if rcount<=vrecord
-	LDA	vrecord
+						; increment record count if rcount<=cpmRecord
+	LDA	cpmRecord
 	LXI	HL,rcount
-	CMP	M ;vrecord-rcount
+	CMP	M ;cpmRecord-rcount
 	JC	DiskWrite4
-						; rcount <= vrecord
+						; rcount <= cpmRecord
 	MOV	M,A
-	INR	M				; rcount = vrecord+1
+	INR	M				; rcount = cpmRecord+1
 	MVI	C,2				; mark as record count incremented
 DiskWrite4:					; diskwr2:
-						; A has vrecord, C=2 if new block or new record#
+						; A has cpmRecord, C=2 if new block or new record#
 	DCR	C
 	DCR	C
 	JNZ	DiskWrite5
-	PUSH	PSW				; save vrecord value
+	PUSH	PSW				; save cpmRecord value
 	CALL	GetModuleNum			; HL=.fcb(modnum), A=fcb(modnum)
 						; reset the file write flag to mark as written fcb
 		
@@ -1735,32 +1727,32 @@ DiskWrite4:					; diskwr2:
 	ANI	7FH				; not fwfmsk
 		
 	MOV	M,A				; fcb(modnum) = fcb(modnum) and 7fh
-	POP	PSW				; restore vrecord
+	POP	PSW				; restore cpmRecord
 DiskWrite5:					; noupdate:
 						; check for end of extent, if found attempt to open
 						; next extent in preparation for next write
-	CPI	lastRecordNumber			; vrecord=lastRecordNumber?
+	CPI	highestRecordNumber			; cpmRecord=highestRecordNumber?
 	JNZ	DiskWrite7			; skip if not
 						; may be random access write, if so we are done
 	LDA	seqReadFlag
 	ORA	A
 	JZ	DiskWrite7			; skip next extent open op
 						; update current fcb before going to next extent
-	CALL	PutFcbVariables
+	CALL	UpdateRecordVars	;update variables from I/O in  fcb
 	CALL	OpenNextExt			; readModeFlag=false
-						; vrecord remains at lastRecordNumber causing eof if
+						; cpmRecord remains at highestRecordNumber causing eof if
 						; no more directory space is available
 	LXI	HL,lowReturnStatus
 	MOV	A,M
 	ORA	A
 	JNZ	DiskWrite6			; no space
-						; space available, set vrecord=255
+						; space available, set cpmRecord=255
 	DCR	A
-	STA	vrecord				; goes to 00 next time
+	STA	cpmRecord				; goes to 00 next time
 DiskWrite6:					; nospace:
 	MVI	M,0				; lowReturnStatus = 00 for returned value
 DiskWrite7:					; diskwr3:
-	JMP	PutFcbVariables ;replace parameters
+	JMP	UpdateRecordVars	;update variables from I/O in  fcb
 	;ret
 ;-----------------------------------------------------------------
 ;close the current extent  and open the next one if possible.
@@ -1820,7 +1812,7 @@ OpenNextExt2:					; open$reel1:
 						; not end of file, open
 	CALL	OpenFileCopyFCB
 OpenNextExt3:					; open$reel2:
-	CALL	SetFcbVariables			; set parameters
+	CALL	SetRecordVars			; Set Record parameters
 	XRA	A
 	STA	lowReturnStatus			; lowReturnStatus = 0
 	RET					; with lowReturnStatus = 0
@@ -2121,35 +2113,39 @@ ReturnBlockZero:					; retblock0:
 ;-----------------------------------------------------------------
 ;compute disk block number from current fcb
 GetBlockNumber:					; index
-	CALL	ComputeDmPosition			; 0...15 in register A
-	MOV	C,A
-	MVI	B,0
-	CALL	GetDiskMapValue			; value to HL
-	SHLD	currentRecord
+	CALL	GetDiskMapIndex			; 0...15 in register A
+	MOV		C,A
+	MVI		B,0
+	CALL	GetDiskMapValue			; return value in HL
+	SHLD	currentBlock			; save for later
 	RET
 ;-----------------------------------------------------------------
 ;is  block allocated
-IsAllocated:					; allocated
-	LHLD	currentRecord
-	MOV	A,L
-	ORA	H
+IsAllocated:						; allocated
+	LHLD	currentBlock
+	MOV		A,L
+	ORA		H
 	RET
 ;-----------------------------------------------------------------
 ;compute actual record address
-SetActualRecordAdd:					; atran
-	LDA	dpbBSH				; shift count to reg A
-	LHLD	currentRecord
-SetActualRecordAdd1:				; atran0:
-	DAD	HL
-	DCR	A
-	JNZ	SetActualRecordAdd1			; shl(currentRecord,dpbBSH)
-	LDA	dpbBLM				; get block mask
-	MOV	C,A				; mask value to C
-	LDA	vrecord
-	ANA	C				; masked value in A
-	ORA	L
-	MOV	L,A				; to HL
-	SHLD	currentRecord			; currentRecord=HL or (vrecord and dpbBLM)
+; result = currentBlock * ( 2**BSH)
+SetActualRecordAdd:
+	LDA		dpbBSH					; Block Shift  to reg A
+	LHLD	currentBlock
+	
+SetActualRecordAdd1:
+	DAD		HL
+	DCR		A						; shl(currentBlock,dpbBSH)
+	JNZ		SetActualRecordAdd1
+; HL has Record number for start of the block;
+	LDA		dpbBLM					; get block mask
+	MOV		C,A						; to get cpmRecord mod Block
+	LDA		cpmRecord				; get index into block
+	ANA		C						; masked value in A
+	ORA		L
+	MOV		L,A						; to HL
+	SHLD	currentBlock			; currentBlock=HL or (cpmRecord and dpbBLM)
+	; *** currentBlock now has current record number - Starting record number + index into block
 	RET
 ;-----------------------------------------------------------------
 ;---------------------
@@ -2210,7 +2206,7 @@ OpenFile:						; open
 						; not end of directory, copy fcb information
 OpenFileCopyFCB:					; open$copy
 	;(referenced below to copy fcb info)
-	CALL	GetExtentAddress
+	CALL	GetExtentAddress		;HL=.fcb(extnum)
 	MOV	A,M
 	PUSH	PSW
 	PUSH	HL				; save extent#
@@ -2342,10 +2338,10 @@ SearchDone:					; search$fin:
 	RET
 ;---------------------
 ;get current extent field address to (HL)
-GetExtentAddress:					; getexta
+GetExtentAddress:
 	LHLD	paramDE
-	LXI	DE,extnum
-	DAD	DE ;HL=.fcb(extnum)
+	LXI		DE,extnum
+	DAD		DE						;HL=.fcb(extnum)
 	RET
 ;---------------------
 ;Set file write flag
@@ -2357,8 +2353,8 @@ SetFileWriteFlag:					; setfwf
 ;---------------------
 ;set lowReturnStatus to 1
 SetLowReturnTo1:					;setlret1
-	MVI	A,1
-	STA	lowReturnStatus
+	MVI		A,1
+	STA		lowReturnStatus
 	RET
 ;---------------------
 ;compare extent# in A with that in C, return nonzero if they do not match
@@ -2412,60 +2408,65 @@ SeekAndCopy:					; seek$copy:
 	JMP	WriteDir				; write the directory element
 	;ret
 ;---------------------
-;compute disk map position for vrecord to HL
-ComputeDmPosition:					; dm$position
-	LXI	HL,dpbBSH				; get block shift value
-	MOV	C,M				; shift count to C
-	LDA	vrecord				; current virtual record to A
-ComputeDmPosition1:					; dmpos0:
-	ORA	A
+;Return the  disk map Index for cpmRecord in the ACC
+;  account for multiple extents in 1 physical Directory entry
+GetDiskMapIndex:					; dm$position
+	LXI		HL,dpbBSH				; get block shift value
+	MOV		C,M						; shift count to C
+	LDA		cpmRecord				; current virtual record to A
+GetDiskMapIndex1:
+	ORA		A						; reset the carry flag
 	RAR
-	DCR	C
-	JNZ	ComputeDmPosition1
-						; A = shr(vrecord,dpbBSH) = vrecord/2**(sect/block)
-	MOV	B,A				; save it for later addition
-	MVI	A,8
-	SUB	M				; 8-dpbBSH to accumulator
-	MOV	C,A				; extent shift count in register c
-	LDA	extval				; extent value ani extmsk
-ComputeDmPosition2:					; dmpos1:
-						; dpbBSH = 3,4,5,6,7, C=5,4,3,2,1
-						; shift is 4,3,2,1,0
-	DCR	C
-	JZ	ComputeDmPosition3
-	ORA	A
+	DCR		C
+	JNZ		GetDiskMapIndex1
+									; A = shr(cpmRecord,dpbBSH) = cpmRecord/2**(sect/block)
+									; A has the relative position in the block. 
+	MOV		B,A						; save it for later addition
+	MVI		A,8
+	SUB		M						; 8-dpbBSH to accumulator
+	MOV		C,A						; extent shift count in register c
+	LDA		extentValue				; extent value ani extmsk
+GetDiskMapIndex2:					; dmpos1:
+									; dpbBSH = 3,4,5,6,7, C=5,4,3,2,1
+									; shift is 4,3,2,1,0
+	DCR		C
+	JZ		GetDiskMapIndex3
+	ORA		A						; clear the carry flag
 	RAL
-	JMP	ComputeDmPosition2
-ComputeDmPosition3:					; dmpos2:
+	JMP		GetDiskMapIndex2
+	
+; The ACC has the Block Number for this record
+GetDiskMapIndex3:
 						; arrive here with A = shl(ext and extmsk,7-dpbBSH)
-	ADD	B 				; add the previous shr(vrecord,dpbBSH) value
+	ADD	B 				; add the previous shr(cpmRecord,dpbBSH) value
 						; A is one of the following values, depending upon alloc
 						; bks dpbBSH
-						; 1k   3     v/8 + extval * 16
-						; 2k   4     v/16+ extval * 8
-						; 4k   5     v/32+ extval * 4
-						; 8k   6     v/64+ extval * 2
-						; 16k  7     v/128+extval * 1
+						; 1k   3     v/8 + extentValue * 16
+						; 2k   4     v/16+ extentValue * 8
+						; 4k   5     v/32+ extentValue * 4
+						; 8k   6     v/64+ extentValue * 2
+						; 16k  7     v/128+extentValue * 1
 	RET 					; with disk map position in A
 ;---------------------
-;return disk map value from position given by BC
-GetDiskMapValue:					; getdm
+; Enter with Disk Map Index in BG
+; Return disk map value  in HL
+GetDiskMapValue:
 	LHLD	paramDE				; base address of file control block
-	LXI	DE,diskMap
-	DAD	DE				; HL =.diskmap
-	DAD	BC				; index by a single byte value
-	LDA	single				; single byte/map entry?
-	ORA	A
-	JZ	GetDiskMapValue1 			; get disk map single byte
-	MOV	L,M
-	MVI	H,0
-	RET					; with HL=00bb
-GetDiskMapValue1:					; getdmd:
-	DAD	BC				; HL=.fcb(dm+i*2)
-						; double precision value returned
-	MOV	D,M
-	INX	HL
-	MOV	E,M
+	LXI		DE,diskMap			; offset to the disk map
+	DAD		DE					; HL =.diskmap
+	DAD		BC					; index by a single byte value
+	LDA		single				; single byte/map entry?
+	ORA		A
+	JZ		GetDiskMap16Bit 	; get disk map single byte
+	MOV		L,M
+	MVI		H,0
+	RET							; with HL=00bb
+GetDiskMap16Bit:				; getdmd:
+	DAD		BC						; HL=.fcb(dm+i*2)
+								; double precision value returned
+	MOV		D,M
+	INX		HL
+	MOV		E,M
 	XCHG
 	RET
 ;---------------------
@@ -2750,49 +2751,57 @@ displayAndWait:					; errflg:
 	JMP	ConIn				; to get the input character
 	;ret	
 ;**************Error Messages*******************************
-emDisk0:		DB	'Bdos Err On '		; dskmsg:
-emDisk:		DB	' : $'			; dskerr filled in by errflg
-emPermanent:	DB	'Bad Sector$'		; permsg
-emSelection:	DB	'Select$'			; selmsg
-emReadOnlyFile:	DB	'File '			; rofmsg	
-emReadOnlyDisk:	DB	'R/O$'			; rodmsg:	
+emDisk0:		DB	'Bdos Err On '			; dskmsg:
+emDisk:			DB	' : $'					; dskerr filled in by errflg
+emPermanent:	DB	'Bad Sector$'			; permsg
+emSelection:	DB	'Select$'				; selmsg
+emReadOnlyFile:	DB	'File '					; rofmsg	
+emReadOnlyDisk:	DB	'R/O$'					; rodmsg:	
 ;*****************************************************************
+
+;*****************Read / Write Constantsa*************************
+W_NORMAL		EQU	0						; write to an allocated block
+W_NEW_BLOCK		EQU	2						; write to an unallocated block
+
+;*****************************************************************
+
+
 ;********* file control block (fcb) constants ********************
-emptyDir		EQU	0E5H			; empty empty directory entry
-lastRecordNumber	EQU	127			; lstrec last record# in extent
-recordSize	EQU	128			; recsiz record size
-fcbLength		EQU	32			; fcblen file control block size
-dirrec		EQU	recordSize/fcbLength	; directory elts / record
-dskshf		EQU	2			; log2(dirrec)
-dskmsk		EQU	dirrec-1                      
-fcbshf		EQU	5			; log2(fcbLength)
+emptyDir			EQU	0E5H				; empty empty directory entry
+highestRecordNumber	EQU	127					; lstrec last record# in extent
+recordSize			EQU	128					; recsiz record size
+fcbLength			EQU	32					; fcblen file control block size
+dirrec				EQU	recordSize/fcbLength	; directory elts / record
+dskshf				EQU	2					; log2(dirrec)
+dskmsk				EQU	dirrec-1                      
+fcbshf				EQU	5					; log2(fcbLength)
 ;                                                           
-extnum		EQU	12			; extent number field
-maxext		EQU	31			; largest extent number
-unFilledBytes	EQU	13			; ubytes unfilled bytes field
-modnum		EQU	14			; data module number	S2?????
-maxmod		EQU	15			; largest module number
-fwfmsk		EQU	80h			; file write flag is high order modnum
-nameLength	EQU	15			; namlen name length
-reccnt		EQU	15			; record count field
-diskMap		EQU	16			; dskmap disk map field
+extnum				EQU	12					; extent number field
+maxext				EQU	31					; largest extent number
+unFilledBytes		EQU	13					; ubytes unfilled bytes field
+modnum				EQU	14					; data module number	S2?????
+maxmod				EQU	15					; largest module number
+fwfmsk				EQU	80h					; file write flag is high order modnum
+nameLength			EQU	15					; namlen name length
+reccnt				EQU	15					; record count field
+diskMap				EQU	16					; dskmap disk map field
 ; lstfcb		EQU	fcbLength-1                   
-NEXT_RECORD	EQU	fcbLength			; nxtrec                  
-RANDOM_REC_FIELD	EQU	NEXT_RECORD + 1			;ranrec random record field (2 bytes)
+NEXT_RECORD			EQU	fcbLength			; nxtrec                  
+RANDOM_REC_FIELD	EQU	NEXT_RECORD + 1		;ranrec random record field (2 bytes)
 ;
 ;	reserved file indicators
-rofile	EQU	9				; high order of first type char
-invis	EQU	10				; invisible file in dir command
+rofile				EQU	9					; high order of first type char
+invis				EQU	10					; invisible file in dir command
 ;	equ	11				; reserved
 ;*****************************************************************
 ;*****************************************************************
 
 ;***common values shared between bdosi and bdos******************
-currentUserNumber:	DB	0			; usrcode current user number
-paramDE:		DS	2			; ParamsDE information address
-statusBDOSReturn:	DS	2			; address value to return
-currentDisk:	DB	-1			; curdsk current disk number
-lowReturnStatus	EQU	statusBDOSReturn		; lret low(statusBDOSReturn)
+currentUserNumber:	DB	0					; usrcode current user number
+paramDE:			DS	2					; ParamsDE information address
+statusBDOSReturn:	DS	2					; address value to return
+currentDisk:		DB	-1					; curdsk current disk number
+lowReturnStatus		EQU	statusBDOSReturn	; lret low(statusBDOSReturn)
 
 ;********************* Local Variables ***************************
 ;     ************************
@@ -2811,7 +2820,7 @@ InitDAMAddress:	DW	DMABuffer			; dmaad tbuff initial dma address
 
 caDirMaxValue:	DW	0000H			; cdrmaxa pointer to cur dir max value
 caTrack:		DW	0000H			; curtrka current track address
-caSector:		DW	0000H			; curreca current record address
+caSector:		DW	0000H			; current Sector 
 caListSizeStart:                   		       
 caDirectoryDMA:	DW	0000H			; buffa pointer to directory dma address
 caDiskParamBlock:	DW	0000H			; dpbaddr current disk parameter block address
@@ -2840,39 +2849,39 @@ dpbSize		EQU	dpbEnd - dpbStart	;dpblist	equ	$-dpbSPT	;size of area
 
 ;     ************************
 
-paramE:		DS	BYTE			; ParamE low(info)
-caSkewTable:	DW	0000H			; tranv address of translate vector
-fcbCopiedFlag:	DB	00H			; fcb$copied set true if CopyFCB called
-readModeFlag:	DB	00H			; rmf read mode flag for OpenNextExt
-directoryFlag:	DB	00H			; dirloc directory flag in rename, etc.
-seqReadFlag:	DB	00H			; seqio  1 if sequential i/o
-diskMapIndex:	DB	00H			; dminx  local for DiskWrite
-searchLength:	DB	00H			; searchl search length
-searchAddress:	DW	0000H			; searcha search address
-;tinfo:	ds	word				; temp for info in "make"
-single:		DB	00H			; set true if single byte allocation map
-fResel:		DB	00H			; resel reselection flag
-entryDisk:	DB	00H			; olddsk disk on entry to bdos
-fcbDisk:		DB	00H			; fcbdsk disk named in fcb
-rcount:		DB	00H			; record count in current fcb
-extval:		DB	00H			; extent number and dpbEXM
-vrecord:		DW	0000H			; current virtual record
-currentRecord:	DW	0000H			; arecord current actual record
+paramE:				DS	BYTE		; ParamE low(info)
+caSkewTable:		DW	0000H		; tranv address of translate vector
+fcbCopiedFlag:		DB	00H			; fcb$copied set true if CopyFCB called
+readModeFlag:		DB	00H			; rmf read mode flag for OpenNextExt
+directoryFlag:		DB	00H			; dirloc directory flag in rename, etc.
+seqReadFlag:		DB	00H			; seqio  1 if sequential i/o
+diskMapIndex:		DB	00H			; dminx  local for DiskWrite
+searchLength:		DB	00H			; searchl search length
+searchAddress:		DW	0000H		; searcha search address
+;tinfo:	ds	word					; temp for info in "make"
+single:				DB	00H			; set true if single byte allocation map
+fResel:				DB	00H			; resel reselection flag
+entryDisk:			DB	00H			; olddsk disk on entry to bdos
+fcbDisk:			DB	00H			; fcbdsk disk named in fcb
+rcount:				DB	00H			; record count from current fcb
+extentValue:		DB	00H			; extent number and dpbEXM from current fcb
+cpmRecord:			DW	0000H		; current virtual record - NEXT_RECORD
+currentBlock:		DW	0000H		; arecord current actual record
 ;
 ;	local variables for directory access
-dirPointer:	DB	00H			; dptr directory pointer 0,1,2,3
-dirCounter:	DW	00H			; dcnt directory counter 0,1,...,dpbDRM
-dirRecord:	DW	00H			; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
+dirPointer:			DB	00H			; dptr directory pointer 0,1,2,3
+dirCounter:			DW	00H			; dcnt directory counter 0,1,...,dpbDRM
+dirRecord:			DW	00H			; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
 
 ;********************** data areas ******************************
-Cvalue:		DB	00h			; Reg C on BDOS Entry
-compcol:		DB	0			; true if computing column position
-startingColumn:	DB	0			; strtcol starting column position after read
-columnPosition:	DB	0			; column column position
+Cvalue:				DB	00H			; Reg C on BDOS Entry
+compcol:			DB	0			; true if computing column position
+startingColumn:		DB	0			; strtcol starting column position after read
+columnPosition:		DB	0			; column column position
 listeningToggle:	DB	0			; listcp listing toggle
-kbchar:		DB	0			; initial key char = 00
-usersStack:	DS	2			; entry stack pointer
-stackBottom:	DS	STACK_SIZE * 2		; stack size
+kbchar:				DB	0			; initial key char = 00
+usersStack:			DS	2			; entry stack pointer
+stackBottom:		DS	STACK_SIZE * 2		; stack size
 bdosStack:
 ;	end of Basic I/O System
 ;-----------------------------------------------------------------;*****************************************************************
