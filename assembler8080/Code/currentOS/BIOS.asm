@@ -11,6 +11,8 @@
 INopCode	EQU	0DBH
 OUTopCode	EQU	0D3H
 
+RECORD_SIZE	EQU	128			; cpmRecord size
+
 ;BootControlPart1--------------------------------------------------------------------------
 ; DefaultDisk	EQU	0004H
 ;PageZero:	ORG	0000H				; Start of page Zero
@@ -74,20 +76,20 @@ AfterDiskBuffer	EQU	$
 
 ;-------------------------------------------------
 
-TTYStatusPort			EQU	0EDH
-TTYDataPort				EQU	0ECH
-TTYOutputReady			EQU	01H		; Status Mask
-TTYInputReady			EQU	02H		; Status Mask
-
-TerminalStatusPort		EQU	02H
-TerminalDataPort		EQU	01H
-TerminalOutputReady		EQU	80H		; Status Mask - ready for output
-TerminalInputReady		EQU	07FH	; Status Mask - bytes yet to have been read
+TTYStatusPort				EQU	0EDH
+TTYDataPort					EQU	0ECH
+TTYOutputReady				EQU	01H		; Status Mask
+TTYInputReady				EQU	02H		; Status Mask
+	
+TerminalStatusPort			EQU	02H
+TerminalDataPort			EQU	01H
+TerminalOutputReady			EQU	80H		; Status Mask - ready for output
+TerminalInputReady			EQU	07FH	; Status Mask - bytes yet to have been read
                                                   
-CommunicationStatusPort	EQU	0EDH      
-CommunicationDataPort	EQU	0ECH      
-CommunicationOutputReady	EQU	01H	; Status Mask
-CommunicationInputReady	EQU	02H		; Status Mask
+CommunicationStatusPort		EQU	0EDH      
+CommunicationDataPort		EQU	0ECH      
+CommunicationOutputReady	EQU	01H		; Status Mask
+CommunicationInputReady		EQU	02H		; Status Mask
 
 TTYTable:
 	DB		TTYStatusPort
@@ -113,123 +115,123 @@ SelectRoutine:
 ; It will transfer control to a specified address following its calling address
 ; according to the values in bits 1, 0 in A.	
 
-	RLC							; Shift select values into bits 2,1 in order to do word arithmetic
-SelectRoutine21:				; entry point if bits already in 2,1
-	ANI		06H					; isolate bits 2 and 1
-	XTHL						; HL-> first word of address after CALL instruction
-	MOV		E,A					; Add on selection value to address table base
-	MVI		D,00H	
-	DAD		D					; HL-> now has the selected routine
-	MOV		A,M					; LS Byte
-	INX		H					; HL-> MS byte
-	MOV		H,M					; MS byte
-	MOV		L,A					; HL->routine
-	XTHL						; top of stack -> routine
-	RET							; transfer control to the selected routine
+	RLC								; Shift select values into bits 2,1 in order to do word arithmetic
+SelectRoutine21:					; entry point if bits already in 2,1
+	ANI		06H						; isolate bits 2 and 1
+	XTHL							; HL-> first word of address after CALL instruction
+	MOV		E,A						; Add on selection value to address table base
+	MVI		D,00H		
+	DAD		D						; HL-> now has the selected routine
+	MOV		A,M						; LS Byte
+	INX		H						; HL-> MS byte
+	MOV		H,M						; MS byte
+	MOV		L,A						; HL->routine
+	XTHL							; top of stack -> routine
+	RET								; transfer control to the selected routine
 ;----------------------routines called by SelectRoutine----------------------------	
 TTYInStatus:
-	LXI		H,TTYTable			;HL-> control table
-	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
-TerminalInStatus:                                 
-	LXI		H,TerminalTable		;HL-> control table
-	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
+	LXI		H,TTYTable				;HL-> control table
+	JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
+TerminalInStatus:
+	LXI		H,TerminalTable			;HL-> control table
+	JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
 CommunicationInStatus:                            
-	LXI		H,CommunicationTable;HL-> control table
-	JMP		InputStatus			; use of JMP, InputStatus will execute thr RETurn
-DummyInStatus:
-	MVI		A,0FFH				; Dummy always indicates data ready
+	LXI		H,CommunicationTable	;HL-> control table
+	JMP		InputStatus				; use of JMP, InputStatus will execute thr RETurn
+DummyInStatus:	
+	MVI		A,0FFH					; Dummy always indicates data ready
 	RET
 	
 TTYOutStatus:
-	LXI		H,TTYTable			; HL-> control table
-	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,TTYTable				; HL-> control table
+	JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 TerminalOutStatus:                                
-	LXI		H,TerminalTable		; HL-> control table
-	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,TerminalTable			; HL-> control table
+	JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 CommunicationOutStatus:                           
-	LXI		H,CommunicationTable; HL-> control table
-	JMP		OutputStatus		; use of JMP, OutputStatus will execute thr RETurn
+	LXI		H,CommunicationTable	; HL-> control table
+	JMP		OutputStatus			; use of JMP, OutputStatus will execute thr RETurn
 DummyOutStatus:
-	MVI		A,0FFH				; Dummy always indicates ready to output data
+	MVI		A,0FFH					; Dummy always indicates ready to output data
 	RET
 
 ;--------------------------------------------------------------------------------
 TTYInput:
-	LXI		H,TTYTable			; HL-> control table
-	JMP		InputData			; use of JMP, InputStatus will execute thr RETurn
-TerminalInput:
-	LXI		H,TerminalTable		; HL-> control table
-	CALL	InputData			;** special **
-	ANI		07FH				; Strip off high order bit
+	LXI		H,TTYTable				; HL-> control table
+	JMP		InputData				; use of JMP, InputStatus will execute thr RETurn
+TerminalInput:	
+	LXI		H,TerminalTable			; HL-> control table
+	CALL	InputData				;** special **
+	ANI		07FH					; Strip off high order bit
 	RET		
 CommunicationInput:
-	LXI		H,CommunicationTable; HL-> control table
-	JMP		InputData			; use of JMP, InputStatus will execute thr RETurn
-DummyInput:
-	MVI		A,01AH				; Dummy always returns EOF
+	LXI		H,CommunicationTable	; HL-> control table
+	JMP		InputData				; use of JMP, InputStatus will execute thr RETurn
+DummyInput:	
+	MVI		A,01AH					; Dummy always returns EOF
 	RET
 ;---------------------------------------------------------------------------
-InputStatus:					; return- A = 00H no incoming data
-	MOV		A,M					; get status port
-	STA		InputStatusPort		; ** self modifying code
-	DB		INopCode			; IN opcode
-InputStatusPort:
-	DB		00H					; <- set from above
-	INX		H					; move HL to point to input data mask
-	INX		H
-	INX		H
-	ANA		M					; mask with input status
-	RET							; return with status (00 nothing, FF - data available)
+InputStatus:						; return- A = 00H no incoming data
+	MOV		A,M						; get status port
+	STA		InputStatusPort			; ** self modifying code
+	DB		INopCode				; IN opcode
+InputStatusPort:	
+	DB		00H						; <- set from above
+	INX		H						; move HL to point to input data mask
+	INX		H	
+	INX		H	
+	ANA		M						; mask with input status
+	RET								; return with status (00 nothing, FF - data available)
 ;---------------------------------------------------------------------------
-InputData:						; return with next character
-	PUSH	H					; save control table pointer
-	CALL	InputStatus
-	POP		H					; restore the control table
-	JZ		InputData			; wait until incoming data
-	INX		H					; HL <- data port
-	MOV		A,M					; get data port
-	STA		InputDataPort		; modify code here
-	DB		INopCode			; do the actual I/O
-InputDataPort:
-	DB		00H					; <- set from above
-	RET							; return with data in A
+InputData:							; return with next character
+	PUSH	H						; save control table pointer
+	CALL	InputStatus	
+	POP		H						; restore the control table
+	JZ		InputData				; wait until incoming data
+	INX		H						; HL <- data port
+	MOV		A,M						; get data port
+	STA		InputDataPort			; modify code here
+	DB		INopCode				; do the actual I/O
+InputDataPort:	
+	DB		00H						; <- set from above
+	RET								; return with data in A
 ;---------------------------------------------------------------------------
-OutputStatus:					; return - A = 00H not ready
-	MOV		A,M
-	STA		OutputStatusPort
-	DB		INopCode			; IN opcode
-OutputStatusPort:
-	DB		00H					; <- set from above
-	INX		H					; HL , Output status mask
-	INX		H
-	ANA		M					; mask with output status, 00 = Not ready
+OutputStatus:						; return - A = 00H not ready
+	MOV		A,M	
+	STA		OutputStatusPort	
+	DB		INopCode				; IN opcode
+OutputStatusPort:	
+	DB		00H						; <- set from above
+	INX		H						; HL , Output status mask
+	INX		H	
+	ANA		M						; mask with output status, 00 = Not ready
 	RET
 ;---------------------------------------------------------------------------
-OutputData:						; data in Register C is output
-	PUSH	H					; save control table pointer
-	CALL	OutputStatus	
-	POP		H					; restore table pointer
-	JZ		OutputData			; wait until incoming data
-	INX		H					; HL <- data port
-	MOV		A,M					; get data port
-	STA		OutputDataPort		; store it here Modify the code
-	MOV		A,C					; get the data to output
-	DB		OUTopCode			; Do the I/O here !!
-OutputDataPort:	
-	DB		00H					; <- set from above
+OutputData:							; data in Register C is output
+	PUSH	H						; save control table pointer
+	CALL	OutputStatus		
+	POP		H						; restore table pointer
+	JZ		OutputData				; wait until incoming data
+	INX		H						; HL <- data port
+	MOV		A,M						; get data port
+	STA		OutputDataPort			; store it here Modify the code
+	MOV		A,C						; get the data to output
+	DB		OUTopCode				; Do the I/O here !!
+OutputDataPort:		
+	DB		00H						; <- set from above
 	RET
 ;---------------------------------------------------------------------------
 TTYOutput:
-	LXI		H,TTYTable			; HL-> control table
-	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
-TerminalOutput:                                   
-	LXI		H,TerminalTable		 ;HL-> control table
-	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
-CommunicationOutput:                              
-	LXI		H,CommunicationTable; HL-> control table
-	JMP		OutputData			; use of JMP, InputStatus will execute thr RETurn
-DummyOutput:
-	RET							; Dummy always discards the data
+	LXI		H,TTYTable				; HL-> control table
+	JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
+TerminalOutput:                 	                  
+	LXI		H,TerminalTable			 ;HL-> control table
+	JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
+CommunicationOutput:            	                  
+	LXI		H,CommunicationTable	; HL-> control table
+	JMP		OutputData				; use of JMP, InputStatus will execute thr RETurn
+DummyOutput:	
+	RET								; Dummy always discards the data
 ;---------------------------------------------------------------------------
 
 ;---------------------------------------------------------------------------
@@ -239,19 +241,19 @@ DummyOutput:
 ;
 
 CONST:
-	CALL	GetConsoleStatus	; return A= zero or not zero
-	ORA		A
-	RZ							; if 0 no returning data
-	MVI		A,0FFH				; else indicate there is data
+	CALL	GetConsoleStatus		; return A= zero or not zero
+	ORA		A	
+	RZ								; if 0 no returning data
+	MVI		A,0FFH					; else indicate there is data
 	RET
 ;---------------------------------------------------------------------------
 GetConsoleStatus:
-	LDA		IOBYTE				; Get IO redirection byte
-	CALL	SelectRoutine		; these routines return to the caller of GetConsoleStatus
-	DW		TTYInStatus			; 00  <- IOBYTE bits 1,0
-	DW		TerminalInStatus	; 01
+	LDA		IOBYTE					; Get IO redirection byte
+	CALL	SelectRoutine			; these routines return to the caller of GetConsoleStatus
+	DW		TTYInStatus				; 00  <- IOBYTE bits 1,0
+	DW		TerminalInStatus		; 01
 	DW		CommunicationInStatus	; 10
-	DW		DummyInStatus		; 11
+	DW		DummyInStatus			; 11
 
 ;---------------------------------------------------------------------------
 ;	Console In  BIOS 03
@@ -259,16 +261,17 @@ GetConsoleStatus:
 ; return the character from the console in the A register.
 ; most significant bit will be 0. except when "reader" (communication)
 ; port has input , all 8 bits are reurned
+;
+; normally this follows a call to CONST ( a blocking call) to indicates a char is ready.
 
 CONIN:
-						; normally this follows a call to CONST ( a blocking call) to indicates a char is ready.
-	LDA	IOBYTE				; get i/o redirection byte
+	LDA		IOBYTE					; get i/o redirection byte
 	CALL 	SelectRoutine
-						; Vectors to device routines
-	DW	TTYInput				; 00 <- IOBYTE bits 1,0
-	DW	TerminalInput			; 01
-	DW	CommunicationInput			; 10
-	DW	DummyInput			; 11
+; Vectors to device routines
+	DW		TTYInput				; 00 <- IOBYTE bits 1,0
+	DW		TerminalInput			; 01
+	DW		CommunicationInput		; 10
+	DW		DummyInput				; 11
 
 ;---------------------------------------------------------------------------
 ;	Console Out  BIOS 04
@@ -276,13 +279,13 @@ CONIN:
 ; character in the C register to the appropriate device according to
 ; bits 1,0 of IOBYTE
 CONOUT:
-	LDA	IOBYTE				; get i/o redirection byte
+	LDA		IOBYTE					; get i/o redirection byte
 	CALL 	SelectRoutine
-						; Vectors to device routines
-	DW	TTYOutput				; 00 <- IOBYTE bits 1,0
-	DW	TerminalOutput			; 01
-	DW	CommunicationOutput			; 10
-	DW	DummyOutput			; 11
+; Vectors to device routines
+	DW		TTYOutput				; 00 <- IOBYTE bits 1,0
+	DW		TerminalOutput			; 01
+	DW		CommunicationOutput		; 10
+	DW		DummyOutput				; 11
 
 ;---------------------------------------------------------------------------
 ;	List Status  BIOS 0F
@@ -295,61 +298,62 @@ LISTST:
 ; A = 0FFH ( zero flag cleared): can accept data
 
 	CALL	GetListStatus			; return  A = 0 or non-zero	
-	ORA	A				; set flags
-	RZ					; exit if not ready
-	MVI	A,0FFH				; else set retuen value for ok
-	RET		
-						; exit
-GetListStatus:
-	LDA	IOBYTE
-	RLC					; move bits 7,6
-	RLC					; to 1,0
+	ORA	A							; set flags
+	RZ								; exit if not ready
+	MVI	A,0FFH						; else set retuen value for ok
+	RET					
+									; exit
+GetListStatus:			
+	LDA		IOBYTE			
+	RLC								; move bits 7,6
+	RLC								; to 1,0
 	CALL	SelectRoutine
-	DW	TTYOutStatus			; 00 <- IOBYTE bits 1,0
-	DW	TerminalOutStatus			; 01
-	DW	CommunicationOutStatus		; 10
-	DW	DummyOutStatus			; 11
+	DW		TTYOutStatus			; 00 <- IOBYTE bits 1,0
+	DW		TerminalOutStatus		; 01
+	DW		CommunicationOutStatus	; 10
+	DW		DummyOutStatus			; 11
 ;---------------------------------------------------------------------------
 ;	List output  BIOS 05
 ; entered directly from the BIOS JMP Vector
 ; outputs the data in Register C
 LIST:
-	LDA	IOBYTE
-	RLC					; move bits 7,6
-	RLC					; to 1,0
+	LDA		IOBYTE
+	RLC								; move bits 7,6
+	RLC								; to 1,0
 	CALL	SelectRoutine
-	DW	TTYOutput				; 00 <- IOBYTE bits 1,0
-	DW	TerminalOutput			; 01
-	DW	CommunicationOutput			; 10
-	DW	DummyOutput			; 11
+	DW		TTYOutput				; 00 <- IOBYTE bits 1,0
+	DW		TerminalOutput			; 01
+	DW		CommunicationOutput		; 10
+	DW		DummyOutput				; 11
 
 ;---------------------------------------------------------------------------
 ;	Punch output  BIOS 06	- not tested
+; entered directly from the BIOS JMP Vector
+; outputs the data in Register C
 PUNCH:				; Punch output
-						; entered directly from the BIOS JMP Vector
-						; outputs the data in Register C
-	LDA	IOBYTE
-	RLC					; move bits 5,4
-	RLC
-	RLC					; to 1,0
+
+	LDA		IOBYTE			
+	RLC								; move bits 5,4
+	RLC			
+	RLC								; to 1,0
 	CALL	SelectRoutine
-	DW	TTYOutput				; 00 <- IOBYTE bits 1,0
-	DW	DummyOutput			; 01
-	DW	CommunicationOutput			; 10
-	DW	TerminalOutput			; 11
+	DW		TTYOutput				; 00 <- IOBYTE bits 1,0
+	DW		DummyOutput				; 01
+	DW		CommunicationOutput		; 10
+	DW		TerminalOutput			; 11
 	
 ;---------------------------------------------------------------------------
 ;	Reader input  BIOS 07	- not tested
+; entered directly from the BIOS JMP Vector
+; inputs data into the A register
 READER:				; Reader Input
-						; entered directly from the BIOS JMP Vector
-						; inputs data into the A register
-	LDA	IOBYTE
-	RLC					; move bits 3,2  to 1,0
+	LDA		IOBYTE
+	RLC								; move bits 3,2  to 1,0
 	CALL	SelectRoutine
-	DW	TTYOutput				; 00 <- IOBYTE bits 1,0
-	DW	DummyOutput			; 01
-	DW	CommunicationOutput			; 10
-	DW	TerminalOutput			; 11
+	DW		TTYOutput				; 00 <- IOBYTE bits 1,0
+	DW		DummyOutput				; 01
+	DW		CommunicationOutput		; 10
+	DW		TerminalOutput			; 11
 	
 ;---------------------------------------------------------------------------
 ;---------------------------------------------------------------------------
@@ -474,85 +478,76 @@ SECTRAN:
 	
 ;************************************************************************************************
 ;        READ	BIOS 
-; Read in the 128-byte CP/M sector specified by previous calls to select disk and to set track  and 
+; Read in the  CP/M record specified by previous calls to select disk and to set track  and 
 ; sector. The sector will be read into the address specified in the previous call to set DMA address
 ;
-; If reading from a disk drive using sectors larger than 128 bytes, de-blocking code will be used
-; to unpack a 128-byte sector from  the physical sector. 
 ;************************************************************************************************
 READ:
-;;	LDA	DeblockingRequired
-;;	ORA	A
-;;	JZ	ReadNoDeblock			; if 0 use normal non-blocked read (128 byte sectors)
-; The de-blocking algorithm used is such that a read operation can be viewed UP until the actual
-; data transfer as though it was the first write to an unallocated allocation block. 
-						; else its a 512 byte sector
-	XRA	A				; set record count to 0
-	STA	UnalocatedlRecordCount
-	INR	A
-	STA	ReadFlag				; Set to non zero to indicate that this is a read
-	STA	PrereadSectorFlag			; force pre-read
-	MVI	A,WriteUnallocated			; fake de-blocking code into responding as if this
-	STA	WriteType				;  is the first write to an unallocated allocation block
-	JMP	PerformReadWrite			; use common code to execute read
+	XRA		A								; set record count to 0
+	STA		UnalocatedlRecordCount
+	INR		A
+	STA		ReadFlag						; Set to non zero to indicate that this is a read
+	STA		PrereadSectorFlag				; force pre-read
+	MVI		A,WriteUnallocated				; fake de-blocking code into responding as if this
+	STA		WriteType						; is the first write to an unallocated allocation block
+	JMP		PerformReadWrite				; use common code to execute read
 ;----------------------------------------
 ;************************************************************************************************
 ;	WRITE
-;Write a 128-byte sector from the current DMA address to the previously $elected disk, track, and sector.
+;Write a cpmRecord (128-bytes) from the current DMA address to the previously Selected disk, track, and sector.
 ;
-; On arrival here, the BOOS will have set register C to indicate whether this write operation is to:
+; On arrival here, the BDOS will have set register C to indicate whether this write operation is to:
 ;	00H [WriteAllocated]	 An already allocated allocation block (which means a pre-read of the sector may be needed),
 ;	01H [WriteDirectory]	 To the directory (in which case the data will be written to the disk immediately),
-;	02H	[WriteUnallocated]	 To the first 128-byte sector of a previously unallocated allocation block (In which case no pre-read is required).
+;	02H	[WriteUnallocated]	 To the first cpmRecord of a previously unallocated allocation block (In which case no pre-read is required).
 ;
 ; Only writes to the directory take place immediately.
 ; In all other cases, the data will be moved from the DMA address into the disk buffer,
-; and only written out when circumstance, force the transfer.
+; and only written out when circumstance force the transfer.
 ; The number of physical disk operations can therefore be reduced considerably.
 ;************************************************************************************************
 WRITE:
 ; Buffered I/O
-	XRA	A
-	STA	ReadFlag				; Set to zero to indicate that this is not a read
-	MOV	A,C
-	STA	WriteType				; save the BDOS write type
-	CPI	WriteUnallocated			; first write to an unallocated allocation block ?
-	JNZ	CheckUnallocatedBlock		; No, - in the middle of writing to an unallocated block ?
-						; Yes, It is the first write to unallocated allocation block.
+	XRA		A
+	STA		ReadFlag						; Set to zero to indicate that this is not a read
+	MOV		A,C
+	STA		WriteType						; save the BDOS write type (0,1,2)
+	CPI		WriteUnallocated				; first write to an unallocated allocation block ?
+	JNZ		CheckUnallocatedBlock			; No, - in the middle of writing to an unallocated block ?
+; Yes, It is the first write to unallocated allocation block.
 ; Initialize  variables associated with unallocated writes
-	MVI	A,AllocationBlockSize/ 128		; Number of 128 byte sectors
-	STA	UnalocatedlRecordCount                  
-	LXI	H,SelectedDkTrkSec			; copy disk, track & sector into unallocated variables
-	LXI	D,UnallocatedDkTrkSec
-	CALL 	MoveDkTrkSec
+	MVI		A,AllocationBlockSize/ RECORD_SIZE		; Number of records
+	STA		UnalocatedlRecordCount 			; reset Unallocated Record Count to recordsPerBlock                 
+	LXI		H,SelectedDkTrkSec
+	LXI		D,UnallocatedDkTrkSec
+	CALL 	MoveDkTrkSec					; copy disk, track & sector into unallocated variables
 	
-						; Check if this is not the first write to an unallocated allocation block -- if it is,
-						; the unallocated record count has just been set to the number of 128-byte sectors in the allocation block
+; Check if this is not the first write to an unallocated allocation block -- if it is,
+; the unallocated record count has just been set to the number of records in the allocation block
 CheckUnallocatedBlock:
-	LDA	UnalocatedlRecordCount
-	ORA	A
-	JZ	RequestPreread			; No - write to an unallocated block
-	DCR	A				; decrement 128 byte sectors left
-	STA	UnalocatedlRecordCount
+	LDA		UnalocatedlRecordCount
+	ORA		A
+	JZ		RequestPreread					; No - write to an unallocated block
+	DCR		A						
+	STA		UnalocatedlRecordCount			; decrement records left
 	
-	LXI	H,SelectedDkTrkSec			; same Disk, Track & sector as for those in an unallocated block
-	LXI	D,UnallocatedDkTrkSec         
-	CALL	CompareDkTrkSec			; are they the same
-	JNZ	RequestPreread			; NO - do a pre-read
-						;Compare$DkSTrkSec  returns with  DE -> Unallocated$Sector , HL -> UnallocatedSSector 
+	LXI		H,SelectedDkTrkSec				; same Disk, Track & sector as for those in an unallocated block
+	LXI		D,UnallocatedDkTrkSec         
+	CALL	CompareDkTrkSec					; are they the same
+	JNZ		RequestPreread					; NO - do a pre-read
 	XCHG
-	INR	M
-	MOV	A,M
-	CPI	CPMSecPerTrack			; Sector > maximum on track ?
-	JC	NoTrackChange			; No ( A < M)
+	INR		M								; increment UnalocatedlRecordCount
+	MOV		A,M
+	CPI		CPMSecPerTrack					; Sector > maximum on track ?
+	JC		NoTrackChange					; No ( A < M)
 	MVI	M,00H				; Yes
 	LHLD	UnallocatedTrack
 	INX	H				; increment track 
 	SHLD	UnallocatedTrack
 NoTrackChange:
-	XRA	A
-	STA	PrereadSectorFlag			; clear flag
-	JMP	PerformReadWrite
+	XRA		A
+	STA		PrereadSectorFlag					; clear flag
+	JMP		PerformReadWrite
 	
 RequestPreread:
 	XRA	A
@@ -560,33 +555,33 @@ RequestPreread:
 	INR	A
 	STA	PrereadSectorFlag			; set flag
 ;*******************************************************
-; Common code to execute both reads and writes of 128-byte sectors
+; Common code to execute both reads and writes of 128-byte records
 ;*******************************************************
 PerformReadWrite:
-	XRA	A				; Assume no disk error will occur
-	STA	DiskErrorFlag
-	LDA	SelectedSector
-	RAR					; Convert selected 128-byte sector
-	RAR					; into physical sector by dividing by 4
-	ANI	03FH				; remove unwanted bits
-	STA	SelectedPhysicalSector
-	LXI	H,DataInDiskBuffer			; see if there is any data here ?
-	MOV	A,M
-	MVI	M,001H				; force there is data here for after the actual read
-	ORA	A				; really is there any data here ?
-	JZ	ReadSectorIntoBuffer		; NO - go read into buffer
+	XRA		A									; Assume no disk error will occur
+	STA		DiskErrorFlag
+	LDA		SelectedSector
+	RAR											; Convert selected record
+	RAR											; into physical sector by dividing by 4
+	ANI		03FH								; remove unwanted bits
+	STA		SelectedPhysicalSector
+	LXI		H,DataInDiskBuffer					; see if there is any data here ?
+	MOV		A,M
+	MVI		M,001H								; force there is data here for after the actual read
+	ORA		A									; really is there any data here ?
+	JZ		ReadSectorIntoBuffer				; NO ?- go read into buffer
 ;
 						; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
 						; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
-	LXI	D,InBufferDkTrkSec
-	LXI	H,SelectedDkTrkSec			; get the requested sector
-	CALL	CompareDkTrk			; is it in the buffer ? 
-	JNZ	SectorNotInBuffer			; NO, it must be read
+	LXI		D,InBufferDkTrkSec
+	LXI		H,SelectedDkTrkSec					; get the requested sector
+	CALL	CompareDkTrk						; is it in the buffer ? 
+	JNZ		SectorNotInBuffer					; NO,jump - it must be read
 						; Yes, it is in the buffer
-	LDA	InBufferSector			; get the sector
-	LXI	H,SelectedPhysicalSector
-	CMP	M				; Check if correct physical sector
-	JZ	SectorInBuffer			; Yes - it is already in memory
+	LDA		InBufferSector						; get the sector
+	LXI		H,SelectedPhysicalSector
+	CMP		M									; Check if correct physical sector
+	JZ		SectorInBuffer						; Yes - it is already in memory
 						; No, it will have to be read in over current contents of buffer
 SectorNotInBuffer:
 	LDA	MustWriteBuffer
@@ -613,12 +608,12 @@ ReadSectorIntoBuffer:
 	STA	MustWriteBuffer			; and store it away
 	
 ; Selected sector on correct track and  disk is already 1n the buffer.
-; Convert the selected CP/M(128-byte sector into relative address down the buffer. 
+; Convert the selected cpmRecord into relative address down the buffer. 
 SectorInBuffer:
 	LDA	SelectedSector
 	ANI	SectorMask			; only want the least bits
 	MOV	L,A				; to calculate offset into 512 byte buffer
-	MVI	H,00H				; Multiply by 128
+	MVI	H,00H				; Multiply by 128 - RECORD_SIZE
 	DAD	H				; *2
 	DAD	H				; *4
 	DAD	H				; *8
@@ -627,12 +622,12 @@ SectorInBuffer:
 	DAD	H				; *64
 	DAD	H				; *128
 	LXI	D,DiskBuffer
-	DAD	D				; HL -> 128-byte sector number start address
+	DAD	D				; HL -> record number start address
 	XCHG					; DE -> sector in the disk buffer
 	LHLD	DMAAddress			; Get DMA address (set in SETDMA)
 	XCHG					; assume a read so :
 						; DE -> DMA Address & HL -> sector in disk buffer
-	MVI	C,128/8				; 8 bytes per move (loop count)
+	MVI	C,RECORD_SIZE/8				; 8 bytes per move (loop count)
 ;
 ;  At this point -
 ;	C	->	loop count
@@ -822,7 +817,7 @@ DiskError:
 ;;HardDisk	EQU	2				; hard disk
 NumberOfLogicalDisks	EQU 4			; max number of disk in this system
                                                   
-;;NeedDeblocking	EQU 	080H			; Sector size > 128 bytes
+;;NeedDeblocking	EQU 	080H			; Sector size > RECORD_SIZE bytes
 
 ;**************************************************************************************************
 ;  There id one "smart" disk controllers on this system, for the 3.5 HD drive ( 1.44MB)
@@ -850,13 +845,13 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ;**************************************************************************************************
 
                                                  
-DiskStatusBlock	EQU	043H			;  status block
-                                                  
-DiskControlByte	EQU	045H			; " control byte
-DiskCommandBlock	EQU	046H		; Control Table Pointer
-                                                  
-DiskReadCode	EQU	01H				; Code for Read
-DiskWriteCode	EQU	02H				; Code for Write
+DiskStatusBlock			EQU	043H	;  status block
+                                                
+DiskControlByte			EQU	045H	; " control byte
+DiskCommandBlock		EQU	046H	; Control Table Pointer
+                                                
+DiskReadCode			EQU	01H		; Code for Read
+DiskWriteCode			EQU	02H		; Code for Write
 ;***************************************************************************
 ;	Disk Control tables
 ;***************************************************************************
@@ -880,12 +875,12 @@ DCTNextControlLocation:	DW	0000H	; pointer to next control byte
 ;
 ; The blocking/de-blocking code attempts to minimize the amount of actual
 ; disk I/O by storing the disk,track, and physical sector currently residing
-; in the Physical Buffer. If a read request is for a 128 byte CP/M "sector"
+; in the Physical Buffer. If a read request is for a 128 byte cpmRecord
 ; that is already in the physical buffer, then no disk access occurs
 ;*******************************************************************************
 AllocationBlockSize		EQU	0800H				; 2048
-PhysicalSecPerTrack		EQU	024H				; 36
-CPMSecPerPhysical		EQU	PhysicalSectorSize/128
+PhysicalSecPerTrack		EQU	012H				; 36
+CPMSecPerPhysical		EQU	PhysicalSectorSize/RECORD_SIZE
 CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack
 SectorMask				EQU	CPMSecPerPhysical - 1
 SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
@@ -896,12 +891,12 @@ SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
 ; These are the values handed over by the BDOS when it calls the Writer operation
 ; The allocated.unallocated indicates whether the BDOS is set to write to an
 ; unallocated allocation block (it only indicates this for the first 128 byte
-; sector write) or to an allocation block that has already been allocated to a
+; record write) or to an allocation block that has already been allocated to a
 ; file. The BDOS also indicates if it is set to write to the file directory
 ;*******************************************************************************
-;WriteAllocated	EQU	00H
-;WriteDirectory	EQU	01H
-;WriteUnallocated	EQU	02H
+;WriteAllocated		EQU	00H		W_NORMAL
+;WriteDirectory		EQU	01H		W_DIRECTORY
+;WriteUnallocated	EQU	02H		W_NEW_BLOCK
 ;------------------------------
 
 WriteType:		DB	00H			; The type of write indicated by BDOS
@@ -961,9 +956,9 @@ DiskErrorFlag:
 PrereadSectorFlag:
 				DB	00H		; non-zero if physical sector must be read into the disk buffer
 							; either before a write to a allocated block can occur, or
-							; for a normal CP/M 128 byte sector read
+							; for a normal cpmRecord read
 ReadFlag:
-				DB	00H		; Non-zero when a CP/M 128 byte sector is to be read
+				DB	00H		; Non-zero when a cpmRecord is to be read
 
 ;---------------------------------------------------------------------------
 
@@ -1020,7 +1015,8 @@ DiskParameterHeaders:				; described in chapter 3
  
 ;-----------------------------------------------------------	
 ;; Disk block parameters for F3HD - 3.5 HD   1.44 MB Diskette
-dpb3hdSPT	EQU	0090H			; 128-byte sectors per track- (144)
+;dpb3hdSPT	EQU	0090H			; cpmRecords per track- (144)
+dpb3hdSPT	EQU	0048H			; cpmRecords per track- (72)
 dpb3hdBSH	EQU	04H				; Block shift ( 4=> 2K)
 dpb3hdBLM	EQU	0FH				; Block mask
 dpb3hdEXM	EQU	00H				; Extent mask 
@@ -1035,7 +1031,7 @@ dpb3hdNOH	EQU	02H				;Number of heads
 
 	
 ParameterBlock3HD:
-	DW	dpb3hdSPT				; 128-byte sectors per track- (144)
+	DW	dpb3hdSPT				; cpmRecords per track- (144)
 	DB	dpb3hdBSH				; Block shift ( 4=> 2K)
 	DB	dpb3hdBLM				; Block mask
 	DB	dpb3hdEXM				; Extent mask 

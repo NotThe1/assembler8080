@@ -8,99 +8,98 @@
 ;BDOSE		bdos	0005H
 ;DMABuffer	buff	0080H
 
-fConsoleIn	EQU	01H			; rcharf - Console Input
-fConsoleOut	EQU	02H			; pcharf - Console Output
-fPrintString	EQU	09H			; pbuff	- Print String
-fReadString	EQU	0AH			; rbuff	- Read Console String
+fConsoleIn			EQU	01H			; rcharf - Console Input
+fConsoleOut			EQU	02H			; pcharf - Console Output
+fPrintString		EQU	09H			; pbuff	- Print String
+fReadString			EQU	0AH			; rbuff	- Read Console String
 fGetConsoleStatus	EQU	0BH			; breakf - Get Console Status
-fGetVersion	EQU	0CH			; liftf	- Return Version Number
-fResetSystem	EQU	0DH			; initf	- Reset Disk System
-fSelectDisk	EQU	0EH			; self	- Select Disk
-fOpenFile		EQU	0FH			; openf	- Open File
-fCloseFile	EQU	10H			; closef - Close File
-fSearchFirst	EQU	11H			; searf	- Search For First
-fSearchNext	EQU	12H			; searnf - Search for Next
-fDeleteFile	EQU	13H			; delf - Delete File
-fReadSeq		EQU	14H			; dreadf - Read Sequential
-fWriteSeq		EQU	15H			; dwritf - Write Sequential
-fMakeFile		EQU	16H			; makef	- Make File
-fRenameFile	EQU	17H			; renf	- Rename File
-fGetLoginVector	EQU	18H			; logf	- Return Login Vector
-fGetCurrentDisk	EQU	19H			; cself	- Return Current Disk
-fSetDMA		EQU	1AH			; dmaf	- Set DMA address
+fGetVersion			EQU	0CH			; liftf	- Return Version Number
+fResetSystem		EQU	0DH			; initf	- Reset Disk System
+fSelectDisk			EQU	0EH			; self	- Select Disk
+fOpenFile			EQU	0FH			; openf	- Open File
+fCloseFile			EQU	10H			; closef - Close File
+fSearchFirst		EQU	11H			; searf	- Search For First
+fSearchNext			EQU	12H			; searnf - Search for Next
+fDeleteFile			EQU	13H			; delf - Delete File
+fReadSeq			EQU	14H			; dreadf - Read Sequential
+fWriteSeq			EQU	15H			; dwritf - Write Sequential
+fMakeFile			EQU	16H			; makef	- Make File
+fRenameFile			EQU	17H			; renf	- Rename File
+fGetLoginVector		EQU	18H			; logf	- Return Login Vector
+fGetCurrentDisk		EQU	19H			; cself	- Return Current Disk
+fSetDMA				EQU	1AH			; dmaf	- Set DMA address
 fGetSetUserNumber	EQU	20H			; userf	- Set/Get User Code
                                                   
-systemFile	EQU	0AH			; sysfile System File Flag Location
-roFile		EQU	09H			; rofile Read Only Flag Location
-END_OF_FILE	EQU	1AH			; eofile end of file 
+systemFile			EQU	0AH			; sysfile System File Flag Location
+roFile				EQU	09H			; rofile Read Only Flag Location
+END_OF_FILE			EQU	1AH			; eofile end of file 
                                                   
 ;diskAddress	EQU	0004H			; diska CurDisk	 disk address for current disk
 	                                        
 	ORG	CCPEntry
 CodeStart:
-CcpBoundary	EQU	$			; tranm	
-	JMP	CcpStart				;start ccp with possible initial command
+CcpBoundary			EQU	$			; tranm	
+	JMP	CcpStart					;start ccp with possible initial command
 
 	
 ;*****************************************************************
 ;enter here from boot loader
-CcpStart:						; ccpstart
-	LXI	SP,Stack
-	PUSH	BC				; save initial disk number
-						; (high order 4bits=user code, low 4bits=disk#)
-	MOV	A,C
+CcpStart:
+	LXI		SP,Stack
+	PUSH	BC						; save initial disk number
+									; (high order 4bits=user code, low 4bits=disk#)
+	MOV		A,C
 	RAR
 	RAR
 	RAR
 	RAR
-	ANI	0FH				; user code
-	MOV	E,A
-	CALL	SetUser				; user code selected
-						; initialize for this user, get $ flag
-	CALL	Initialize			; 0ffh in accum if $ file present
-	STA	submitFlag			; submit flag set if $ file present
-	POP	BC				; recall user code and disk number
-	MOV	A,C
-	ANI	0FH				; disk number in accumulator
-	STA	CurDisk				; clears low memory user code nibble
-	CALL	SelectDisk			; proper disk is selected, now check sub files
-						; check for initial command
-	LDA	CommandLength
-	ORA	A
-	JNZ	Ccp0				;assume typed already
+	ANI		0FH						; user code
+	MOV		E,A
+	CALL	SetUser					; user code selected
+									; initialize for this user, get $ flag
+	CALL	Initialize				; 0ffh in accum if $ file present
+	STA		submitFlag				; submit flag set if $ file present
+	POP		BC						; recall user code and disk number
+	MOV		A,C
+	ANI		0FH						; disk number in accumulator
+	STA		CurDisk					; clears low memory user code nibble
+	CALL	SelectDisk				; proper disk is selected, now check sub files
+									; check for initial command
+	LDA		CommandLength
+	ORA		A
+	JNZ		Ccp0					;assume typed already
 	
-Ccp:						; ccp
-						;enter here on each command or error condition
-	LXI	SP,Stack
-	CALL	CrLf				; print d> prompt, where d is disk name
-	CALL	GetSelectedDrive			; get current disk number
-	ADI	ASCII_A	
+Ccp:								;enter here on each command or error condition
+	LXI		SP,Stack
+	CALL	CrLf					; print d> prompt, where d is disk name
+	CALL	GetSelectedDrive		; get current disk number
+	ADI		ASCII_A	
 	CALL	PrintChar
-	MVI	A,GREATER_THAN
+	MVI		A,GREATER_THAN
 	CALL	PrintChar
-	CALL	ReadCommand			; command buffer filled
-Ccp0:						; ccp0 enter here from initialization with command full
-	LXI	DE,DMABuffer
-	CALL	SetDMA				; default dma address at DMABuffer
+	CALL	ReadCommand				; command buffer filled
+Ccp0:								; ccp0 enter here from initialization with command full
+	LXI		DE,DMABuffer
+	CALL	SetDMA					; default dma address at DMABuffer
 	CALL	GetSelectedDrive
-	STA	currentDisk			; current disk number saved
+	STA		currentDisk				; current disk number saved
 	CALL	FillFCB0				; command fcb filled
-	CNZ	CommandError			; the name cannot be an ambiguous reference
-	LDA	selectedDisk
-	ORA	A
-	JNZ	ccpUserFunction
+	CNZ		CommandError			; the name cannot be an ambiguous reference
+	LDA		selectedDisk
+	ORA		A
+	JNZ		ccpUserFunction
 	
-	CALL	IntrinsicFunction			; check for an intrinsic function
-	LXI	HL,intrinsicFunctionsVector		; index is in the accumulator
-	MOV	E,A
-	MVI	D,0
-	DAD	DE
-	DAD	DE				; index in d,e
-	MOV	A,M
-	INX	HL
-	MOV	H,M
-	MOV	L,A
-	PCHL					; pc changes to the proper intrinsic or user function
+	CALL	IntrinsicFunction		; check for an intrinsic function
+	LXI		HL,intrinsicFunctionsVector		; index is in the accumulator
+	MOV		E,A
+	MVI		D,0
+	DAD		DE
+	DAD		DE						; index in d,e
+	MOV		A,M
+	INX		HL
+	MOV		H,M
+	MOV		L,A
+	PCHL							; pc changes to the proper intrinsic or user function
 ;.................................................
 ;.................................................
 
