@@ -91,10 +91,11 @@ cpmReadSeq:
 	
 ; Write Sequential
 cpmWriteSeq:
+	CALL displayRecordInfo
+	
 	LXI		DE,MyFCB
 	MVI		C,15H			; Write
 	CALL	BDOS
-	CALL displayRecordInfo
 	RET
 	
 ; Create and Open file

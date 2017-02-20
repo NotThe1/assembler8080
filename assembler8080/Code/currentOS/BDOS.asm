@@ -1230,7 +1230,7 @@ Seek0:
 	MOV		A,B							; - cpmRecord Number
 	SBB		D							; 
 	JNC		Seek1						; skip if cpmRecord Number >= Current Sector
-						; currec = currec - dpbSPT
+; currec = currec - dpbSPT
 	PUSH	HL				; ctrkh
 	LHLD	dpbSPT				; sectors per track
 	MOV	A,E				; a,crecl

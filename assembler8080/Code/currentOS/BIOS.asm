@@ -383,32 +383,32 @@ HomeNoWrite:
 ; in HL, or 0000H if selected disk does not exist	
 ;**********************	
 SELDSK:
-	LXI	H,00H				; Assume an error
-	MOV	A,C 				; Check if  requested disk is valid
-	CPI	NumberOfLogicalDisks
-	RNC					; return if > max number of Disks
+	LXI		H,00H					; Assume an error
+	MOV		A,C 
+	CPI		NumberOfLogicalDisks
+	RNC								; return if > max number of Disks
 	
-	STA	SelectedDisk			; save disk number
-	MOV	L,A				; make disk into word number
-	MVI	H,0
-						; Compute offset down disk parameter table by multiplying by parameter
-						; header length (16 bytes)
-	DAD	H
-	DAD	H
-	DAD	H
-	DAD	H				; pointing at right one
-	LXI	D,DiskParameterHeaders			; get base address
-	DAD	D				; DE -> appropriate DPH
-	PUSH	HL				; Save DPH pointer
-	LXI	DE,10				; point at Parameter Block
-	DAD	D				; point at the Number of Sectors/Head
-	MOV	E,M
-	INX	HL
-	MOV	D,M				; DE has Parameter Block
-	LXI	HL,15
-	DAD	DE				; HL is at SecPerHeadPerTrack
-	MOV	A,M				; get the value and
-	STA	SelectedDskSecsPerHead		; save for actual IO	
+	STA		SelectedDisk			; save disk number
+	MOV		L,A						; make disk into word number
+	MVI		H,0
+; Compute offset down disk parameter table by multiplying by parameter
+; header length (16 bytes)
+	DAD		H
+	DAD		H
+	DAD		H
+	DAD		H						; pointing at right one
+	LXI		D,DiskParameterHeaders	; get DPH address
+	DAD		D						; DE -> appropriate DPH
+	PUSH	HL						; Save DPH pointer
+	LXI		DE,10					; Parameter Block Index
+	DAD		D						; cpmRecords per track
+	MOV		E,M
+	INX		HL
+	MOV		D,M						; DE has Parameter Block for selected disk
+	LXI		HL,15					; sectors/head index
+	DAD		DE						; HL is at SecPerHeadPerTrack
+	MOV		A,M						; get the value and
+	STA		SelectedDskSecsPerHead	; save for actual IO	
 
 
 ;**	
@@ -558,48 +558,48 @@ RequestPreread:
 ; Common code to execute both reads and writes of 128-byte records
 ;*******************************************************
 PerformReadWrite:
-	XRA		A									; Assume no disk error will occur
+	XRA		A						; Assume no disk error will occur
 	STA		DiskErrorFlag
 	LDA		SelectedSector
-	RAR											; Convert selected record
-	RAR											; into physical sector by dividing by 4
-	ANI		03FH								; remove unwanted bits
+	RAR								; Convert selected record
+	RAR								; into physical sector by dividing by 4
+	ANI		03FH					; remove unwanted bits
 	STA		SelectedPhysicalSector
-	LXI		H,DataInDiskBuffer					; see if there is any data here ?
+	LXI		H,DataInDiskBuffer		; see if there is any data here ?
 	MOV		A,M
-	MVI		M,001H								; force there is data here for after the actual read
-	ORA		A									; really is there any data here ?
-	JZ		ReadSectorIntoBuffer				; NO ?- go read into buffer
+	MVI		M,001H					; force there is data here for after the actual read
+	ORA		A						; really is there any data here ?
+	JZ		ReadSectorIntoBuffer	; NO ?- go read into buffer
 ;
-						; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
-						; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
+; The buffer does have a physical sector in it, Note: The disk, track, and PHYSICAL sector
+; in the buffer need to be checked, hence the use of the CompareDkTrk subroutine.
 	LXI		D,InBufferDkTrkSec
-	LXI		H,SelectedDkTrkSec					; get the requested sector
-	CALL	CompareDkTrk						; is it in the buffer ? 
-	JNZ		SectorNotInBuffer					; NO,jump - it must be read
-						; Yes, it is in the buffer
-	LDA		InBufferSector						; get the sector
+	LXI		H,SelectedDkTrkSec		; get the requested sector
+	CALL	CompareDkTrk			; is it in the buffer ? 
+	JNZ		SectorNotInBuffer		; NO,jump - it must be read
+; Yes, it is in the buffer
+	LDA		InBufferSector			; get the sector
 	LXI		H,SelectedPhysicalSector
-	CMP		M									; Check if correct physical sector
-	JZ		SectorInBuffer						; Yes - it is already in memory
-						; No, it will have to be read in over current contents of buffer
+	CMP		M						; Check if correct physical sector
+	JZ		SectorInBuffer			; Yes - it is already in memory
+; No, it will have to be read in over current contents of buffer
 SectorNotInBuffer:
-	LDA	MustWriteBuffer
-	ORA	A				; do we need to write ?
-	CNZ	WritePhysical			; if yes - write it out
+	LDA		MustWriteBuffer
+	ORA		A						; do we need to write ?
+	CNZ		WritePhysical			; if yes - write it out
 
 ReadSectorIntoBuffer:
-						; indicate the  selected disk, track, and sector now residing in buffer
-	LDA	SelectedDisk
-	STA	InBufferDisk
+; indicate the  selected disk, track, and sector now residing in buffer
+	LDA		SelectedDisk
+	STA		InBufferDisk
 	LHLD	SelectedTrack
 	SHLD	InBufferTrack
-	LDA	SelectedPhysicalSector
-	STA	InBufferSector
+	LDA		SelectedPhysicalSector
+	STA		InBufferSector
 	
-	LDA	PrereadSectorFlag			; do we need to pre-read
-	ORA	A
-	CNZ	ReadPhysical			; yes - pre-read the sector
+	LDA		PrereadSectorFlag			; do we need to pre-read
+	ORA		A
+	CNZ		ReadPhysical			; yes - pre-read the sector
 	
 ; At this point the data is in the buffer.
 ; Either it was already here, or we returned from ReadPhysical
@@ -1042,8 +1042,8 @@ ParameterBlock3HD:
 	DW	dpb3hdCKS				; Disk change work area size (32)
 	DW	dpb3hdOFF				; Number of tracks before directory
 	
-	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
-	
+;	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
+	DB	dpb3hdSPT/4				; number of Sectors/Head	
 
 
 ;---------------------------------------------------------------------------
