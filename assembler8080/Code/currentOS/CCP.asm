@@ -929,48 +929,49 @@ ccpEraseAll:					; erasefile:
 msgEraseAll:					; ermsg:
 	DB	'ALL (Y/N)?',0
 ;*****************************************************************
-ccpType:						; type type file
-;	LXI	DE,messCmdTYPE
-;	JMP	CcpTemp				; send message and go ack for more
+; Type file
+ccpType:
 	CALL	FillFCB0
-	JNZ	CommandError			; don't allow ?'s in file name
+	JNZ		CommandError			; don't allow ?'s in file name
 	CALL	SetDisk4Cmd
 	CALL	OpenFile4CmdFCB			; open the file
-	JZ	ccpTypeError			; zero flag indicates not found
-						; file opened, read 'til eof
+	JZ		ccpTypeError			; zero flag indicates not found
+; file opened, read 'til eof
 	CALL	CrLf
-	LXI	HL,bufferPointer
-	MVI	M,255 ;read first buffer
-ccpType1:						; type0 loop on bufferPointer
-	LXI	HL,bufferPointer
-	MOV	A,M
-	CPI	128				; end buffer
-	JC	ccpType2
-	PUSH	HL				; carry if 0,1,...,127
-						; read another buffer full
+	LXI		HL,bufferPointer
+	MVI		M,255 					; read first buffer
+ccpType1:							; type0 loop on bufferPointer
+	LXI		HL,bufferPointer
+	MOV		A,M
+	CPI		128						; end buffer
+	JC		ccpType2
+	PUSH	HL						; carry if 0,1,...,127
+; read another buffer full
 	CALL	DiskReadCmdFCB
-	POP	HL				; recover address of bufferPointer
-	JNZ	ccpTypeEOF			; hard end of file
-	XRA	A
-	MOV	M,A				; bufferPointer = 0
-ccpType2:						; type1 read character at bufferPointer and print
-	INR	M				; bufferPointer = bufferPointer + 1
-	LXI	HL,DMABuffer
-	CALL	AddA2HL				; h,l addresses char
-	MOV	A,M
-	CPI	END_OF_FILE
-	JZ	ResetDiskAtCmdEnd
+	POP		HL						; recover address of bufferPointer
+	JNZ		ccpTypeEOF				; hard end of file
+	XRA		A
+	MOV		M,A						; bufferPointer = 0
+; read character at bufferPointer and print
+ccpType2:
+	INR		M						; bufferPointer = bufferPointer + 1
+	LXI		HL,DMABuffer
+	CALL	AddA2HL					; h,l addresses char
+	MOV		A,M
+	CPI		END_OF_FILE
+	JZ		ResetDiskAtCmdEnd
 	CALL	PrintChar
 	CALL	CheckForConsoleChar
-	JNZ	ResetDiskAtCmdEnd			; abort if break
-	JMP	ccpType1				; for another character
-ccpTypeEOF:					; typeof end of file, check for errors
-	DCR	A
-	JZ	ResetDiskAtCmdEnd
+	JNZ		ResetDiskAtCmdEnd		; abort if break
+	JMP		ccpType1				; for another character
+	
+ccpTypeEOF:
+	DCR		A
+	JZ		ResetDiskAtCmdEnd
 	CALL	PrintReadError
-ccpTypeError:					; typerr:
+ccpTypeError:
 	CALL	ResetDisk
-	JMP	CommandError
+	JMP		CommandError
 ;*****************************************************************
 ccpSave:						; save save memory image
 ;	LXI	DE,messCmdSAV

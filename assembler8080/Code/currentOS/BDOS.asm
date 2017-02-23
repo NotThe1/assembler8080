@@ -838,48 +838,48 @@ Select:						; select  - Login Drive
 ;*****************************************************************
 ; select the disk drive given by currentDisk, and fill the base addresses
 ; caTrack - caAllocVector, then fill the values of the disk parameter block
-SelectDisk:					; selectdisk
+SelectDisk:
 	LDA	currentDisk
-	MOV	C,A				; prepare for Bios Call
+	MOV		C,A						; prepare for Bios Call
 	CALL	bcSeldsk
-	MOV	A,H				; HL = 0000 if error, otherwise disk headers
-	ORA	L
-	RZ					; exit if error, with Zflag set
-	MOV	E,M
-	INX	H
-	MOV	D,M				; Disk Header Block pointer in DE
-	INX	HL
+	MOV		A,H						; HL = 0000 if error, otherwise disk headers
+	ORA		L
+	RZ								; exit if error, with Zflag set
+	MOV		E,M
+	INX		H
+	MOV		D,M						; Disk Header Block pointer in DE
+	INX		HL
 	SHLD	caDirMaxValue
-	INX	HL
-	INX	HL
+	INX		HL
+	INX		HL
 	SHLD	caTrack
-	INX	HL
-	INX	HL
+	INX		HL
+	INX		HL
 	SHLD	caSector
-	INX	HL
-	INX	HL
-	XCHG					; DE points at Directory DMA, HL at Skew Table
+	INX		HL
+	INX		HL
+	XCHG							; DE points at Directory DMA, HL at Skew Table
 	SHLD	caSkewTable
-	LXI	HL,caDirectoryDMA
-	MVI	C,caListSize
-	CALL	Move				; finish filling in address list
+	LXI		HL,caDirectoryDMA
+	MVI		C,caListSize
+	CALL	Move					; finish filling in address list
 	
 	LHLD	caDiskParamBlock
-	XCHG					; DE is source
-	LXI	HL,dpbSPT				; start of Disk Parameter Block
-	MVI	C,dpbSize
-	CALL	Move				; load the table
-	LHLD	dpbDSM				; max entry number
-	MOV	A,H				; if 00 then < 255
-	LXI	HL,single				; point at the single byte entry flag
-	MVI	M,TRUE				; assume its less than 255
-	ORA	A				; assumtion confirmed ?
-	JZ	SelectDisk1			; skip if yes
-	MVI	M,FALSE				; correct assumption, set falg to false
+	XCHG							; DE is source
+	LXI		HL,dpbStart				; start of Disk Parameter Block
+	MVI		C,dpbSize
+	CALL	Move					; load the table
+	LHLD	dpbDSM					; max entry number
+	MOV		A,H						; if 00 then < 255
+	LXI		HL,single				; point at the single byte entry flag
+	MVI		M,TRUE					; assume its less than 255
+	ORA		A						; assumtion confirmed ?
+	JZ		SelectDisk1				; skip if yes
+	MVI		M,FALSE					; correct assumption, set falg to false
 	
 SelectDisk1:
 	MVI	A,TRUE
-	ORA	A				; Set Sign, reset Carry and   Zero
+	ORA	A							; Set Sign, reset Carry and   Zero
 	RET
 
 ;---------------
@@ -1230,7 +1230,7 @@ Seek0:
 	MOV		A,B							; - cpmRecord Number
 	SBB		D							; 
 	JNC		Seek1						; skip if cpmRecord Number >= Current Sector
-; currec = currec - dpbSPT
+
 	PUSH	HL				; ctrkh
 	LHLD	dpbSPT				; sectors per track
 	MOV	A,E				; a,crecl
@@ -1292,11 +1292,11 @@ Seek2:
 	MOV		A,B
 	SBB		D	
 	MOV		B,A							; back into BC
-	LHLD	caSkewTable
-	XCHG								; BC=sector#, DE=.tran
-	CALL	bcSectran					; HL = tran(sector)
-	MOV		C,L
-	MOV		B,H							; BC = tran(sector)
+;	LHLD	caSkewTable
+;	XCHG								; BC=sector#, DE=.tran
+;	CALL	bcSectran					; HL = tran(sector)
+;	MOV		C,L
+;	MOV		B,H							; BC = tran(sector)
 	JMP	bcSetsec						; sector selected
 	;ret	
 ;************* CheckSum *******************************
@@ -1560,47 +1560,47 @@ DoNotWrite:					; nowrite
 ;
 ;-----------------------------------------------------------------
 ;sequential disk read operation
-ReadSeq:						; seqdiskread
-	MVI	A,1
-	STA	seqReadFlag			; set flag for seqential read
+ReadSeq:							; seqdiskread
+	MVI		A,1
+	STA		seqReadFlag				; set flag for seqential read
 ;---
 ; read the disk
+; read the next record from the current fcb
 DiskRead:
 	MVI		A,TRUE
 	STA		readModeFlag				; read mode flag = true (OpenNextExt)
-						; read the next record from the current fcb
-	CALL	SetRecordVars				; sets record parameters for the read
+
+	CALL	SetRecordVars				; sets cpmRecord, fcbRecordCount and EXM
 	LDA		cpmRecord
 	LXI		HL,fcbRecordCount
 	CMP		M							; cpmRecord-fcbRecordCount
-										; skip if fcbRecordCount > cpmRecord
-	JC	RecordOK
-						; not enough records in the extent
-						; record count must be 128 to continue
-	CPI	128				; cpmRecord = 128?   *** Records in an Extent 
-	JNZ	DiskEOF				; skip if cpmRecord<>128
-	CALL	OpenNextExt			; go to next extent if so
-	XRA	A
-	STA	cpmRecord				; cpmRecord=00
-						; now check for open ok
-	LDA	lowReturnStatus
-	ORA	A
-	JNZ	DiskEOF				; stop at eof
-RecordOK:						; recordok:
-						; arrive with fcb addressing a record to read
-	CALL	GetBlockNumber
-						; error 2 if reading unwritten data
-						; (returns 1 to be compatible with 1.4)
-	CALL	IsAllocated			; currentBlock=0000?
-	JZ	DiskEOF
-						; record has been allocated, read it
-	CALL	SetActualRecordAdd			; currentBlock now a disk address
-	CALL	Seek				; to proper track,sector
-	CALL	ReadBuffer			; to dma address
-	CALL	UpdateRecordVars	;update variables from I/O in  fcb
-	RET
-DiskEOF:						; diskeof:
-	JMP	SetLowReturnTo1			; lowReturnStatus = 1
+										; skip if  cpmRecord < fcbRecordCount
+	JC		RecordOK			
+; not enough records in the extent
+; record count must be 128 to continue
+	CPI		128							; cpmRecord = 128?   *** Records in an Extent 
+	JNZ		DiskEOF						; skip if cpmRecord<>128
+	CALL	OpenNextExt					; go to next extent if so
+	XRA		A
+	STA		cpmRecord					; cpmRecord=00
+; now check for open ok
+	LDA		lowReturnStatus
+	ORA		A
+	JNZ		DiskEOF	
+	; stop at eof
+; arrive with fcb addressing a record to read
+RecordOK:								; recordok:
+	CALL	GetBlockNumber				; save it in currentBlock 
+	CALL	IsAllocated					; currentBlock=0000?
+	JZ		DiskEOF						; get out if not allocated already
+	
+	CALL	SetActualRecordAdd			; currentBlock now a record value
+	CALL	Seek						; to proper track,sector
+	CALL	ReadBuffer					; to dma address
+	CALL	UpdateRecordVars			;update variables from I/O in  fcb
+	RET		
+DiskEOF:								; diskeof:
+	JMP		SetLowReturnTo1				; lowReturnStatus = 1
 	;ret
 ;-----------------------------------------------------------------
 ;sequential disk write
@@ -2843,7 +2843,7 @@ dpbDABM:			DW	0000H				; dirblk reserved allocation bits for directory
 dpbCKS:				DW	0000H				; chksiz size of checksum vector
 dpbOFF:				DW	0000H				; offset offset tracks at beginning
 dpbEnd:			
-dpbSize				EQU	dpbEnd - dpbStart	;dpblist	equ	$-dpbSPT	;size of area
+dpbSize				EQU	dpbEnd - dpbStart
 ;
 
 ;     ************************

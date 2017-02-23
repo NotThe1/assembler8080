@@ -401,7 +401,7 @@ SELDSK:
 	DAD		D						; DE -> appropriate DPH
 	PUSH	HL						; Save DPH pointer
 	LXI		DE,10					; Parameter Block Index
-	DAD		D						; cpmRecords per track
+	DAD		D						; ????? -> cpmRecords per track
 	MOV		E,M
 	INX		HL
 	MOV		D,M						; DE has Parameter Block for selected disk
@@ -600,6 +600,7 @@ ReadSectorIntoBuffer:
 	LDA		PrereadSectorFlag			; do we need to pre-read
 	ORA		A
 	CNZ		ReadPhysical			; yes - pre-read the sector
+
 	
 ; At this point the data is in the buffer.
 ; Either it was already here, or we returned from ReadPhysical
@@ -735,71 +736,73 @@ MoveDkTrkSecLoop:
 ;********************************************************************
 ;Write contents of disk buffer to correct sector
 WritePhysical:
-	MVI	A,DiskWriteCode			; get write function
-	JMP	CommonPhysical                
+	MVI		A,DiskWriteCode			; get write function
+	JMP		CommonPhysical 
+	
 ReadPhysical:                                     
-	MVI	A,DiskReadCode			; get read function
+	MVI		A,DiskReadCode			; get read function
+	
 CommonPhysical:                                   
-	STA	DCTCommand			; set the command
-	LDA	InBufferDisk
-	ANI	03H				;; only units 0 to 3
-	STA	DCTUnit				; set disk
+	STA		DCTCommand				; set the command
+	LDA		InBufferDisk
+	ANI		03H						; only units 0 to 3
+	STA		DCTUnit					; set disk
 	LHLD	InBufferTrack
-	MOV	A,L				; for this controller it is a byte value
-	STA	DCTTrack				; set track
+	MOV		A,L						; for this controller it is a byte value
+	STA		DCTTrack				; set track
 ;  The sector must be converted into a head number and sector number.
 ; This set of disks and Diskettes only have two Heads ******
-	MVI	B,0				; assume head 0
-	LXI	HL,SelectedDskSecsPerHead		; Point at track counts
-	LDA	InBufferSector			; get target sector
+	MVI		B,0				; assume head 0
+	LXI		HL,SelectedDskSecsPerHead		; Point at track counts
+	LDA		InBufferSector			; get target sector
 Head0:
-	CMP	M				; Need another Head?
-	JC	Head1				; nope Acc < M
-	JZ	Head1				; nope Acc = M
-	SUB	M				; subtrack track value
-	INR	B				; Increment head
-	JMP	Head0				; loop til done
+	CMP		M				; Need another Head?
+	JC		Head1				; nope Acc < M
+;	JZ		Head1				; nope Acc = M
+;	JNZ		Head1				; nope Acc = M
+	SUB		M				; subtrack track value
+	INR		B				; Increment head
+	JMP		Head0				; loop til done
 	
 Head1:
-	INR	A				; physical sectors start at 1
-	STA	DCTSector
-	; set sector
-	MOV	A,B
-	STA	DCTHead				; set head number
+	INR		A				; physical sectors start at 1
+	STA		DCTSector
+	MOV		A,B
+	STA		DCTHead				; set head number
 
-	LXI	H,PhysicalSectorSize
+	LXI		H,PhysicalSectorSize
 	SHLD	DCTByteCount			; set byte count
-	LXI	H,DiskBuffer
+	LXI		H,DiskBuffer
 	SHLD	DCTDMAAddress			; set transfer address
 ;	As only one control table is in use, close the status and busy chain pointers
 ;  back to the main control bytes
-	LXI	H,DiskStatusBlock
+	LXI		H,DiskStatusBlock
 	SHLD	DCTNextStatusBlock
-	LXI	H,DiskControlByte
+	LXI		H,DiskControlByte
 	SHLD	DCTNextControlLocation
-	LXI	H,DCTCommand
+	LXI		H,DCTCommand
 	SHLD	DiskCommandBlock
 	
-	LXI	H,DiskControlByte			; activate 5 1/4" disk controller
-	MVI	M,080H
+	LXI		H,DiskControlByte			; activate 5 1/4" disk controller
+	MVI		M,080H
 
 ;Wait until Disk Status Block indicates , operation complete, then check 
 ; if any errors occurred. ,On entry HL -> disk control byte	
 WaitForDiskComplete:
-	MOV	A,M				; get control bytes
-	ORA	A
-	JNZ	WaitForDiskComplete			; operation not done
+	MOV		A,M				; get control bytes
+	ORA		A
+	JNZ		WaitForDiskComplete			; operation not done
 	                                        
-	LDA	DiskStatusBlock			; done , so now check status
-	CPI	080H                          
-	JC	DiskError                     
-	XRA	A                             
-	STA	DiskErrorFlag			; clear the flag
+	LDA		DiskStatusBlock			; done , so now check status
+	CPI		080H                          
+	JC		DiskError                     
+	XRA		A                             
+	STA		DiskErrorFlag			; clear the flag
 	RET
 	
 DiskError:
-	MVI	A,1
-	STA	DiskErrorFlag			; set the error flag
+	MVI		A,1
+	STA		DiskErrorFlag			; set the error flag
 	RET
 	
 ;**********************************************************************************
@@ -879,9 +882,11 @@ DCTNextControlLocation:	DW	0000H	; pointer to next control byte
 ; that is already in the physical buffer, then no disk access occurs
 ;*******************************************************************************
 AllocationBlockSize		EQU	0800H				; 2048
-PhysicalSecPerTrack		EQU	012H				; 36
+;PhysicalSecPerTrack		EQU	012H				; 18
+PhysicalSecPerTrack		EQU	024H				; 36
 CPMSecPerPhysical		EQU	PhysicalSectorSize/RECORD_SIZE
-CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack
+;CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack
+CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack *2
 SectorMask				EQU	CPMSecPerPhysical - 1
 SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
 ;***************************************************************************
@@ -1015,11 +1020,12 @@ DiskParameterHeaders:				; described in chapter 3
  
 ;-----------------------------------------------------------	
 ;; Disk block parameters for F3HD - 3.5 HD   1.44 MB Diskette
-;dpb3hdSPT	EQU	0090H			; cpmRecords per track- (144)
-dpb3hdSPT	EQU	0048H			; cpmRecords per track- (72)
+dpb3hdSPT	EQU	0090H			; cpmRecords per track- (144)
+;dpb3hdSPT	EQU	0048H			; cpmRecords per track- (72)
 dpb3hdBSH	EQU	04H				; Block shift ( 4=> 2K)
 dpb3hdBLM	EQU	0FH				; Block mask
 dpb3hdEXM	EQU	00H				; Extent mask 
+;dpb3hdEXM	EQU	01H				; Extent mask 
 dpb3hdDSM	EQU	02C6H 			; Maximum allocation block number (710)
 dpb3hdDRM	EQU	007FH 			; Number of directory entries - 1 (127)
 dpb3hdAL0	EQU	0C0H			; Bit map for reserving 1 alloc. block
@@ -1042,8 +1048,8 @@ ParameterBlock3HD:
 	DW	dpb3hdCKS				; Disk change work area size (32)
 	DW	dpb3hdOFF				; Number of tracks before directory
 	
-;	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
-	DB	dpb3hdSPT/4				; number of Sectors/Head	
+	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
+;	DB	dpb3hdSPT/4				; number of Sectors/Head	
 
 
 ;---------------------------------------------------------------------------
