@@ -36,10 +36,11 @@ END_OF_FILE			EQU	1AH			; eofile end of file
                                                   
 ;diskAddress	EQU	0004H			; diska CurDisk	 disk address for current disk
 	                                        
-	ORG	CCPEntry
-CodeStart:
-CcpBoundary			EQU	$			; tranm	
-	JMP	CcpStart					;start ccp with possible initial command
+					ORG	CCPEntry
+
+CcpBoundary			EQU	$			
+
+	JMP		CcpStart					;start ccp with possible initial command
 
 	
 ;*****************************************************************
@@ -169,7 +170,7 @@ NotSubmitFile:					; nosub:	no submit file
 	MVI	C,fReadString
 	LXI	DE,MaxBufferLength
 	CALL	BDOSE
-	CALL	SetDiskAddress			; no control c, so restore CurDisk
+	CALL	SetPage0CurDisk			; no control c, so restore CurDisk
 	
 NoRead:						; noread enter here from submit file
 						; set the last character to zero for later scans
@@ -343,7 +344,7 @@ SaveUser:						; saveuser
 	RET
 ;-----------------------------
 ; set CurDisk to current disk
-SetDiskAddress:					; setdiska
+SetPage0CurDisk:					; setdiska
 	LDA	currentDisk
 	STA	CurDisk				; user/disk
 	RET
@@ -973,55 +974,56 @@ ccpTypeError:
 	CALL	ResetDisk
 	JMP		CommandError
 ;*****************************************************************
-ccpSave:						; save save memory image
-;	LXI	DE,messCmdSAV
-;	JMP	CcpTemp				; send message and go ack for more
-	CALL	GetNumberFromCmdLine		; value to register a
-	PUSH	PSW				; save it for later
-							; should be followed by a file to save the memory image
+; save save memory image
+;*****************************************************************
+ccpSave:
+	CALL	GetNumberFromCmdLine	; value to register a
+	PUSH	PSW						; save it for later
+									; should be followed by a file to save the memory image
 	CALL	FillFCB0
-	JNZ		CommandError	; cannot be ambiguous
-	CALL	SetDisk4Cmd		; may be a disk change
+	JNZ		CommandError			; cannot be ambiguous
+	CALL	SetDisk4Cmd				; may be a disk change
 	LXI		DE,commandFCB
 	PUSH	DE
-	CALL	DeleteFile		; existing file removed
+	CALL	DeleteFile				; existing file removed
 	POP 	DE
-	CALL	MakeFile		; create a new file on disk
-	JZ		ccpSaveError	; no directory space
+	CALL	MakeFile				; create a new file on disk
+	JZ		ccpSaveError			; no directory space
 	XRA		A
-	STA		currentRecord	; clear next record field
-	POP		PSW				; #pages to write is in a, change to #sectors
+	STA		currentRecord			; clear next record field
+	POP		PSW						; #pages to write is in a, change to #sectors
 	MOV		L,A
 	MVI		H,0
 	DAD		H
 	
-	LXI		DE,TPA			; h,l is sector count, d,e is load address
-ccpSave1:					; save0 check for sector count zero
+	LXI		DE,TPA					; h,l is sector count, d,e is load address
+ccpSave1:							; save0 check for sector count zero
 	MOV		A,H
 	ORA		L
-	JZ		ccpSave2		; may be completed
-	DCX		HL				; sector count = sector count - 1
-	PUSH	HL				; save it for next time around
+	JZ		ccpSave2				; may be completed
+	DCX		HL						; sector count = sector count - 1
+	PUSH	HL						; save it for next time around
 	LXI		HL,128
 	DAD		DE
-	PUSH	HL				; next dma address saved
-	CALL	SetDMA				; current dma address set
+	PUSH	HL						; next dma address saved
+	CALL	SetDMA					; current dma address set
 	LXI		DE,commandFCB
 	CALL	DiskWrite
 	POP		DE
-	POP		HL				; dma address, sector count
-	JNZ		ccpSaveError	; may be disk full case
-	JMP		ccpSave1		; for another sector
-
-ccpSave2:					; save1 end of dump, close the file
+	POP		HL						; dma address, sector count
+	JNZ		ccpSaveError			; may be disk full case
+	JMP		ccpSave1				; for another sector
+	
+;  end of dump, close the file
+ccpSave2:					
 	LXI		DE,commandFCB
 	CALL	CloseFile
-	INR		A				; 255 becomes 00 if error
-	JNZ		ccpSaveExit			; for another command
-ccpSaveError:					; saverr must be full or read only disk
+	INR		A						; 255 becomes 00 if error
+	JNZ		ccpSaveExit				; for another command
+ccpSaveError:						; saverr must be full or read only disk
 	LXI		BC,msgNoSpace
 	CALL	PrintCrLfStringNull
-ccpSaveExit:					; retsave:
+ccpSaveExit:
 	CALL	SetDefaultDMA			; reset dma buffer
 	JMP		ResetDiskAtCmdEnd
 	
@@ -1109,25 +1111,25 @@ ccpUser:						; user user number
 	CALL	SetUser ;new user number set
 	JMP	EndCommand
 ;*****************************************************************
-ccpUserFunction:					; userfunc user-defined function
-;	LXI	DE,messCmdUF
-;	JMP	CcpTemp				; send message and go ack for more
-	CALL	CheckSerialNumber			; check Serial Number
-						; load user function and set up for execution
-	LDA	commandFCB + 1
-	CPI	SPACE
-	JNZ	ccpUserFunction1
-						; no file name, but may be disk switch
-	LDA	selectedDisk
-	ORA	A
-	JZ	EndCommand			; no disk name if 0
-	DCR	A
-	STA	currentDisk
-	CALL	SetDiskAddress			; set user/disk
+;User defined function
+;*****************************************************************
+ccpUserFunction:
+	CALL	CheckSerialNumber		; check Serial Number
+	LDA		commandFCB + 1
+	CPI		SPACE
+	JNZ		ccpUserFunction1
+; no file name, but may be disk switch
+	LDA		selectedDisk
+	ORA		A
+	JZ		EndCommand				; no disk named if 0
+	DCR		A						; adjust so A=>0, B=>1, C=>2 ......
+	STA		currentDisk				; update current Disk indicator
+	CALL	SetPage0CurDisk			; set user/disk
 	CALL	SelectDisk
-	JMP	EndCommand
+	JMP		EndCommand
 	
-ccpUserFunction1:					; user0 file name is present
+;  file name is present	
+ccpUserFunction1:					
 	LXI	DE,commandFCB + 9
 	LDAX	DE
 	CPI	SPACE
@@ -1216,7 +1218,7 @@ ccpUserFunction7:					; bmove3 b has character count
 						; low memory diska contains user code
 	CALL	TPA				; gone to the loaded program
 	LXI	SP,Stack				; may come back here
-	CALL	SetDiskAddress
+	CALL	SetPage0CurDisk
 	CALL	SelectDisk
 	JMP	Ccp
 	

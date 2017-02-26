@@ -499,6 +499,8 @@ GetRandomRecordPosition:				; compute$rr
 ;*****************************************************************
 ;****************** Random I/O Stuff >****************************
 ;*****************************************************************
+
+
 ; store A and return
 StoreARet:					; sta$ret
 	STA	statusBDOSReturn
@@ -726,20 +728,23 @@ TabOut0:						; tab0:
 	JNZ	TabOut0				; back for another if not
 	RET
 ;--------------------
+
+
 ;*****************************************************************
 ;********************** Disk  I/O ********************************
 ;*****************************************************************
+
 ;reset disk system - initialize to disk 0
 fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
- 	LXI	HL,0
+ 	LXI		HL,0
 	SHLD	ReadOnlyVector
-	SHLD	loggedDisks
-	XRA	A
-	STA	currentDisk			; note that currentUserNumber remains unchanged
-	LXI	HL,DMABuffer
+	SHLD	loggedDisks				; clear the vectors for R/O and Logged Disks
+	XRA		A						; also clear the current disk
+	STA		currentDisk				; note that currentUserNumber remains unchanged
+	LXI		HL,DMABuffer
 	SHLD	InitDAMAddress			; InitDAMAddress = DMABuffer
     CALL	SetDataDMA				; to data dma address 
-	JMP	Select
+	JMP		Select
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ;select disk in (E) paramDE
@@ -816,24 +821,24 @@ SelectCurrent:					; curselect
 ;*****************************************************************
 Select:						; select  - Login Drive
 	LHLD	loggedDisks
-	LDA	currentDisk
-	MOV	C,A
+	LDA		currentDisk
+	MOV		C,A
 	CALL	ShiftRightHLbyC			; see if we already have drive logged in
-	PUSH	HL				; save result
-	XCHG					; send to seldsk
+	PUSH	HL						; save result
+	XCHG							; send to seldsk
 	CALL	SelectDisk
-	POP	HL				; get back logged disk vector
-	CZ	errSelect
-	MOV	A,L				; get logged disks
+	POP		HL						; get back logged disk vector
+	CZ		errSelect
+	MOV		A,L						; get logged disks
 	RAR
-	RC					; exit if the disk already logged in
+	RC								; exit if the disk already logged in
 	
-	LHLD	loggedDisks			; else log in a differenet disk
-	MOV	C,L
-	MOV	B,H				; BC has logged disk
+	LHLD	loggedDisks				; else log in a differenet disk
+	MOV		C,L
+	MOV		B,H						; BC has logged disk
 	CALL	SetCurrentDiskBit
-	SHLD	loggedDisks			; save result
-	JMP	InitDisk
+	SHLD	loggedDisks				; save result
+	JMP		InitDisk
 						; RET
 ;*****************************************************************
 ; select the disk drive given by currentDisk, and fill the base addresses
@@ -921,111 +926,113 @@ SetDiskReadOnly:					; set$ro
 ;lowReturnStatus = false ;set to true if $ file exists
 ; compute the length of the allocation vector - 2
 
-InitDisk:						; initialize
-	LHLD	dpbDSM				; get max allocation value
-	MVI	C,3				; we want dpbDSM/8
-						; number of bytes in alloc vector is (dpbDSM/8)+1
+InitDisk:
+	LHLD	dpbDSM					; get max allocation value
+	MVI		C,3						; we want dpbDSM/8
+; number of bytes in alloc vector is (dpbDSM/8)+1
 	CALL	ShiftRightHLbyC
-	INX	HL				; HL = dpbDSM/8+1
-	MOV	B,H
-	MOV	C,L				; count down BC til zero
-	LHLD	caAllocVector ;base of allocation vector
-	;fill the allocation vector with zeros
-InitDisk0:					; initial0:
-	MVI	M,0
-	INX	H				; alloc(i)=0
-	DCX	BC				; count length down
-	MOV	A,B
-	ORA	C
+	INX		HL						; HL = dpbDSM/8+1
+	MOV		B,H
+	MOV		C,L						; BC has size of AllocationVector
+	LHLD	caAllocVector			; base of allocation vector
+;fill the allocation vector with zeros
+InitDisk0:
+	MVI		M,0
+	INX		H						; alloc(i)=0
+	DCX		BC						; count length down
+	MOV		A,B
+	ORA		C
 	JNZ	InitDisk0
-						; set the reserved space for the directory
-	LHLD	dpbDABM				; get the directory block
+; set the reserved space for the directory
+	LHLD	dpbDABM					; get the directory block reserved bits
 	XCHG
-	LHLD	caAllocVector ; HL=.alloc()
-	MOV	M,E
-	INX	HL
-	MOV	M,D				; sets reserved directory blks
-						; allocation vector initialized, home disk
+	LHLD	caAllocVector 			; HL=.alloc()
+	MOV		M,E
+	INX		HL
+	MOV		M,D						; sets reserved directory blks
+; allocation vector initialized, home disk
 	CALL	Home
-						; caDirMaxValue = 3 (scans at least one directory record)
+; caDirMaxValue = 3 (scans at least one directory record)
 	LHLD	caDirMaxValue
-	MVI	M,3
-	INX	H
-	MVI	M,0
-						; caDirMaxValue = 0000
-	CALL	SetEndDirectory ;dirCounter = EOD
-	;	read directory entries and check for allocated storage
+	MVI		M,3
+	INX		H
+	MVI		M,0						; caDirMaxValue = 0003
+
+	CALL	SetEndDirectory			;dirEntryIndex = EOD
+; read directory entries and check for allocated storage
 InitDisk1:
-	MVI	C,TRUE
+	MVI		C,TRUE
 	CALL	ReadDirectory
 	CALL	EndOfDirectory
-	RZ					; return if end of directory
-						; not end of directory, valid entry?
-	CALL	GetDirElementAddress ; HL = caDirectoryDMA + dirPointer
-	MVI	A,emptyDir
-	CMP	M
-	JZ	InitDisk1				; go get another item
-						; not emptyDir, user code the same?
-	LDA	currentUserNumber
-	CMP	M
-	JNZ	InitDisk2
-						; same user code, check for '$' submit
-	INX	H
-	MOV	A,M				; first character
-	SUI	DOLLAR				; dollar file?
-	JNZ	InitDisk2
-						; dollar file found, mark in lowReturnStatus
-	DCR	A
-	STA	lowReturnStatus			; lowReturnStatus = 255
+	RZ								; return if end of directory
+; not end of directory, valid entry?
+	CALL	GetDirElementAddress	; HL = caDirectoryDMA + dirBlockIndex
+	MVI		A,emptyDir
+	CMP		M
+	JZ		InitDisk1				; go get another item
+; not emptyDir, user code the same?
+	LDA		currentUserNumber
+	CMP		M
+	JNZ		InitDisk2
+; same user code, check for '$' submit
+	INX		H
+	MOV		A,M						; first character
+	SUI		DOLLAR					; dollar file?
+	JNZ		InitDisk2
+; dollar file found, mark in lowReturnStatus
+	DCR		A
+	STA		lowReturnStatus			; lowReturnStatus = 255
 InitDisk2:
-						; now scan the disk map for allocated blocks
-	MVI	C,1				; set to allocated
+; now scan the disk map for allocated blocks
+	MVI		C,1						; set to allocated
 	CALL	ScanDiskMap
-	CALL	SetDirectoryEntry			; set DirMaxVAlue to dirCounter
-	JMP	InitDisk1				; for another entry
+	CALL	SetDirectoryEntry		; set DirMaxVAlue to dirEntryIndex
+	JMP		InitDisk1				; for another entry
 ;
 ;-------------Scan the disk map for unallocated entry-----------------------------------
 ; scan the disk map addressed by dptr for non-zero entries.  The allocation
 ; vector entry corresponding to a non-zero entry is set to the value of C (0,1)
-ScanDiskMap:					; scandm
-	CALL	GetDirElementAddress ; HL = buffa + dptr
-	 ; HL addresses the beginning of the directory entry
-	LXI	DE,fcbDiskMapIndex
-	DAD	D				; hl now addresses the disk map
-	PUSH	BC				; save the 0/1 bit to set
-	MVI	C,fcbLength-fcbDiskMapIndex+1		; size of single byte disk map + 1
+ScanDiskMap:
+	CALL	GetDirElementAddress	; HL = buffa + dptr
+ ; HL addresses the beginning of the directory entry
+	LXI		DE,fcbDiskMapIndex
+	DAD		D						; hl now addresses the disk map
+	PUSH	BC						; save the set/reset bit
+	MVI		C,fcbLength-fcbDiskMapIndex+1	; size of Disk Allocation Map + 1
 	
-ScanDiskMap0:					; loop once for each disk map entry
-	POP	DE				; recall bit parity
-	DCR	C
-	RZ					; exit when done
+ScanDiskMap0:						; loop once for each disk map entry
+	POP		DE						; recall the set/reset bit 
+	DCR		C
+	RZ
 
-	PUSH	DE				; replace bit parity
-	LDA	single				; single entry flag
-	ORA	A
-	JZ	ScanDiskMap1			; skip if two byte value
-						; single byte scan operation
-	PUSH	BC				; save counter
-	PUSH	HL				; save map address
-	MOV	C,M
-	MVI	B,0				; BC=block#
-	JMP	ScanDiskMap2
-	
-ScanDiskMap1:					; two byte scan operation
-	DCR	C				; count for double byte
-	PUSH	BC				; save counter
-	MOV	C,M
-	INX	HL
-	MOV	B,M				; BC=block#
-	PUSH	HL				; save map address
-ScanDiskMap2:					; arrive here with BC=block#, E=0/1
-	MOV	A,C
-	ORA	B				; skip if = 0000
-	CNZ	SetAllocBit			; bit set to 0/1 its in C
-	POP	HL
-	INX	HL				; to next bit position
-	POP	BC				; recall counter
-	JMP	ScanDiskMap0			; for another item
+	PUSH	DE						; save the set/reset bit
+	LDA		single					; single byte entry flag
+	ORA		A
+	JZ		ScanDiskMap1			; skip if two byte value
+; single byte scan operation
+	PUSH	BC						; save counter
+	PUSH	HL						; save map address
+	MOV		C,M		
+	MVI		B,0						; BC=block#
+	JMP		ScanDiskMap2
+; two byte scan operation
+ScanDiskMap1:
+	DCR		C						; adjust counter for double byte
+	PUSH	BC						; save counter
+;	MOV		C,M	
+	MOV		B,M		
+	INX		HL		
+;	MOV		B,M						; BC=block#
+	MOV		C,M						; BC=block#
+	PUSH	HL						; save map address
+ScanDiskMap2:						; arrive here with BC=block#, E=0/1
+	MOV		A,C
+	ORA		B						; skip if = 0000
+	CNZ		SetAllocBit				; bit set to 0/1 its in C
+	POP		HL
+	INX		HL						; to next bit position
+	POP		BC						; recall counter
+	JMP		ScanDiskMap0			; for another item
 ;
 ;-----------------------------------
 ;given allocation vector position BC, return with byte
@@ -1035,52 +1042,52 @@ ScanDiskMap2:					; arrive here with BC=block#, E=0/1
 ;memory upon return, and D contains the number of shifts
 ;required to place the returned value back into position
 GetAllocBit:					; getallocbit
-	MOV	A,C
-	ANI	111b
-	INR	A
-	MOV	E,A
-	MOV	D,A
-						; d and e both contain the number of bit positions to shift
-	MOV	A,C
+	MOV		A,C
+	ANI		111b
+	INR		A
+	MOV		E,A
+	MOV		D,A
+							; d and e both contain the number of bit positions to shift
+	MOV		A,C
+	RRC	
+	RRC	
+	RRC	
+	ANI		11111b
+	MOV		C,A				; C shr 3 to C
+	MOV		A,B
+	ADD		A
+	ADD		A
+	ADD		A
+	ADD		A
+	ADD		A				; B shl 5
+	ORA		C
+	MOV		C,A				; bbbccccc to C
+	MOV		A,B
 	RRC
 	RRC
 	RRC
-	ANI	11111b
-	MOV	C,A				; C shr 3 to C
-	MOV	A,B
-	ADD	A
-	ADD	A
-	ADD	A
-	ADD	A
-	ADD	A				; B shl 5
-	ORA	C
-	MOV	C,A				; bbbccccc to C
-	MOV	A,B
-	RRC
-	RRC
-	RRC
-	ANI	11111b
-	MOV	B,A				; BC shr 3 to BC
+	ANI		11111b
+	MOV		B,A				; BC shr 3 to BC
 	LHLD	caAllocVector			; base address of allocation vector
-	DAD	B
-	MOV	A,M				; byte to A, hl = .alloc(BC shr 3)
+	DAD		B
+	MOV		A,M				; byte to A, hl = .alloc(BC shr 3)
 	 ;now move the bit to the low order position of A
 GetAllocBitl:
 	RLC
-	DCR	E
-	JNZ	GetAllocBitl
+	DCR		E
+	JNZ		GetAllocBitl
 	RET
 
 ;-----------------------------------
 ; BC is the bit position of ALLOC to set or reset.  The
 ; value of the bit is in register E.
-SetAllocBit:					; setallocbit
+SetAllocBit:
 	PUSH	DE
-	CALL	GetAllocBit			; shifted val A, count in D
-	ANI	11111110b				; mask low bit to zero (may be set)
-	POP	BC
-	ORA	C				; low bit of C is masked into A
-	JMP	RotateAndReplace			; to rotate back into proper position
+	CALL	GetAllocBit				; shifted val A, count in D
+	ANI		11111110b				; mask low bit to zero (may be set)
+	POP		BC
+	ORA		C						; low bit of C is masked into A
+	JMP		RotateAndReplace		; to rotate back into proper position
 	;ret
 ;-----------------------------------
 ; byte value from ALLOC is in register A, with shift count
@@ -1092,25 +1099,26 @@ RotateAndReplace:					; rotr
 	JNZ	RotateAndReplace			; back into position
 	MOV	M,A				; back to ALLOC
 	RET
-	;-----------------------------------
-	;move to home position, then offset to start of dir
-Home:						; home
-	CALL	bcHome				; move to track 00, sector 00 reference
-	LXI	HL,dpbOFF				; get track ofset at begining
-	MOV	C,M
-	INX	HL
-	MOV	B,M
+;-----------------------------------
+
+;move to home position, then offset to start of dir
+Home:
+	CALL	bcHome					; move to track 00, sector 00 reference
+	LXI		HL,dpbOFF				; get track ofset at begining
+	MOV		C,M
+	INX		HL
+	MOV		B,M
 	CALL	bcSettrk				; select first directory position
 	
-	XRA	A				; constant zero to accumulator
+	XRA		A						; constant zero to accumulator
 	LHLD	caTrack
-	MOV	M,A
-	INX	HL
-	MOV	M,A				; curtrk=0000
+	MOV		M,A
+	INX		HL
+	MOV		M,A						; curtrk=0000
 	LHLD	caSector
-	MOV	M,A
-	INX	HL
-	MOV	M,A				; currec=0000
+	MOV		M,A
+	INX		HL
+	MOV		M,A						; currec=0000
 	RET
 
 
@@ -1119,9 +1127,9 @@ Home:						; home
 ;*****************************************************************
 ;*****************************************************************
 ; set directory counter to end  -1
-SetEndDirectory:					; set$end$dir
-	LXI	HL,EOD
-	SHLD	dirCounter
+SetEndDirectory:
+	LXI		HL,EOD
+	SHLD	dirEntryIndex
 	RET
 ;---------------
 SetDataDMA:					; setdata
@@ -1139,12 +1147,12 @@ SetDMA:						; setdma
 ;---------------
 ;---------------
 ; return zero flag if at end of directory
-; non zero if not at end (end of dir if dirCounter = 0ffffh)
+; non zero if not at end (end of dir if dirEntryIndex = 0ffffh)
 EndOfDirectory:					; end$of$dir
-	LXI	HL,dirCounter
+	LXI	HL,dirEntryIndex
 	MOV	A,M				; may be 0ffh
 	INX	HL
-	CMP	M				; low(dirCounter) = high(dirCounter)?
+	CMP	M				; low(dirEntryIndex) = high(dirEntryIndex)?
 	RNZ						; non zero returned if different
 						; high and low the same, = 0ffh?
 	INR	A				; 0ffh becomes 00 if so
@@ -1158,48 +1166,47 @@ ReadDirRecord:					; rd$dir
 	;ret
 ;---------------
 ; read next directory entry, with C=true if initializing
-ReadDirectory:					; read$dir:
+ReadDirectory:
 	LHLD	dpbDRM
-	XCHG					; in preparation for subtract
-	LHLD	dirCounter
-	INX	HL
-	SHLD	dirCounter			; dirCounter=dirCounter+1
-						; continue while dpbDRM >= dirCounter (dpbDRM-dirCounter no cy)
-	CALL	DEminusHL2HL			; DE-HL
-	JNC	ReadDirectory0
-						; yes, set dirCounter to end of directory
+	XCHG							; determine number of directory entries
+	LHLD	dirEntryIndex			; index into directory
+	INX		HL
+	SHLD	dirEntryIndex			; initialize directory index
+; continue while dpbDRM >= dirEntryIndex (dpbDRM-dirEntryIndex no cy)
+	CALL	DEminusHL2HL			; DE-HL - processed all entries ?
+	JNC		ReadDirectory0			; no - do it again
+; yes, set dirEntryIndex to end of directory
 	CALL	SetEndDirectory
 	RET
 	
-ReadDirectory0:					; read$dir0:
-						; not at end of directory, seek next element
-						; initialization flag is in C
-	LDA	dirCounter
-	ANI	dirEntryMask				; low(dirCounter) and dirEntryMask
-	MVI	B,fcbShift				; to multiply by fcb size to get the correct index in dir record
-ReadDirectory1:					; read$dir1:
-	ADD	A
-	DCR	B
-	JNZ	ReadDirectory1
-						; A = (low(dirCounter) and dirEntryMask) shl fcbShift
-	STA	dirPointer			; ready for next dir operation
-	ORA	A
-	RNZ					; return if not a new record
-	PUSH	BC				; save initialization flag C
-	CALL	SeekDir				; seek$dir seek proper record
+; not at end of directory, seek next element, initialization flag is in C
+ReadDirectory0:	
+	LDA		dirEntryIndex
+	ANI		dirEntryMask			; low(dirEntryIndex) and dirEntryMask
+	MVI		B,fcbShift				; to multiply by fcb size to get the correct index in dir record
+ReadDirectory1:
+	ADD		A
+	DCR		B
+	JNZ		ReadDirectory1
+; A = (low(dirEntryIndex) and dirEntryMask) shl fcbShift
+	STA		dirBlockIndex			; ready for next dir operation
+	ORA		A
+	RNZ								; return if not a new record (Directory Block)
+	PUSH	BC						; save initialization flag C
+	CALL	SeekDir					; seek$dir seek proper record
 	CALL	ReadDirRecord			; read the directory record
-	POP	BC				; recall initialization flag
-	JMP	CalculateCheckSum			; checksum the directory elt
+	POP		BC						; recall initialization flag
+	JMP		CalculateCheckSum		; checksum the directory elt
 	;ret
 ;---------
 	;seek the record containing the current dir entry
-SeekDir:						; seekdir seek$dir
-	LHLD	dirCounter			; directory counter to HL
-	MVI	C,dirEntryShift				; 4 entries per CP/M sector 
-	CALL	ShiftRightHLbyC ; value to HL
+SeekDir:
+	LHLD	dirEntryIndex			; directory counter to HL
+	MVI		C,dirEntryShift			; 4 entries per record 
+	CALL	ShiftRightHLbyC 		; value to HL
 	SHLD	currentBlock
-	SHLD	dirRecord ;ready for seek
-	JMP	Seek
+	SHLD	dirRecord				; ready for seek
+	JMP		Seek
 	;ret
 
 ;---------------------------
@@ -1301,58 +1308,59 @@ Seek2:
 	;ret	
 ;************* CheckSum *******************************
 ; compute current checksum record
-; and update the directory element if C=true 
-; or check for = if not dirRecord < dpbCKS?
-NewCheckSum:					; newchecksum
-	MVI	C,TRUE				; drop thru
-CalculateCheckSum:					; checksum
-	LHLD dirRecord
+; if C = TRUE , update the allocation vector
+;
+; or check for = if not dirRecord < dpbCKS ????
+
+NewCheckSum:
+	MVI	C,TRUE
+	
+CalculateCheckSum:
+	LHLD	dirRecord
 	XCHG
-	LHLD	dpbCKS				; size of checksum vector
+	LHLD	dpbCKS					; size of checksum vector
 	CALL	DEminusHL2HL			; DE-HL
-	RNC					; skip checksum if past checksum vector size
-						; dirRecord < dpbCKS, so continue
-	PUSH	BC				; save init flag
+	RNC								; skip checksum if past checksum vector size
+	PUSH	BC						; save init flag
 	CALL	ComputeCheckSum			; check sum value to A
-	LHLD	caCheckSum			; address of check sum vector
+	LHLD	caCheckSum				; address of check sum vector
 	XCHG
 	LHLD	dirRecord				; value of dirRecord
-	DAD	D				; HL = .check(dirRecord)
-	POP	BC				; recall true=0ffh or false=00 to C
-	INR	C				; 0ffh produces zero flag
-	JZ	SetNewCheckSum
-						; not initializing, compare
-	CMP	M				; compute$cs=check(dirRecord)?
-	RZ					; no message if ok
-						; possible checksum error, are we beyond
-						; the end of the disk?
+	DAD		D						; HL = .check(dirRecord)
+	POP		BC						; recall true=0ffh or false=00 to C
+	INR		C						; 0ffh produces zero flag
+	JZ		SetNewCheckSum
+; not initializing, compare
+	CMP		M						; compute$cs=check(dirRecord)?
+	RZ								; no message if ok
+; possible checksum error, are we beyond the end of the disk?
 	CALL	StillInDirectory
-	RNC					; no message if so
+	RNC								; no message if so
 	CALL	SetDiskReadOnly			; read/only disk set
 	RET
 	
 ;initializing the checksum
-SetNewCheckSum:					; initial$cs:
-	MOV	M,A
+SetNewCheckSum:
+	MOV		M,A
 	RET
 ;------------------
 ;compute checksum for current directory buffer
-ComputeCheckSum:					; compute$cs
-	MVI	C,recordSize			; size of directory buffer
+ComputeCheckSum:
+	MVI		C,recordSize			; size of directory buffer
 	LHLD	caDirectoryDMA			; current directory buffer
-	XRA	A				; clear checksum value
+	XRA		A						; clear checksum value
 ComputeCheckSum0:
-	ADD	M
-	INX	H
-	DCR	C				; cs=cs+buff(recordSize-C)
-	JNZ	ComputeCheckSum0
-	RET					; with checksum in A
+	ADD		M
+	INX		H
+	DCR		C						; cs=cs+buff(recordSize-C)
+	JNZ		ComputeCheckSum0
+	RET								; with checksum in A
 ;*****************************************************************
-; compute the address of a directory element at positon dirPointer in the buffer
-GetDirElementAddress:				; getdptra
+; compute the address of a directory element at positon dirBlockIndex in the buffer
+GetDirElementAddress:
 	LHLD	caDirectoryDMA
-	LDA	dirPointer
-	JMP	AddAtoHL
+	LDA		dirBlockIndex
+	JMP		AddAtoHL
 ;---------------------
 ;if not still in directory set max value
 SetDirectoryEntry:					; setcdr:
@@ -1366,15 +1374,15 @@ SetDirectoryEntry:					; setcdr:
 	RET
 ; return CY if entry is still in Directory
 StillInDirectory:					; compcdr
-	LHLD	dirCounter
+	LHLD	dirEntryIndex
 	XCHG					; DE = directory counter
 	LHLD	caDirMaxValue			; HL=caDirMaxValue
 	MOV	A,E
-	SUB	M				; low(dirCounter) - low(cdrmax)
+	SUB	M				; low(dirEntryIndex) - low(cdrmax)
 	INX	H				; HL = .cdrmax+1
 	MOV	A,D
-	SBB	M				; hi(dirCounter) - hig(cdrmax)
-	;condition dirCounter - cdrmax  produces cy if cdrmax>dirCounter
+	SBB	M				; hi(dirEntryIndex) - hig(cdrmax)
+	;condition dirEntryIndex - cdrmax  produces cy if cdrmax>dirEntryIndex
 	RET
 ;---------------------
 ;compute fcbRCIndex and NEXT_RECORD addresses for get/setfcb
@@ -1509,9 +1517,9 @@ fWriteSeq:					; func21 (21 - 15) write sequention
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
 fMakeFile:						; func22 (22 - 16) Make file
-	CALL	ClearModuleNum
+	CALL	ClearModuleNum			; set S2 to Zero
 	CALL	Reselect
-	JMP	MakeNewFile
+	JMP		MakeNewFile
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ; Rename file 
@@ -1845,14 +1853,14 @@ Rename1:						; rename0:
 	JMP	Rename1
 ;-----------------------------------------------------------------
 ;create a new file by creating a directory entry then opening the file
-MakeNewFile:					; make
-	CALL	CheckWrite			; may be write protected
+MakeNewFile:
+	CALL	CheckWrite				; may be write protected
 	LHLD	paramDE
-	PUSH	HL				; save fcb address, look for e5
-	LXI	HL,emptyFCB
-	SHLD	paramDE				; paramDE = .empty
+	PUSH	HL						; save fcb address, look for e5
+	LXI		HL,emptyFCB
+	SHLD	paramDE					; paramDE = .empty
 	MVI	C,1
-	CALL	Search4DirElement			; length 1 match on empty entry
+	CALL	Search4DirElement		; length 1 match on empty entry
 	CALL	EndOfDirectory			; zero flag set if no space
 	POP	HL				; recall paramDE address
 	SHLD	paramDE				; in case we return here
@@ -2250,7 +2258,7 @@ Search4DirElement:					; search
 	MOV	M,C				; searchLength = C
 	LHLD	paramDE
 	SHLD	searchAddress			; searchAddress = paramDE
-	CALL	SetEndDirectory			; dirCounter = enddir
+	CALL	SetEndDirectory			; dirEntryIndex = enddir
 	CALL	Home				; to start at the beginning
 	JMP	Search4NextDirElement
 ;---------------------
@@ -2313,10 +2321,10 @@ Search4NextOK:					; searchok:
 	JMP	Search4NextLoop
 EndDirElementSearch:					; endsearch
 						; entire name matches, return dir position
-	LDA	dirCounter
+	LDA	dirEntryIndex
 	ANI	dirEntryMask
 	STA	lowReturnStatus
-						; lowReturnStatus = low(dirCounter) and 11b
+						; lowReturnStatus = low(dirEntryIndex) and 11b
 	LXI	HL,directoryFlag
 	MOV	A,M
 	RAL
@@ -2469,56 +2477,55 @@ GetDiskMap16Bit:				; getdmd:
 ;*****************************************************************
 ;************************ Utilities ******************************
 ;*****************************************************************
-AddAtoHL:						; addh
-	ADD L
-	MOV L,A
+AddAtoHL:
+	ADD		L
+	MOV		L,A
 	RNC
-						; overflow to H
-	INR H
+	INR		H
 	RET
-DEminusHL2HL:					; subdh
-	MOV	A,E
-	SUB	L
-	MOV	L,A
-	MOV	A,D
-	SBB	H
-	MOV	H,A
+;----------
+DEminusHL2HL:
+	MOV		A,E
+	SUB		L
+	MOV		L,A
+	MOV		A,D
+	SBB		H
+	MOV		H,A
 	RET
 ;-------------
-ShiftRightHLbyC:					; hlrotr rotate
-	INR	C
+ShiftRightHLbyC:
+	INR		C
 ShiftRightHLbyC0:
-	DCR	C
-	RZ					; exit when done
-	MOV	A,H
-	ORA	A				; reset carry bit
-	RAR					; rotate
-	MOV	H,A				; high byte
-	MOV	A,L
+	DCR		C
+	RZ
+	MOV		A,H
+	ORA		A
+	RAR
+	MOV		H,A
+	MOV		A,L
 	RAR	
-	MOV	L,A				; low byte
-	JMP	ShiftRightHLbyC0
-	
+	MOV		L,A
+	JMP		ShiftRightHLbyC0
 ;-------
-ShiftLeftHLbyC:					; hlrotl
-	INR	C
+ShiftLeftHLbyC:
+	INR		C
 ShiftLeftHLbyC0:
-	DCR	C
+	DCR		C
 	RZ					; exit when done
-	DAD	HL
-	JMP	ShiftLeftHLbyC0
+	DAD		HL
+	JMP		ShiftLeftHLbyC0
 ;*****************************************************************
 ;move data length of length C from source DE to HL
-Move:						; move
-	INR	C				; housekeeping
+Move:
+	INR		C
 Move0:
-	DCR	C
-	RZ					; exit if done
-	LDAX	D				; get byte
-	MOV	M,A				; put the byte
-	INX	DE
-	INX	HL				; move pointers
-	JMP	Move0				; keep going
+	DCR		C
+	RZ
+	LDAX	D
+	MOV		M,A
+	INX		DE
+	INX		HL
+	JMP		Move0
 	
 ;********** Console Routines***********************
 ;********** Console IN Routines********************
@@ -2868,8 +2875,8 @@ cpmRecord:			DW	0000H				; current virtual record - NEXT_RECORD
 currentBlock:		DW	0000H				; arecord current actual record
 ;		
 ;	local variables for directory access
-dirPointer:			DB	00H					; dptr directory pointer 0,1,2,3
-dirCounter:			DW	00H					; dcnt directory counter 0,1,...,dpbDRM
+dirBlockIndex:		DB	00H					; directory block Index 0,1,2,3
+dirEntryIndex:		DW	00H					; directory entry Index  0,1,...,dpbDRM
 dirRecord:			DW	00H					; drec:	ds	word	;directory record 0,1,...,dpbDRM/4
 
 ;********************** data areas ******************************

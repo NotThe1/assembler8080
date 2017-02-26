@@ -1171,7 +1171,7 @@ EnterCPM:
 	STA		0000H				; set up the jump in location 0000H
 	STA		0005H				; and at location 0005H
 	
-	LXI		H,WarmBootEntry			; get BIOS vector address
+	LXI		H,WarmBootEntry		; get BIOS vector address
 	SHLD	0001H				; put address in location 1
 	
 	LXI		H,BDOSEntry			; Get BDOS entry point address
