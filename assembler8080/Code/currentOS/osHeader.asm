@@ -45,7 +45,30 @@ CCPEntry		EQU	(MemorySize * 1024) - (CCPLength + BDOSLength + BIOSLength)
 BDOSBase		EQU	CCPEntry + CCPLength
 BDOSEntry		EQU	BDOSBase + 6
 BIOSBase		EQU	BDOSBase + BDOSLength
-BIOSEntry		EQU	CCPEntry + CCPLength + BDOSLength
+BIOSStart		EQU	CCPEntry + CCPLength + BDOSLength
+
+
+;*******************************************************************************
+;
+;     Disk related values
+;
+;
+;*******************************************************************************
+DiskStatusLocation		EQU		043H	; status after disk I/O placed here
+DiskControlByte			EQU		045H	; control byte for disk I/O
+DiskCommandBlock		EQU		046H	; Control Table Pointer
+
+DiskReadCode			EQU		01H		; Code for Read
+DiskWriteCode			EQU		02H		; Code for Write
+
+; for boot
+DiskControlTable		EQU		0040H
+
+cpmRecordSize			EQU		128		; record size that CP/M uses
+diskSectorSize			EQU		512		; size of physical disk I/O
+
+
+
 
 ;*******************************************************************************
 ; These are the values handed over by the BDOS when it calls the Writer operation

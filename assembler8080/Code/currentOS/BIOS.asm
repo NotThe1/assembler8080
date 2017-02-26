@@ -2,11 +2,11 @@
 ;2017-02-08
 ; all disk drives are 3.5 DH disks (1.44MB)
 ;
-;extended from part of newOS (newBios)
+;
 ; 2014-01-16
 ; 2014-03-14  :  Frank Martyn
 
-	$Include ../Headers/osHeader.asm
+	$Include ./osHeader.asm
 	$Include ../Headers/stdHeader.asm
 INopCode	EQU	0DBH
 OUTopCode	EQU	0D3H
@@ -37,7 +37,7 @@ RECORD_SIZE	EQU	128			; cpmRecord size
 						; also filled with the command line from CCP
 ;--------------------------------------------------------------------------------	
 
-	ORG	BIOSEntry				; Assemble code at BIOS address
+	ORG	BIOSStart				; Assemble code at BIOS address
 								; BIOS jum Vector
 CodeStart:
 	
@@ -776,7 +776,7 @@ Head1:
 	SHLD	DCTDMAAddress			; set transfer address
 ;	As only one control table is in use, close the status and busy chain pointers
 ;  back to the main control bytes
-	LXI		H,DiskStatusBlock
+	LXI		H,DiskStatusLocation
 	SHLD	DCTNextStatusBlock
 	LXI		H,DiskControlByte
 	SHLD	DCTNextControlLocation
@@ -793,7 +793,7 @@ WaitForDiskComplete:
 	ORA		A
 	JNZ		WaitForDiskComplete			; operation not done
 	                                        
-	LDA		DiskStatusBlock			; done , so now check status
+	LDA		DiskStatusLocation			; done , so now check status
 	CPI		080H                          
 	JC		DiskError                     
 	XRA		A                             
@@ -848,13 +848,13 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ;**************************************************************************************************
 
                                                  
-DiskStatusBlock			EQU	043H	;  status block
+;DiskStatusLocation			EQU	043H	;  status block
                                                 
-DiskControlByte			EQU	045H	; " control byte
-DiskCommandBlock		EQU	046H	; Control Table Pointer
+;DiskControlByte			EQU	045H	; " control byte
+;DiskCommandBlock		EQU	046H	; Control Table Pointer
                                                 
-DiskReadCode			EQU	01H		; Code for Read
-DiskWriteCode			EQU	02H		; Code for Write
+;DiskReadCode			EQU	01H		; Code for Read
+;DiskWriteCode			EQU	02H		; Code for Write
 ;***************************************************************************
 ;	Disk Control tables
 ;***************************************************************************
@@ -1095,7 +1095,7 @@ BootControlPart1:
 	DB	02H						; Starting sector number (skip cold boot sector)
 	DW	11 * 512				; Number of bytes to read ( rest of the head)
 	DW	CCPEntry				; read into this address
-	DW	DiskStatusBlock			; pointer to next block - no linking
+	DW	DiskStatusLocation			; pointer to next block - no linking
 	DW	DiskControlByte			; pointer to next table- no linking
 
 ;
@@ -1135,7 +1135,7 @@ WaitForBootComplete:
 	ORA		A					; Reset to 0 (Completed operation) ?
 	JNZ		WaitForBootComplete	; if not try again
 	
-	LDA		DiskStatusBlock		; after operation what's the status?
+	LDA		DiskStatusLocation		; after operation what's the status?
 	CPI		080H				; any errors ?
 	JC		WarmBootError		; Yup
 	RET							; else we are done!

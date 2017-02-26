@@ -1,10 +1,11 @@
 ; CCP.asm
-; extended from part of newOS (newCCP)
+;
 ; 2014-01-16
 ; 2014-05-01  :  Frank Martyn
 
-	$Include ../Headers/osHeader.asm
+	$Include ./osHeader.asm
 	$Include ../Headers/stdHeader.asm
+
 ;BDOSE		bdos	0005H
 ;DMABuffer	buff	0080H
 

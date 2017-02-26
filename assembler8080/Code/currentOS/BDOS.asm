@@ -5,7 +5,7 @@
 ; 2014-03-14  :  Frank Martyn
 
 
-	$Include ../Headers/osHeader.asm
+	$Include ./osHeader.asm
 	$Include ../Headers/stdHeader.asm
 	
 VERSION		EQU		20H				; dvers version 2.0
@@ -13,23 +13,23 @@ STACK_SIZE	EQU		20H				; make stak big enough
 EOD			EQU		-1				; enddir End of Directory
 
 ;	bios access constants
-bcBoot		EQU		BIOSEntry+3*0	; bootf	cold boot function
-bcWboot		EQU		BIOSEntry+3*1	; wbootf	warm boot function
-bcConst		EQU		BIOSEntry+3*2	; constf	console status function
-bcConin		EQU		BIOSEntry+3*3	; coninf	console input function
-bcConout	EQU		BIOSEntry+3*4	; conoutf	console output function
-bcList		EQU		BIOSEntry+3*5	; listf	list output function
-bcPunch		EQU		BIOSEntry+3*6	; punchf	punch output function
-bcReader	EQU		BIOSEntry+3*7	; readerf	reader input function
-bcHome		EQU		BIOSEntry+3*8	; homef	disk home function
-bcSeldsk	EQU		BIOSEntry+3*9	; seldskf	select disk function
-bcSettrk	EQU		BIOSEntry+3*10	; settrkf	set track function
-bcSetsec	EQU		BIOSEntry+3*11	; setsecf	set sector function
-bcSetdma	EQU		BIOSEntry+3*12	; setdmaf	set dma function
-bcRead		EQU		BIOSEntry+3*13	; readf	read disk function
-bcWrite		EQU		BIOSEntry+3*14	; writef	write disk function
-bcListst	EQU		BIOSEntry+3*15	; liststf	list status function
-bcSectran	EQU		BIOSEntry+3*16	; sectran	sector translate
+bcBoot		EQU		BIOSStart+3*0	; bootf	cold boot function
+bcWboot		EQU		BIOSStart+3*1	; wbootf	warm boot function
+bcConst		EQU		BIOSStart+3*2	; constf	console status function
+bcConin		EQU		BIOSStart+3*3	; coninf	console input function
+bcConout	EQU		BIOSStart+3*4	; conoutf	console output function
+bcList		EQU		BIOSStart+3*5	; listf	list output function
+bcPunch		EQU		BIOSStart+3*6	; punchf	punch output function
+bcReader	EQU		BIOSStart+3*7	; readerf	reader input function
+bcHome		EQU		BIOSStart+3*8	; homef	disk home function
+bcSeldsk	EQU		BIOSStart+3*9	; seldskf	select disk function
+bcSettrk	EQU		BIOSStart+3*10	; settrkf	set track function
+bcSetsec	EQU		BIOSStart+3*11	; setsecf	set sector function
+bcSetdma	EQU		BIOSStart+3*12	; setdmaf	set dma function
+bcRead		EQU		BIOSStart+3*13	; readf	read disk function
+bcWrite		EQU		BIOSStart+3*14	; writef	write disk function
+bcListst	EQU		BIOSStart+3*15	; liststf	list status function
+bcSectran	EQU		BIOSStart+3*16	; sectran	sector translate
 	                              
 	ORG	BDOSBase
 CodeStart:
