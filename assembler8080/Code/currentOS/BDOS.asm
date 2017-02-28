@@ -5,14 +5,15 @@
 ; 2014-03-14  :  Frank Martyn
 
 
-	$Include ./osHeader.asm
 	$Include ../Headers/stdHeader.asm
+	$Include ./osHeader.asm
 	
 VERSION		EQU		20H				; dvers version 2.0
 STACK_SIZE	EQU		20H				; make stak big enough
 EOD			EQU		-1				; enddir End of Directory
 
-;	bios access constants
+;------------------- BIOS Function Constants ---------------------------
+
 bcBoot		EQU		BIOSStart+3*0	; bootf	cold boot function
 bcWboot		EQU		BIOSStart+3*1	; wbootf	warm boot function
 bcConst		EQU		BIOSStart+3*2	; constf	console status function
@@ -30,10 +31,13 @@ bcRead		EQU		BIOSStart+3*13	; readf	read disk function
 bcWrite		EQU		BIOSStart+3*14	; writef	write disk function
 bcListst	EQU		BIOSStart+3*15	; liststf	list status function
 bcSectran	EQU		BIOSStart+3*16	; sectran	sector translate
+;--------------------------------------------------------------------------------	
 	                              
 	ORG	BDOSBase
 CodeStart:
-	DB	0,0,0,0,0,0
+			DS		6						; dead space
+			
+			
 ; Enter here from the user's program with function number in c,
 ; and information address in d,e
 ;BDOSEntry:
@@ -105,43 +109,43 @@ RetDiskMon:
 ;------------------- Function Table -------------------------------
 functionTable:
 	DW		bcBoot					; Function  0 - System Reset
-	DW		fConsoleIn				; Function  1 - Console Input
-	DW		fConsoleOut				; Function  2 - Console Output
+	DW		vConsoleIn				; Function  1 - Console Input
+	DW		vConsoleOut				; Function  2 - Console Output
 	DW		DUMMY					; Function  3 - Reader Input
 	DW		DUMMY					; Function  4 - Punch Output
 	DW		DUMMY					; Function  5 - List Output
-	DW		fDirectConIO			; Function  6 - Direct Console I/O
-	DW		fGetIOBYTE				; Function  7 - Get I/O Byte
-	DW		fSetIOBYTE				; Function  8 - Set I/O Byte
-	DW		fPrintString			; Function  9 - Print String
-	DW		fReadString				; Function  A - Read Console String
-	DW		fGetConsoleStatus		; Function  B - Get Console Status
+	DW		vDirectConIO			; Function  6 - Direct Console I/O
+	DW		vGetIOBYTE				; Function  7 - Get I/O Byte
+	DW		vSetIOBYTE				; Function  8 - Set I/O Byte
+	DW		vPrintString			; Function  9 - Print String
+	DW		vReadString				; Function  A - Read Console String
+	DW		vGetConsoleStatus		; Function  B - Get Console Status
 diskf	EQU	($-functionTable)/2		; disk functions
-	DW		fGetVersion				; Function  C - Return Version Number
-	DW		fResetSystem			; Function  D - Reset Disk System
-	DW		fSelectDisk				; Function  E - Select Disk
-	DW		fOpenFile				; Function  F - Open File
-	DW		fCloseFile				; Function 10 - Close File
-	DW		fFindFirst				; Function 11 - Search For First
-	DW		fFindNext				; Function 12 - Search for Next
-	DW		fDeleteFile				; Function 13 - Delete File
-	DW		fReadSeq				; Function 14 - Read Sequential
-	DW		fWriteSeq				; Function 15 - Write Sequential
-	DW		fMakeFile				; Function 16 - Make File
-	DW		fRenameFile				; Function 17 - Rename File
-	DW		fGetLoginVector			; Function 18 - Return Login Vector
-	DW		fGetCurrentDisk			; Function 19 - Return Current Disk
-	DW		fSetDMA					; Function 1A - Set DMA address
-	DW		fGetAllocAddr			; Function 1B - Get ADDR (ALLOC)
-	DW		fWriteProtectDisk		; Function 1C - Write Protect Disk
-	DW		fGetRoVector			; Function 1D - Get Read/Only Vector
-	DW		fSetFileAttributes		; Function 1E - Set File Attributes ??
-	DW		fGetDiskParamBlock		; Function 1F - Get ADDR (Disk Parameters)
-	DW		fGetSetUserNumber		; Function 20 - Set/Get User Code
-	DW		fReadRandom				; Function 21 - Read Random
-	DW		fWriteRandom			; Function 22 - Write Random
-	DW		fComputeFileSize		; Function 23 - Compute File Size
-	DW		fSetRandomRecord		; Function 24 - Set Random Record
+	DW		vGetVersion				; Function  C - Return Version Number
+	DW		vResetSystem			; Function  D - Reset Disk System
+	DW		vSelectDisk				; Function  E - Select Disk
+	DW		vOpenFile				; Function  F - Open File
+	DW		vCloseFile				; Function 10 - Close File
+	DW		vFindFirst				; Function 11 - Search For First
+	DW		vFindNext				; Function 12 - Search for Next
+	DW		vDeleteFile				; Function 13 - Delete File
+	DW		vReadSeq				; Function 14 - Read Sequential
+	DW		vWriteSeq				; Function 15 - Write Sequential
+	DW		vMakeFile				; Function 16 - Make File
+	DW		vRenameFile				; Function 17 - Rename File
+	DW		vGetLoginVector			; Function 18 - Return Login Vector
+	DW		vGetCurrentDisk			; Function 19 - Return Current Disk
+	DW		vSetDMA					; Function 1A - Set DMA address
+	DW		vGetAllocAddr			; Function 1B - Get ADDR (ALLOC)
+	DW		vWriteProtectDisk		; Function 1C - Write Protect Disk
+	DW		vGetRoVector			; Function 1D - Get Read/Only Vector
+	DW		vSetFileAttributes		; Function 1E - Set File Attributes ??
+	DW		vGetDiskParamBlock		; Function 1F - Get ADDR (Disk Parameters)
+	DW		vGetSetUserNumber		; Function 20 - Set/Get User Code
+	DW		vReadRandom				; Function 21 - Read Random
+	DW		vWriteRandom			; Function 22 - Write Random
+	DW		vComputeFileSize		; Function 23 - Compute File Size
+	DW		vSetRandomRecord		; Function 24 - Set Random Record
 	DW		DUMMY					; Function 25 - Reset Drive
 	DW		DUMMY					; Function 26 - Access Drive (not supported)
 	DW		DUMMY					; Function 27 - Free Drive (not supported)
@@ -154,17 +158,17 @@ DUMMY:
 ;**************** IOByte device I/O ******************************
 ;*****************************************************************
 ;return console character with echo
-fConsoleIn:							; func1 (01 - 01) Console In
+vConsoleIn:							; func1 (01 - 01) Console In
 	CALL	ConsoleInWithEcho
 	JMP		StoreARet
 ;----------
 ; write console character with TAB expansion
-fConsoleOut:						; func2 (02 - 02) Console Out
+vConsoleOut:						; func2 (02 - 02) Console Out
 	CALL	TabOut
 	RET	
 ;----------
 ;direct console i/o - read if 0ffh
-fDirectConIO:						; func6 (06 - 06) get Direct Console Out
+vDirectConIO:						; func6 (06 - 06) get Direct Console Out
 	MOV		A,C
 	INR		A
 	JZ		fDirectConIn			; 0ffh => 00h, means input mode, else				
@@ -178,18 +182,18 @@ fDirectConIn:
 	JMP		StoreARet
 ;----------
 ;return io byte	
-fGetIOBYTE:							; func7 (07 - 07) get IOBYTE
+vGetIOBYTE:							; func7 (07 - 07) get IOBYTE
 	LDA		IOBYTE					; get the byte
 	JMP		StoreARet				; store A and return
 ;----------
 ;set i/o byte
-fSetIOBYTE:							; func8 (08 - 08)	set IOBYTE
+vSetIOBYTE:							; func8 (08 - 08)	set IOBYTE
 	LXI		HL,IOBYTE
 	MOV		M,C						; put passed value into IOBYTE
 	RET	
 ;----------
 ;write line until $ encountered
-fPrintString:						; func9 (09 - 09)	 Print Dollar terminated String
+vPrintString:						; func9 (09 - 09)	 Print Dollar terminated String
 	LHLD	paramDE
 	MOV		C,L
 	MOV		B,H						; BC=string address
@@ -199,12 +203,12 @@ fPrintString:						; func9 (09 - 09)	 Print Dollar terminated String
 ;read String from Console until limit or CR is reached
 ;In - (DE) = limit 
 ;Out - (DE+1) = count of chars read (DE+2) = characters read
-fReadString:						; func10 (10 - 0A)	read String from console
+vReadString:						; func10 (10 - 0A)	read String from console
 	CALL	ReadString
 	RET 
 ;----------
 ;check console status
-fGetConsoleStatus:					; func11 (11 - 01)	read Dollar terminated String from console
+vGetConsoleStatus:					; func11 (11 - 01)	read Dollar terminated String from console
 	CALL	ConBreak
 	JMP		StoreARet
 
@@ -212,7 +216,7 @@ fGetConsoleStatus:					; func11 (11 - 01)	read Dollar terminated String from con
 ;get/set user code
 ; IN - (E) = FF its a get else user Number(0-15)
 ; OUT - (A) Current user number or no value
-fGetSetUserNumber:					; func32 (32 - 20)	Get or set User code
+vGetSetUserNumber:					; func32 (32 - 20)	Get or set User code
     LDA		paramE
 	CPI		0FFH
 	JNZ		SetUserNumber			; interrogate user code instead
@@ -234,7 +238,7 @@ SetUserNumber:						; setusrcode
 ;	 04 = Seek to unwriten Extent
 ;	 05 = N/U
 ;	 06 = Seek past Physical end of Disk
-fReadRandom:						; func33 (33 - 21) Read Random record
+vReadRandom:						; func33 (33 - 21) Read Random record
 	CALL	Reselect
 	JMP		RandomDiskRead			; to perform the disk read
 ;*****************************************************************
@@ -246,21 +250,21 @@ fReadRandom:						; func33 (33 - 21) Read Random record
 ;	 04 = Seek to unwriten Extent
 ;	 05 = Cannot create new Extent because of directory overflow
 ;	 06 = Seek past Physical end of Disk
-fWriteRandom:						; func34 (34 - 22) Write Random record
+vWriteRandom:						; func34 (34 - 22) Write Random record
 	CALL	Reselect
 	JMP		RandomDiskWrite			; to perform the disk write
 	;ret ;jmp goback
 ;*****************************************************************
 ;return file size (0-65536)
 ;IN  - (DE) FCB address
-fComputeFileSize:					; func35 (35 - 23) Compute File Size
+vComputeFileSize:					; func35 (35 - 23) Compute File Size
 	CALL	Reselect
 	JMP		GetFileSize
 ;*****************************************************************
 ;set random record
 ;IN  - (DE) FCB address
 ;OUT - Random Record Field is set
-fSetRandomRecord:					; func36 (36 - 24) Set random Record
+vSetRandomRecord:					; func36 (36 - 24) Set random Record
 	JMP	SetRandomRecord
 ;*****************************************************************
 ;******************< Random I/O Stuff ****************************
@@ -670,7 +674,7 @@ ReadEcho1:
 	MOV	A,B				; move length to A
 	JNZ	NotCtntl_C			; skip if not a control c
 	CPI	1				; control C, must be length 1
-	JZ	WarmBoot				; reboot if blen = 1
+	JZ		WarmBoot				; reboot if blen = 1
 						; length not one, so skip reboot
 NotCtntl_C:					; notc:
 						; not reboot, are we at end of buffer?
@@ -735,7 +739,7 @@ TabOut0:						; tab0:
 ;*****************************************************************
 
 ;reset disk system - initialize to disk 0
-fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
+vResetSystem:					; func13 (13 - 0D)	 Reset Disk System
  	LXI		HL,0
 	SHLD	ReadOnlyVector
 	SHLD	loggedDisks				; clear the vectors for R/O and Logged Disks
@@ -749,27 +753,27 @@ fResetSystem:					; func13 (13 - 0D)	 Reset Disk System
 ;-----------------------------------------------------------------
 ;select disk in (E) paramDE
 ; IN - (E) disk number -- 0=A  1=B ...15=P
-fSelectDisk:					; func14 (14 - 0E)	Select Current Disk
+vSelectDisk:					; func14 (14 - 0E)	Select Current Disk
 	JMP	SelectCurrent
 	;ret ;jmp goba
 ;-----------------------------------------------------------------
 ;return the login vector
 ;OUT - (HL) loggedDisks
-fGetLoginVector:					; func24: (24 - 18) Return login Vector
+vGetLoginVector:					; func24: (24 - 18) Return login Vector
 	LHLD	loggedDisks
 	SHLD	statusBDOSReturn
 	RET					; jmp goback
 ;-----------------------------------------------------------------
 ;return selected disk number
 ;OUT - A current disk -- 0=A  1=B ...15=P
-fGetCurrentDisk:					; func25 (25 - 19)	Get Current Disk
+vGetCurrentDisk:					; func25 (25 - 19)	Get Current Disk
 	LDA	currentDisk
 	STA	lowReturnStatus
 	RET		;jmp goback
 ;-----------------------------------------------------------------
 ;set the subsequent dma address to paramDE
 ;IN - (HL) value to set as DMA
-fSetDMA:						; func26 (25 - 1A) Set Dma Address
+vSetDMA:						; func26 (25 - 1A) Set Dma Address
 	LHLD	paramDE
 	SHLD	InitDAMAddress			; InitDAMAddress = paramDE
     JMP	SetDataDMA				; to data dma address
@@ -777,26 +781,26 @@ fSetDMA:						; func26 (25 - 1A) Set Dma Address
 ;-----------------------------------------------------------------
 ;return the Allocation Vector Address
 ;OUT - (HL) Allocation Vector Address
-fGetAllocAddr:					; func27 (27 - 1B) Get Allocation Vector Address
+vGetAllocAddr:					; func27 (27 - 1B) Get Allocation Vector Address
 	LHLD	caAllocVector
 	SHLD	statusBDOSReturn
 	RET ;jmp goback
 ;-----------------------------------------------------------------
 ;;write protect current disk
-fWriteProtectDisk:					; func28 (28 - 1C) Write protect disk
+vWriteProtectDisk:					; func28 (28 - 1C) Write protect disk
 	JMP	SetDiskReadOnly
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ;return r/o bit vector
 ;OUT - (HL) Read Only Vector Vector
-fGetRoVector:					; func29 (29 - 1D)	Get read Only vector
+vGetRoVector:					; func29 (29 - 1D)	Get read Only vector
 	LHLD	ReadOnlyVector
 	SHLD	statusBDOSReturn
 	RET	;jmp goback
 
 ;-----------------------------------------------------------------
 ;;set file Attributes
-fSetFileAttributes:					; func30 (30 - 1E) Set File Attributes
+vSetFileAttributes:					; func30 (30 - 1E) Set File Attributes
 	CALL	Reselect
 	CALL	SetAttributes
 	JMP	DirLocationToReturnLoc		; lowReturnStatus=dirloc
@@ -804,7 +808,7 @@ fSetFileAttributes:					; func30 (30 - 1E) Set File Attributes
 ;-----------------------------------------------------------------
 ;return address of disk parameter block
 ; OUT - (HL) Disk Parameter Black for current drive
-fGetDiskParamBlock:					; func31 (31 - 1F)
+vGetDiskParamBlock:					; func31 (31 - 1F)
 	LHLD	caDiskParamBlock
 	SHLD	statusBDOSReturn
 	RET		;jmp goback
@@ -1447,14 +1451,14 @@ SetAttributes1:					; indic0:
 ; IN  - (DE)	FCB Address
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fOpenFile:					; 
+vOpenFile:					; 
 	CALL	ClearModuleNum			; clear the module number
 	CALL	Reselect				; do we need to reselect disk?
 	JMP	OpenFile
 	;ret ;jmp goback
 ;-----------------------------------------------------------------
 ;close file
-fCloseFile:					; func16: (16 - 10) Close File
+vCloseFile:					; func16: (16 - 10) Close File
 	CALL	Reselect
 	JMP	CloseDirEntry
 ;-----------------------------------------------------------------
@@ -1462,7 +1466,7 @@ fCloseFile:					; func16: (16 - 10) Close File
 ; In - (DE)	FCB Address
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fFindFirst:					; func17: (17 - 11) Search for first
+vFindFirst:					; func17: (17 - 11) Search for first
 	MVI	C,0				; length assuming '?' true
 	LHLD	paramDE
 	MOV	A,M
@@ -1480,7 +1484,7 @@ QMarkSelect:					; qselect:
 ;search for next occurrence of a file name
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fFindNext:					; func18: (18 - 12) Search for next
+vFindNext:					; func18: (18 - 12) Search for next
 	LHLD	searchAddress
 	SHLD	paramDE
 	CALL	Reselect
@@ -1490,7 +1494,7 @@ fFindNext:					; func18: (18 - 12) Search for next
 ;search for next occurrence of a file name
 ; OUT - (A)	Directory Code
 ;delete a file
-fDeleteFile:					; func18: (19 - 13) Delete File
+vDeleteFile:					; func18: (19 - 13) Delete File
 	CALL	Reselect
 	CALL	DeleteFile
 	JMP	DirLocationToReturnLoc
@@ -1498,7 +1502,7 @@ fDeleteFile:					; func18: (19 - 13) Delete File
 ;read sequential 
 ;IN  - (DE) FCB address
 ;OUT - (A) 00 = success and data available. else no read and no data
-fReadSeq:						; func20: (20 - 14) read sequential
+vReadSeq:						; func20: (20 - 14) read sequential
 	CALL	Reselect
 	CALL	ReadSeq
 	RET					; jmp goback
@@ -1506,7 +1510,7 @@ fReadSeq:						; func20: (20 - 14) read sequential
 ;write sequential 
 ;IN  - (DE) FCB address
 ;OUT - (A) 00 = success and data available. else no read and no data
-fWriteSeq:					; func21 (21 - 15) write sequention
+vWriteSeq:					; func21 (21 - 15) write sequention
 	CALL	Reselect
 	CALL	DiskWriteSeq
 	RET	;jmp goback
@@ -1516,7 +1520,7 @@ fWriteSeq:					; func21 (21 - 15) write sequention
 ; In - (DE)	FCB Address
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fMakeFile:						; func22 (22 - 16) Make file
+vMakeFile:						; func22 (22 - 16) Make file
 	CALL	ClearModuleNum			; set S2 to Zero
 	CALL	Reselect
 	JMP		MakeNewFile
@@ -1526,7 +1530,7 @@ fMakeFile:						; func22 (22 - 16) Make file
 ; In - (DE)	FCB Address
 ; OUT - (A)	Directory Code
 ;	0-3 = success ; 0FFH = File Not Found
-fRenameFile:						; func23 (23 - 17) Rename File
+vRenameFile:						; func23 (23 - 17) Rename File
 	CALL	Reselect
 	CALL	Rename
 	JMP	DirLocationToReturnLoc
@@ -1805,7 +1809,7 @@ OpenNextExt1:					; open$reel0
 	LDA	readModeFlag
 	INR	A				; 0ffh becomes 00 if read
 	JZ	OpenNextExtError			; sets lowReturnStatus = 1
-	`					; try to extend the current file
+; try to extend the current file
 	CALL	MakeNewFile
 						; cannot be end of directory
 	CALL	EndOfDirectory
@@ -2579,7 +2583,7 @@ ConBreak:						; conbrk for character ready
 						; found CTRL_S, read next character
 	CALL	bcConin				; to A
 	CPI	CTRL_C
-	JZ	WarmBoot				; CTRL_C implies re-boot
+	JZ		WarmBoot				; CTRL_C implies re-boot
 						; not a WarmBoot, act as if nothing has happened
 	XRA	A
 	RET					; with zero in accumulator
@@ -2680,7 +2684,7 @@ NotBackSpace:					; notbacksp:  not a backspace character  eol?
 	
 ;********************************************************
 ;return version number
-fGetVersion:					; func12 (12 - 0C)	 Get Verson 
+vGetVersion:					; func12 (12 - 0C)	 Get Verson 
 	MVI	A,VERSION
 	STA	lowReturnStatus ;lowReturnStatus = VERSION (high = 00)
 	RET		;jmp goback
@@ -2721,7 +2725,7 @@ erPermanent:					; persub report permanent error
 	LXI	HL,emPermanent
 	CALL	displayAndWait			; to report the error
 	CPI 	CTRL_C
-	JZ	WarmBoot				; reboot if response is CTRL_C
+	JZ		WarmBoot				; reboot if response is CTRL_C
 	RET					; and ignore the error
 ;
 erSelection:					; selsub report select error
@@ -2737,7 +2741,7 @@ erReadOnlyFile:	;rofsub report read/only file
 ;                                                 
 waitB4boot:					; wait$err wait for response before boot
 	CALL	displayAndWait
-JMP WarmBoot
+	JMP		WarmBoot
 
 displayAndWait:					; errflg:
 	;report error to console, message address in HL
@@ -2753,50 +2757,42 @@ displayAndWait:					; errflg:
 	JMP	ConIn				; to get the input character
 	;ret	
 ;**************Error Messages*******************************
-emDisk0:		DB	'Bdos Err On '			; dskmsg:
-emDisk:			DB	' : $'					; dskerr filled in by errflg
-emPermanent:	DB	'Bad Sector$'			; permsg
-emSelection:	DB	'Select$'				; selmsg
-emReadOnlyFile:	DB	'File '					; rofmsg	
-emReadOnlyDisk:	DB	'R/O$'					; rodmsg:	
+emDisk0:			DB		'Bdos Err On '			; dskmsg:
+emDisk:				DB		' : $'					; dskerr filled in by errflg
+emPermanent:		DB		'Bad Sector$'			; permsg
+emSelection:		DB		'Select$'				; selmsg
+emReadOnlyFile:		DB		'File '					; rofmsg	
+emReadOnlyDisk:		DB		'R/O$'					; rodmsg:	
 ;*****************************************************************
-
-;*****************Read / Write Constantsa*************************
-;WriteAllocated			EQU	0						; write to an allocated block
-;WriteDirectory		EQU	1						; write directory
-;WriteUnallocated		EQU	2						; write to an unallocated block
-
-;*****************************************************************
-
 
 ;********* file control block (fcb) constants ********************
-fcbLength			EQU	32					; fcblen file control block size
-fcbROfileIndex		EQU	9					; high order of first type char
-fcbHiddenfileIndex	EQU	10					; invisible file in dir command
-fcbExtIndex			EQU	12					; extent number field index
-fcbS1Index			EQU	13					; S1 index  
-fcbS2Index			EQU	14					; S2 data module number index
-fcbRCIndex			EQU	15					; record count field index
-fcbDiskMapIndex		EQU	16					; dskmap disk map field
-
-highestRecordNumber	EQU	127					; lstrec last record# in extent
-recordSize			EQU	128					; recsiz record size
-dirEntriesPerRecord	EQU	recordSize/fcbLength; directory elts / record
-dirEntryShift		EQU	2					; log2(dirEntriesPerRecord)
-dirEntryMask		EQU	dirEntriesPerRecord-1                      
-fcbShift			EQU	5					; log2(fcbLength)
+fcbLength			EQU		32					; fcblen file control block size
+fcbROfileIndex		EQU		9					; high order of first type char
+fcbHiddenfileIndex	EQU		10					; invisible file in dir command
+fcbExtIndex			EQU		12					; extent number field index
+fcbS1Index			EQU		13					; S1 index  
+fcbS2Index			EQU		14					; S2 data module number index
+fcbRCIndex			EQU		15					; record count field index
+fcbDiskMapIndex		EQU		16					; dskmap disk map field
+		
+highestRecordNumber	EQU		127					; lstrec last record# in extent
+recordSize			EQU		128					; recsiz record size
+dirEntriesPerRecord	EQU		recordSize/fcbLength; directory elts / record
+dirEntryShift		EQU		2					; log2(dirEntriesPerRecord)
+dirEntryMask		EQU		dirEntriesPerRecord-1                      
+fcbShift			EQU		5					; log2(fcbLength)
 ;                                                           
 
 
 	
-maxExtValue			EQU	31					; largest extent number
-moduleMask			EQU	15					; limits module number value
-writeFlagMask		EQU	80h					; file write flag is high order fcbS2Index
-nameLength			EQU	15					; namlen name length
-
-emptyDir			EQU	0E5H				; empty empty directory entry
-NEXT_RECORD			EQU	fcbLength			; nxtrec                  
-RANDOM_REC_FIELD	EQU	NEXT_RECORD + 1		;ranrec random record field (2 bytes)
+maxExtValue			EQU		31					; largest extent number
+moduleMask			EQU		15					; limits module number value
+writeFlagMask		EQU		80h					; file write flag is high order fcbS2Index
+nameLength			EQU		15					; namlen name length
+		
+emptyDir			EQU		0E5H				; empty empty directory entry
+NEXT_RECORD			EQU		fcbLength			; nxtrec                  
+RANDOM_REC_FIELD	EQU		NEXT_RECORD + 1		;ranrec random record field (2 bytes)
 ;
 ;	reserved file indicators
 ;	equ	11				; reserved

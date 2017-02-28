@@ -1,28 +1,18 @@
 ; BootSector.asm
 
-;CR					EQU	0DH			; Carriage Return
-;LF					EQU	0AH			; Line Feed
-;EndOfMessage		EQU	00H
 	$Include ./osHeader.asm
+	$Include ./diskHeader.asm
 	$Include ../Headers/stdHeader.asm
 
 
-
-;DiskControlTable	EQU		0040H
-;DiskStatusLocation		EQU		0043H
-;DiskControlByte			EQU		0045H
-;CommandBlock		EQU		0046H
-	
-;BDOSEntry			EQU		0E806H
-;BIOSStart			EQU		0F600H
 WarmBootEntry		EQU		BIOSStart + 3
 
 		ORG    TPA  
 Start:
 	LXI		SP,Start-1				; stack goes down from here
 	CALL	SendBootMessage			; display boot message
-	MVI		B,Page0End-Page0Start	; Size of code to move
-	LXI		H,Page0Start			; Source of page 0 code
+	MVI		B,Page0ImageEnd-Page0Image	; Size of code to move
+	LXI		H,Page0Image			; Source of page 0 code
 	LXI		D,0000					; Location 0, the target
 	
 ; Set up page zero,Move (B) bytes from (HL) to (DE).
@@ -70,7 +60,7 @@ BootControl:
 
 ;---------------------------------------------------
 
-Page0Start:
+Page0Image:
 	JMP		WarmBootEntry			; warm start
 IOBYTE:             
 	DB		01H						; IOBYTE- Console is assigned the CRT device
@@ -80,7 +70,7 @@ DefaultDisk:
 	DS		028H					; interrupt locations 1-5 not used
 	DS		008H					; interrupt location 6 is reserved
 	JMP		0000H					; rst 7 used only by DDT & SID programs
-Page0End:
+Page0ImageEnd:
 
 ;---------------------------------------------------
 

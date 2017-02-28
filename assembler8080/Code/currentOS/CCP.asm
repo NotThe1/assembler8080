@@ -3,39 +3,19 @@
 ; 2014-01-16
 ; 2014-05-01  :  Frank Martyn
 
-	$Include ./osHeader.asm
+; replace systemFile with fcbSystemFileIndex
+
 	$Include ../Headers/stdHeader.asm
+	$Include ./osHeader.asm
+	$Include ./diskHeader.asm
 
-;BDOSE		bdos	0005H
-;DMABuffer	buff	0080H
 
-fConsoleIn			EQU	01H			; rcharf - Console Input
-fConsoleOut			EQU	02H			; pcharf - Console Output
-fPrintString		EQU	09H			; pbuff	- Print String
-fReadString			EQU	0AH			; rbuff	- Read Console String
-fGetConsoleStatus	EQU	0BH			; breakf - Get Console Status
-fGetVersion			EQU	0CH			; liftf	- Return Version Number
-fResetSystem		EQU	0DH			; initf	- Reset Disk System
-fSelectDisk			EQU	0EH			; self	- Select Disk
-fOpenFile			EQU	0FH			; openf	- Open File
-fCloseFile			EQU	10H			; closef - Close File
-fSearchFirst		EQU	11H			; searf	- Search For First
-fSearchNext			EQU	12H			; searnf - Search for Next
-fDeleteFile			EQU	13H			; delf - Delete File
-fReadSeq			EQU	14H			; dreadf - Read Sequential
-fWriteSeq			EQU	15H			; dwritf - Write Sequential
-fMakeFile			EQU	16H			; makef	- Make File
-fRenameFile			EQU	17H			; renf	- Rename File
-fGetLoginVector		EQU	18H			; logf	- Return Login Vector
-fGetCurrentDisk		EQU	19H			; cself	- Return Current Disk
-fSetDMA				EQU	1AH			; dmaf	- Set DMA address
-fGetSetUserNumber	EQU	20H			; userf	- Set/Get User Code
                                                   
-systemFile			EQU	0AH			; sysfile System File Flag Location
-roFile				EQU	09H			; rofile Read Only Flag Location
-END_OF_FILE			EQU	1AH			; eofile end of file 
+;systemFile			EQU	0AH			; sysfile System File Flag Location
+fcbSystemFileIndex			EQU		0AH					; extent number field index
+; roFile				EQU	09H			; rofile Read Only Flag Location   fcbROfileIndex
+;END_OF_FILE			EQU	1AH			; end of file 
                                                   
-;diskAddress	EQU	0004H			; diska CurDisk	 disk address for current disk
 	                                        
 					ORG	CCPEntry
 
@@ -64,7 +44,7 @@ CcpStart:
 	POP		BC						; recall user code and disk number
 	MOV		A,C
 	ANI		0FH						; disk number in accumulator
-	STA		CurDisk					; clears low memory user code nibble
+	STA		Pg0CurentDisk					; clears low memory user code nibble
 	CALL	SelectDisk				; proper disk is selected, now check sub files
 									; check for initial command
 	LDA		CommandLength
@@ -105,14 +85,14 @@ Ccp0:								; ccp0 enter here from initialization with command full
 ;.................................................
 ;.................................................
 
-intrinsicFunctionsVector:				; jmptab
-	DW	ccpDirectory			; directory search
-	DW	ccpErase				; file erase
-	DW	ccpType				; type file
-	DW	ccpSave				; save memory image
-	DW	ccpRename				; file rename
-	DW	ccpUser				; user number
-	DW	ccpUserFunction			; user-defined function
+intrinsicFunctionsVector:					; jmptab
+	DW		ccpDirectory					; directory search
+	DW		ccpErase						; file erase
+	DW		ccpType							; type file
+	DW		ccpSave							; save memory image
+	DW		ccpRename						; file rename
+	DW		ccpUser							; user number
+	DW		ccpUserFunction					; user-defined function
 
 ;----------------------------------------------------------------
 ;----------------------------------------------------------------
@@ -171,7 +151,7 @@ NotSubmitFile:					; nosub:	no submit file
 	MVI	C,fReadString
 	LXI	DE,MaxBufferLength
 	CALL	BDOSE
-	CALL	SetPage0CurDisk			; no control c, so restore CurDisk
+	CALL	SetPage0CurDisk			; no control c, so restore Pg0CurentDisk
 	
 NoRead:						; noread enter here from submit file
 						; set the last character to zero for later scans
@@ -341,13 +321,13 @@ SaveUser:						; saveuser
 	ADD	A				; rotate left
 	LXI	HL,currentDisk
 	ORA	M				; msn 4b=user - lsn 4b=disk
-	STA	CurDisk				; stored away in memory for later
+	STA	Pg0CurentDisk				; stored away in memory for later
 	RET
 ;-----------------------------
-; set CurDisk to current disk
+; set Pg0CurentDisk to current disk
 SetPage0CurDisk:					; setdiska
 	LDA	currentDisk
-	STA	CurDisk				; user/disk
+	STA	Pg0CurentDisk				; user/disk
 	RET
 ;-----------------------------
 ;equivalent to fillfcb(0)
@@ -568,9 +548,7 @@ intrinsicFunctionNames:					; intvec
 	DB	'SAVE'
 	DB	'REN '
      DB	'USER'
-IntrinsicFunctionCount	EQU	6
-;IntrinsicFunctionCount	EQU	($-intrinsicFunctionNames)/4	 intlen
-;intlen EQU ($-intrinsicFunctionNames)/4  ;intrinsic function length
+IntrinsicFunctionCount	EQU	(($-intrinsicFunctionNames)/4) + 1
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 serialNumber: DB 0,0,0,0,0,0				; serial
 ;-----------------------------
@@ -823,7 +801,7 @@ ccpDir3:						; dir2:
 	ANI	1100000B
 	MOV	C,A
 						; c contains base index into DMABuffer for dir entry
-	MVI	A,systemFile			; System File Location in FCB
+	MVI	A,fcbSystemFileIndex			; System File Location in FCB
 	CALL	GetByteAtAandCandDMA		; value to A
 	RAL
 	JC	ccpDir7				; skip if system file c holds index into buffer
@@ -1272,42 +1250,42 @@ SetDisk4Cmd:					; setdisk
 ;************************ Data Area ******************************
 ;*****************************************************************
 ;	'submit' file control block
-submitFlag:	DB	00H			; submit 00 if no submit file, ff if submitting
-submitFCB:	DB	00H			; subfcb file name is $$$
-;	db	'SUB',0,0				; file type is sub
-subModuleNumber:	DB	00H			; submod module number
-subRecordCount:	DB	00H			; subrc record count filed
-;	ds	16				; disk map
-subCurrentRecord:	DB	00H			; subcr current record to read
-;;                                                
-;;	command file control block              
-commandFCB:	DS	32			; comfcb fields filled in later
-currentRecord:	DB	00H			; comrec  current record to read/write
-directoryCount:	DB	00H			; dcnt disk directory count (used for error codes)
-currentDisk:	DB	00H			; cdisk current disk
-selectedDisk:	DB	00H			; sdisk selected disk for current operation
-;						; none=0, a=1, b=2 ...
-bufferPointer:	DB	00H			; bptr  buffer pointer
+submitFlag:			DB		00H				; 00 if no submit file, ff if submitting
+submitFCB:			DB		00H				; file name is $$$
+	
+subModuleNumber:	DB		00H				; module number
+subRecordCount:		DB		00H				; record count filed
+subCurrentRecord:	DB		00H				; current record to read
+;;                                      	          
+;;	command file control block          	    
+commandFCB:			DS		32				; fields filled in later
+currentRecord:		DB		00H				; current record to read/write
+directoryCount:		DB		00H				; disk directory count (used for error codes)
+currentDisk:		DB		00H				; current disk
+selectedDisk:		DB		00H				; selected disk for current operation none=0, a=1, b=2 ...
+;	
+bufferPointer:		DB		00H				; buffer pointer
 ;------------------------------------
-fillFCBStart:	DW	0000H			; staddr starting address of current FillFCB request
+fillFCBStart:		DW		0000H			; staddr starting address of current FillFCB request
 ;----------------------------
 ; (command executed initially if CommandLength non zero)
-MaxBufferLength:	DB	127			; maxlen max buffer length
-CommandLength:	DB	0			; comlen command length (filled in by dos)
-commandBuffer:					; combuf:
-	DB	'        '			; 8 character fill
-	DB	'        '			; 8 character fill
-	DB	'COPYRIGHT (C) 1979 DIGITAL RESEARCH  '; 38
+
+MaxBufferLength:	DB		127				; maxlen max buffer length
+CommandLength:		DB		0				; comlen command length (filled in by dos)
+commandBuffer:								; combuf:
+					DB		'        '		; 8 character fill
+					DB		'        '		; 8 character fill
+					DB		'COPYRIGHT (C) 1979 DIGITAL RESEARCH  '; 38
 restOfCmdBuffer:
-	DS	128-(restOfCmdBuffer-commandBuffer)
-commandAddress:	DW	commandBuffer		; comaddr address of next to char to scan
+					DS		cpmRecordSize-(restOfCmdBuffer-commandBuffer)
+commandAddress:		DW		commandBuffer	; comaddr address of next to char to scan
 	
 endOfCommandBuffer:
 ;-------------------------------
-;	DS	16				; 8 level stack
-	ORG	BDOSBase-10H
-Stack:						; stack
+;	DS	16									; 8 level stack
+				ORG		BDOSBase-10H
+Stack:										; stack
 
-CodeEnd:
+
 
 

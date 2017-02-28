@@ -6,36 +6,14 @@
 ; 2014-01-16
 ; 2014-03-14  :  Frank Martyn
 
-	$Include ./osHeader.asm
 	$Include ../Headers/stdHeader.asm
+	$Include ./osHeader.asm
+	$Include ./diskHeader.asm
 INopCode	EQU	0DBH
 OUTopCode	EQU	0D3H
 
-RECORD_SIZE	EQU	128			; cpmRecord size
 
-;BootControlPart1--------------------------------------------------------------------------
-; DefaultDisk	EQU	0004H
-;PageZero:	ORG	0000H				; Start of page Zero
-;	JMP	WarmBootEntry			; warm start
-;IOBYTE:
-;	DB	01000001B				; IOBYTE- Console & List is assigned the CRT device
-;DefaultDisk:
-;	DB	00H				; Current default drive (A)
-;	JMP	BDOSEntry				; jump to BDOS entry
-;	DS	028H				; interrupt locations 1-5 not used
-;	DS	008H				; interrupt location 6 is reserved
-;	JMP	0000H				; rst 7 used only by DDT & SID programs
-;	DS	005H				; not currently used
-;	DS	010H				; reserved for scratch by CBIOS- not used by CP/M
-;	DS	00CH				; not currently used
-;FCB:
-;	DS	021H				; Default FCB for transient programs
-;RandomRecordPosition:
-;	DS	003H				; optional random record position
-;DefaultDiskBuffer:
-;	DS	080H				; default 128- byte disk buffer,
-						; also filled with the command line from CCP
-;--------------------------------------------------------------------------------	
+
 
 	ORG	BIOSStart				; Assemble code at BIOS address
 								; BIOS jum Vector
@@ -61,10 +39,10 @@ WarmBootEntry:
 	JMP		SECTRAN				; 10 Checked
 	
 ;-------------------------------------------------
-	ORG	(($+10H)/10H) * 10H
-PhysicalSectorSize	EQU	512			; for the 3.5" disk
+	ORG		(($+10H)/10H) * 10H
+;diskSectorSize	EQU	512			; for the 3.5" disk diskSectorSize
 DiskBuffer:
-	DS	PhysicalSectorSize	
+	DS		diskSectorSize	
 AfterDiskBuffer	EQU	$
 ;-------------------------------------------------
 
@@ -516,7 +494,7 @@ WRITE:
 	JNZ		CheckUnallocatedBlock			; No, - in the middle of writing to an unallocated block ?
 ; Yes, It is the first write to unallocated allocation block.
 ; Initialize  variables associated with unallocated writes
-	MVI		A,AllocationBlockSize/ RECORD_SIZE		; Number of records
+	MVI		A,RecordsPerBlock				; Number of records
 	STA		UnalocatedlRecordCount 			; reset Unallocated Record Count to recordsPerBlock                 
 	LXI		H,SelectedDkTrkSec
 	LXI		D,UnallocatedDkTrkSec
@@ -538,7 +516,7 @@ CheckUnallocatedBlock:
 	XCHG
 	INR		M								; increment UnalocatedlRecordCount
 	MOV		A,M
-	CPI		CPMSecPerTrack					; Sector > maximum on track ?
+	CPI		SectorsPerTrack					; Sector > maximum on track ?
 	JC		NoTrackChange					; No ( A < M)
 	MVI	M,00H				; Yes
 	LHLD	UnallocatedTrack
@@ -614,7 +592,7 @@ SectorInBuffer:
 	LDA	SelectedSector
 	ANI	SectorMask			; only want the least bits
 	MOV	L,A				; to calculate offset into 512 byte buffer
-	MVI	H,00H				; Multiply by 128 - RECORD_SIZE
+	MVI	H,00H				; Multiply by 128 - cpmRecordSize
 	DAD	H				; *2
 	DAD	H				; *4
 	DAD	H				; *8
@@ -628,7 +606,7 @@ SectorInBuffer:
 	LHLD	DMAAddress			; Get DMA address (set in SETDMA)
 	XCHG					; assume a read so :
 						; DE -> DMA Address & HL -> sector in disk buffer
-	MVI	C,RECORD_SIZE/8				; 8 bytes per move (loop count)
+	MVI	C,cpmRecordSize/8				; 8 bytes per move (loop count)
 ;
 ;  At this point -
 ;	C	->	loop count
@@ -770,7 +748,7 @@ Head1:
 	MOV		A,B
 	STA		DCTHead				; set head number
 
-	LXI		H,PhysicalSectorSize
+	LXI		H,diskSectorSize
 	SHLD	DCTByteCount			; set byte count
 	LXI		H,DiskBuffer
 	SHLD	DCTDMAAddress			; set transfer address
@@ -805,7 +783,7 @@ DiskError:
 	STA		DiskErrorFlag			; set the error flag
 	RET
 	
-;**********************************************************************************
+;********************************************************************
 ;********************************************************************
 ;********************************************************************
 	
@@ -820,7 +798,7 @@ DiskError:
 ;;HardDisk	EQU	2				; hard disk
 NumberOfLogicalDisks	EQU 4			; max number of disk in this system
                                                   
-;;NeedDeblocking	EQU 	080H			; Sector size > RECORD_SIZE bytes
+;;NeedDeblocking	EQU 	080H			; Sector size > cpmRecordSize bytes
 
 ;**************************************************************************************************
 ;  There id one "smart" disk controllers on this system, for the 3.5 HD drive ( 1.44MB)
@@ -847,27 +825,19 @@ NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 ; the end of the chain
 ;**************************************************************************************************
 
-                                                 
-;DiskStatusLocation			EQU	043H	;  status block
-                                                
-;DiskControlByte			EQU	045H	; " control byte
-;DiskCommandBlock		EQU	046H	; Control Table Pointer
-                                                
-;DiskReadCode			EQU	01H		; Code for Read
-;DiskWriteCode			EQU	02H		; Code for Write
 ;***************************************************************************
 ;	Disk Control tables
 ;***************************************************************************
 DiskControlTable:
-DCTCommand:				DB	00H		; Command
-DCTUnit:				DB	00H		; unit (drive) number = 0 or 1
-DCTHead:				DB	00H		; head number = 0 or 1
-DCTTrack:				DB	00H		; track number
-DCTSector:				DB	00H		; sector number
-DCTByteCount:			DW	0000H	; number of bytes to read/write
-DCTDMAAddress:			DW	0000H	; transfer address
-DCTNextStatusBlock:		DW	0000H	; pointer to next status block
-DCTNextControlLocation:	DW	0000H	; pointer to next control byte
+DCTCommand:				DB		00H			; Command
+DCTUnit:				DB		00H			; unit (drive) number = 0 or 1
+DCTHead:				DB		00H			; head number = 0 or 1
+DCTTrack:				DB		00H			; track number
+DCTSector:				DB		00H			; sector number
+DCTByteCount:			DW		0000H		; number of bytes to read/write
+DCTDMAAddress:			DW		0000H		; transfer address
+DCTNextStatusBlock:		DW		0000H		; pointer to next status block
+DCTNextControlLocation:	DW		0000H		; pointer to next control byte
 
 ;*******************************************************************************
 ;	 More tables
@@ -881,14 +851,12 @@ DCTNextControlLocation:	DW	0000H	; pointer to next control byte
 ; in the Physical Buffer. If a read request is for a 128 byte cpmRecord
 ; that is already in the physical buffer, then no disk access occurs
 ;*******************************************************************************
-AllocationBlockSize		EQU	0800H				; 2048
-;PhysicalSecPerTrack		EQU	012H				; 18
-PhysicalSecPerTrack		EQU	024H				; 36
-CPMSecPerPhysical		EQU	PhysicalSectorSize/RECORD_SIZE
-;CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack
-CPMSecPerTrack			EQU	CPMSecPerPhysical * PhysicalSecPerTrack *2
-SectorMask				EQU	CPMSecPerPhysical - 1
-SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
+;AllocationBlockSize		EQU	0800H				; 2048
+;SectorsPerCylinder		EQU	024H				; 36
+;recordsPerSector		EQU	diskSectorSize/cpmRecordSize
+;SectorsPerTrack			EQU	recordsPerSector * SectorsPerCylinder *2
+;SectorMask				EQU	recordsPerSector - 1
+;SectorBitShift			EQU	04H					; LOG2(recordsPerSector)
 ;***************************************************************************
 
 ; the following has been moved to osHeader.asm
@@ -904,20 +872,20 @@ SectorBitShift			EQU	04H					; LOG2(CPMSecPerPhysical)
 ;WriteUnallocated	EQU	02H		W_NEW_BLOCK
 ;------------------------------
 
-WriteType:		DB	00H			; The type of write indicated by BDOS
+WriteType:			DB		00H			; The type of write indicated by BDOS
 
 						; variables for physical sector
 						; These are moved and compared as a group, DO NOT ALTER
 InBufferDkTrkSec:
-InBufferDisk:	DB	00H
-InBufferTrack:	DW	00H
-InBufferSector:	DB	00H
-
-DataInDiskBuffer:
-				DB	00H			; when non-zero, the disk buffer has data from disk                                  
-MustWriteBuffer:
-				DB	00H			; Non-zero when data has been written into DiskBuffer,
-								; but not yet written out to the disk
+InBufferDisk:		DB		00H
+InBufferTrack:		DW		00H
+InBufferSector:		DB		00H
+		
+DataInDiskBuffer:		
+					DB		00H			; when non-zero, the disk buffer has data from disk                                  
+MustWriteBuffer:		
+					DB		00H			; Non-zero when data has been written into DiskBuffer,
+										;   but not yet written out to the disk
 ;---------------------------------------------------------------------------
 ;	Disk Storage area
 ;---------------------------------------------------------------------------
@@ -975,47 +943,47 @@ ReadFlag:
 ; parameter block for several logical disks.
 ;---------------------------------------------------------------------------
 ;---------------------------------------------------------------------------
-DiskParameterHeaders:				; described in chapter 3
+DiskParameterHeaders:
 
 ; Logical Disk A: (3.25" HD 1.44MB Diskette)
-	DW	0000H					; Floppy5SkewTable  - No Skew table
-	DW	0000H					; Rel pos for file (0-3)
-	DW	0000H					; Last Selected Track #
-	DW	0000H					; Last Selected Sector #
-	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3HD		; specific to disk's parameters
-	DW	DiskAWorkArea
-	DW	DiskAAllocationVector
+	DW		0000H							; Floppy5SkewTable  - No Skew table
+	DW		0000H							; Rel pos for file (0-3)
+	DW		0000H							; Last Selected Track #
+	DW		0000H							; Last Selected Sector #
+	DW		DirectoryBuffer					; all disks use this buffer
+	DW		ParameterBlock3HD				; specific to disk's parameters
+	DW		DiskAWorkArea
+	DW		DiskAAllocationVector
 	
 ; Logical Disk B: (3.25" HD 1.44MB Diskette)
-	DW	0000H					; No Skew table
-	DW	0000H					; Rel pos for file (0-3)
-	DW	0000H					; Last Selected Track #
-	DW	0000H					; Last Selected Sector #
-	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3HD		; specific to disk's parameters
-	DW	DiskBWorkArea
-	DW	DiskBAllocationVector
+	DW		0000H							; No Skew table
+	DW		0000H							; Rel pos for file (0-3)
+	DW		0000H							; Last Selected Track #
+	DW		0000H							; Last Selected Sector #
+	DW		DirectoryBuffer					; all disks use this buffer
+	DW		ParameterBlock3HD				; specific to disk's parameters
+	DW		DiskBWorkArea
+	DW		DiskBAllocationVector
 	
 ; Logical Disk C: (3.25" HD 1.44MB Diskette)
-	DW	0000H					; No Skew table
-	DW	0000H					; Rel pos for file (0-3)
-	DW	0000H					; Last Selected Track #
-	DW	0000H					; Last Selected Sector #
-	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3HD		; specific to disk's parameters
-	DW	DiskCWorkArea
-	DW	DiskCAllocationVector
+	DW		0000H							; No Skew table
+	DW		0000H							; Rel pos for file (0-3)
+	DW		0000H							; Last Selected Track #
+	DW		0000H							; Last Selected Sector #
+	DW		DirectoryBuffer					; all disks use this buffer
+	DW		ParameterBlock3HD				; specific to disk's parameters
+	DW		DiskCWorkArea
+	DW		DiskCAllocationVector
 	
 ; Logical Disk D: (3.25" HD 1.44MB Diskette)
-	DW	0000H					; No Skew table
-	DW	0000H					; Rel pos for file (0-3)
-	DW	0000H					; Last Selected Track #
-	DW	0000H					; Last Selected Sector #
-	DW	DirectoryBuffer			; all disks use this buffer
-	DW	ParameterBlock3HD		; specific to disk's parameters
-	DW	DiskDWorkArea
-	DW	DiskDAllocationVector
+	DW		0000H							; No Skew table
+	DW		0000H							; Rel pos for file (0-3)
+	DW		0000H							; Last Selected Track #
+	DW		0000H							; Last Selected Sector #
+	DW		DirectoryBuffer					; all disks use this buffer
+	DW		ParameterBlock3HD				; specific to disk's parameters
+	DW		DiskDWorkArea
+	DW		DiskDAllocationVector
 	
  
 ;-----------------------------------------------------------	
@@ -1037,19 +1005,19 @@ dpb3hdNOH	EQU	02H				;Number of heads
 
 	
 ParameterBlock3HD:
-	DW	dpb3hdSPT				; cpmRecords per track- (144)
-	DB	dpb3hdBSH				; Block shift ( 4=> 2K)
-	DB	dpb3hdBLM				; Block mask
-	DB	dpb3hdEXM				; Extent mask 
-	DW	dpb3hdDSM				; Maximum allocation block number (710)
-	DW	dpb3hdDRM				; Number of directory entries - 1 (127)
-	DB	dpb3hdAL0				; Bit map for reserving 1 alloc. block
-	DB	dpb3hdAL1				;  for file directory
-	DW	dpb3hdCKS				; Disk change work area size (32)
-	DW	dpb3hdOFF				; Number of tracks before directory
-	
-	DB	(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
-;	DB	dpb3hdSPT/4				; number of Sectors/Head	
+	DW		dpb3hdSPT				; cpmRecords per track- (144)
+	DB		dpb3hdBSH				; Block shift ( 4=> 2K)
+	DB		dpb3hdBLM				; Block mask
+	DB		dpb3hdEXM				; Extent mask 
+	DW		dpb3hdDSM				; Maximum allocation block number (710)
+	DW		dpb3hdDRM				; Number of directory entries - 1 (127)
+	DB		dpb3hdAL0				; Bit map for reserving 1 alloc. block
+	DB		dpb3hdAL1				;  for file directory
+	DW		dpb3hdCKS				; Disk change work area size (32)
+	DW		dpb3hdOFF				; Number of tracks before directory
+			
+	DB		(dpb3hdSPT/4)/dpb3hdNOH		; number of Sectors/Head	
+
 
 
 ;---------------------------------------------------------------------------
@@ -1081,22 +1049,22 @@ DiskDAllocationVector:	DS	(dpb3hdDSM/8)+1 	; D:
 ;---------------------------------------------------------------------------
 ;	Disk Buffer
 ;---------------------------------------------------------------------------
-DirBuffSize			EQU	128
-DirectoryBuffer:	DS	DirBuffSize
+;DirBuffSize			EQU	128
+DirectoryBuffer:	DS		DirBuffSize
 ;---------------------------------------------------------------------------
 ;**********************************************************************************
 ;	Disk Control table image for warm boot
 ;**********************************************************************************
 BootControlPart1:
-	DB	01H						; Read function
-	DB	00H						; unit number
-	DB	00H						; head number
-	DB	00H						; track number
-	DB	02H						; Starting sector number (skip cold boot sector)
-	DW	11 * 512				; Number of bytes to read ( rest of the head)
-	DW	CCPEntry				; read into this address
-	DW	DiskStatusLocation			; pointer to next block - no linking
-	DW	DiskControlByte			; pointer to next table- no linking
+	DB		DiskReadCode				; Read function
+	DB		00H							; unit number
+	DB		00H							; head number
+	DB		00H							; track number
+	DB		02H							; Starting sector number (skip cold boot sector)
+	DW		CCPLength + BDOSLength		; Number of bytes to read ( rest of the head)
+	DW		CCPEntry					; read into this address
+	DW		DiskStatusLocation			; pointer to next block - no linking
+	DW		DiskControlByte				; pointer to next table- no linking
 
 ;
 ;**********************************************************************************	
@@ -1146,11 +1114,11 @@ WarmBootError:
 	JMP		WBOOT					; try again.
 	
 WarmBootErroMessage:
-	DB	CR,LF
-	DB	'Warm Boot -'
-	DB	' Retrying.'
-	DB	CR,LF
-	DB	EndOfMessage
+	DB		CR,LF
+	DB		'Warm Boot -'
+	DB		' Retrying.'
+	DB		CR,LF
+	DB		EndOfMessage
 ;---------------------------------------------------------------------------
 ;--------------------BOOT-----------------------------	
 
@@ -1161,10 +1129,6 @@ WarmBootErroMessage:
 
 ;---------------End of Cold Boot Initialization Code--------------
 
-	
-
-;	JMP	EnterCPM
-								; HL points at a Zero-Byte terminated string to be output
 BOOT:	
 EnterCPM:
 	MVI		A,0C3H				; JMP op code
@@ -1181,7 +1145,7 @@ EnterCPM:
 	CALL	SETDMA				; use normal BIOS routine
 	
 	EI
-	LDA		CurDisk				; DefaultDisk  Transfer current default disk to
+	LDA		Pg0CurentDisk		; DefaultDisk  Transfer current default disk to
 	MOV		C,A					; Console Command Processor
 	JMP		CCPEntry			; transfer to CCP
 	
@@ -1198,6 +1162,3 @@ DisplayMessage:
 	JMP		DisplayMessage		; loop till done
 
 ;-------------------------------------------------
-
-	
-CodeEnd:
