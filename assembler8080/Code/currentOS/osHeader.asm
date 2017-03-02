@@ -1,24 +1,25 @@
 ; osHeader.asm
-; March 2017
+
+; 2017-03-02 Refactored the CP/M Suite
 
 ; Contains the Equates used by the CP/M system
 
 ;------------------------Page Zero Constants ---------------------------------
 RAM					EQU		0					; Start of RAM ( and the Base page)
-	
+
 WarmBoot			EQU		RAM + 0				; Contains a JMP instruction to warm boot in BIOS
 BIOSPAGE			EQU		RAM + 2				; BIOS Jump Vector Page
 IOBYTE				EQU		RAM + 3				; Input/Output redirection byte
-	
+
 Pg0CurentUser		EQU		RAM + 4				; Current user ( bits 7-4)
 Pg0CurentDisk		EQU		Pg0CurentUser				; Default logical disk (bits 0-3)
-				
+
 BDOSE				EQU		RAM + 5				; Contains a JMP to BDOS entry
 TopRAM				EQU		BDOSE+2				; Top page of usable RAM
-		
+
 FCB1				EQU		RAM + 05CH			; File Control Block #1
 FCB2				EQU		FCB1 + 16			; File Control Block #2
-	
+
 ComTail				EQU		RAM + 080H			; Complete command tail
 ComTailCount		EQU 	ComTail + 1			; Count of the number of char in tail
 ComTailChars		EQU		ComTailCount + 1	; Complete Command tail up-cased, w/o trailing CR
@@ -29,24 +30,24 @@ DMABuffer			EQU		RAM + 080H			; Default "DMA" address used as buffer
 TPA					EQU		RAM + 0100H		; Start of Transient program Area
 ;-----------------------------------------------------------------------
 END_OF_FILE			EQU		1AH				; end of file
-;----------------------------------------------------------------------- 
+;-----------------------------------------------------------------------
 
-;--------------- CP/M Constants -----------------------------------------						
+;--------------- CP/M Constants -----------------------------------------
 
 CCPLength			EQU		0800H			; Constant
 BDOSLength			EQU		0E00H			; Constant 0E00H
 BIOSLength			EQU		0A00H			; Constant 0900H
-	
+
 LengthInBytes		EQU		CCPLength + BDOSLength + BIOSLength
 LengthInK			EQU		(LengthInBytes/1024) + 1
-	
+
 MemorySize			EQU		64
-	
+
 CCPEntry			EQU		(MemorySize * 1024) - LengthInBytes
-	
+
 BDOSBase			EQU		CCPEntry + CCPLength
 BDOSEntry			EQU		BDOSBase + 6
-	
+
 BIOSBase			EQU		BDOSBase + BDOSLength
 BIOSStart			EQU		CCPEntry + CCPLength + BDOSLength
 ;-----------------------------------------------------------------------

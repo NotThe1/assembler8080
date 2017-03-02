@@ -1,6 +1,9 @@
 ; stdHeader.asm
 ; standard equates
 
+; 2017-03-02 Refactored the CP/M Suite
+
+
 TRUE			EQU		-1			; not false
 FALSE			EQU		0000H
 ON				EQU		-1

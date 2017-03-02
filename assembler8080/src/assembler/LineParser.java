@@ -172,7 +172,7 @@ public class LineParser {
 
 		if (workingLine.length() == 0)
 			return this.activeLine;
-		System.err.printf("Ins: %6s, Dir: %6s, workingLine: %s%n", instruction, directive, workingLine);
+		System.err.printf("Line Number: %s Ins: %6s, Dir: %6s, workingLine: %s%n",this.getLineNumberStr(), instruction, directive, workingLine);
 		return this.activeLine;
 	}// parse
 
