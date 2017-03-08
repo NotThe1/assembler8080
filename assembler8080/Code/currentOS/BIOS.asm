@@ -982,38 +982,7 @@ BootControl:
 ;  On warm boot. the CCP and BDOS must be reloaded into memory.
 ; This code is hardware specific to the 3.5 HD controller.
 ;**********************************************************************************
-;WBOOT:
-;	LXI		SP,DMABuffer					; DefaultDiskBuffer
-;	LXI		D,BootControl
-;	CALL	WarmBootRead
-;
-;	JMP		EnterCPM
-;
-;WarmBootRead:
-;	LXI		H,DiskControlTable				; get pointer to the Floppy's Device Control Table
-;	SHLD	DiskCommandBlock				; put it into the Command block for drive A:
-;	MVI		C,13							; set byte count for move
-;WarmByteMove:
-;	LDAX	D								; Move the coded Control block into the Command Block
-;	MOV		M,A
-;	INX		H
-;	INX		D
-;	DCR		C
-;	JNZ		WarmByteMove
-;
-;	LXI		H,DiskControlByte
-;	MVI		M,080H							; activate the controller
-;
-;WaitForBootComplete:
-;	MOV		A,M								; Get the control byte
-;	ORA		A								; Reset to 0 (Completed operation) ?
-;	JNZ		WaitForBootComplete				; if not try again
-;
-;	LDA		DiskStatusLocation				; after operation what's the status?
-;	CPI		080H							; any errors ?
-;	JC		WarmBootError					; Yup
-;	RET										; else we are done!
-;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 WBOOT:
 	LXI		SP,CCPEntry -1
 	LXI		HL,BootControl					; point at the disk control table
@@ -1031,8 +1000,6 @@ WaitTillDone:
 	CPI		080H							; any errors ?
 	JNC		EnterCPM						; Nope 	
 											; yes
-;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
 WarmBootError:
 	LXI		H,WarmBootErroMessage			; point at error message
 	CALL	DisplayMessage					; sent it. and
