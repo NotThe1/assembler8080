@@ -551,30 +551,7 @@ intrinsicFunctionNames:
 	DB		'USER'
 IntrinsicFunctionCount	EQU	(($-intrinsicFunctionNames)/iFunctionNameSize) + 1
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-serialNumber: DB 0,0,0,0,0,0				; serial
-;-----------------------------
-;-----------------------------
-;check serialization
-CheckSerialNumber:
-	LXI		D,serialNumber
-	LXI		H,BDOSBase						; BDOS base address
-	MVI		B,6								; check six bytes
-CheckSerialNumber0:
-	LDAX	DE
-	CMP		M
-	JNZ		BadSerialNumber
-	INX		DE
-	INX		HL
-	DCR		B
-	JNZ		CheckSerialNumber0
-	RET										; serial number is ok
-;-----------------------------
-BadSerialNumber:
-	LXI		H,76F3H							; 'DI HLT' instructions  lxi h,di or (hlt shl 8)
-	SHLD	CCPEntry
-	LXI		H,CCPEntry
-	PCHL
-;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 ;-----------------------------
 ;look for intrinsic functions (commandFCB has been filled)
@@ -1082,7 +1059,7 @@ ccpUser:
 ;User defined function
 ;*****************************************************************
 ccpUserFunction:
-	CALL	CheckSerialNumber				; check Serial Number
+
 	LDA		commandFCB + 1
 	CPI		SPACE
 	JNZ		ccpUserFunction1

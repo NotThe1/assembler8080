@@ -64,7 +64,7 @@ BootControl:
 
 Page0Image:
 	JMP		WarmBootEntry					; warm start
-IOBYTE:
+;IOBYTE:
 	DB		01H								; IOBYTE- Console is assigned the CRT device
 DefaultDisk:
 	DB		00H								; Current default drive (A)
@@ -79,8 +79,11 @@ Page0ImageEnd:
 
 BootMessage:
 	DB		CR,LF
-	DB		'CP/M BootStrap'
+	DB		'CP/M 2.2 BootStrap'
 	DB		' loader'
+	DB		CR,LF,
+	DB		'Build '
+	DB		'1.00  : 1.0 - 1.0 - 1.0'
 	DB		CR,LF,EndOfMessage
 
 SendBootMessage:

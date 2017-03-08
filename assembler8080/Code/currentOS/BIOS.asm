@@ -965,7 +965,7 @@ DirectoryBuffer:	DS		DirBuffSize
 ;**********************************************************************************
 ;	Disk Control table image for warm boot
 ;**********************************************************************************
-BootControlPart1:
+BootControl:
 	DB		DiskReadCode					; Read function
 	DB		00H								; unit number
 	DB		00H								; head number
@@ -980,61 +980,89 @@ BootControlPart1:
 ;**********************************************************************************
 ;	Warm Boot
 ;  On warm boot. the CCP and BDOS must be reloaded into memory.
-; In this BIOS. only the 3.5 " diskettes will be used.
-; Therefore this code is hardware specific to the controller.
-; Two prefabricated control tables are used.
+; This code is hardware specific to the 3.5 HD controller.
 ;**********************************************************************************
+;WBOOT:
+;	LXI		SP,DMABuffer					; DefaultDiskBuffer
+;	LXI		D,BootControl
+;	CALL	WarmBootRead
+;
+;	JMP		EnterCPM
+;
+;WarmBootRead:
+;	LXI		H,DiskControlTable				; get pointer to the Floppy's Device Control Table
+;	SHLD	DiskCommandBlock				; put it into the Command block for drive A:
+;	MVI		C,13							; set byte count for move
+;WarmByteMove:
+;	LDAX	D								; Move the coded Control block into the Command Block
+;	MOV		M,A
+;	INX		H
+;	INX		D
+;	DCR		C
+;	JNZ		WarmByteMove
+;
+;	LXI		H,DiskControlByte
+;	MVI		M,080H							; activate the controller
+;
+;WaitForBootComplete:
+;	MOV		A,M								; Get the control byte
+;	ORA		A								; Reset to 0 (Completed operation) ?
+;	JNZ		WaitForBootComplete				; if not try again
+;
+;	LDA		DiskStatusLocation				; after operation what's the status?
+;	CPI		080H							; any errors ?
+;	JC		WarmBootError					; Yup
+;	RET										; else we are done!
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 WBOOT:
-	LXI		SP,DMABuffer					; DefaultDiskBuffer
-	LXI		D,BootControlPart1
-	CALL	WarmBootRead
-
-	JMP		EnterCPM
-
-WarmBootRead:
-	LXI		H,DiskControlTable				; get pointer to the Floppy's Device Control Table
-	SHLD	DiskCommandBlock				; put it into the Command block for drive A:
-	MVI		C,13							; set byte count for move
-WarmByteMove:
-	LDAX	D								; Move the coded Control block into the Command Block
-	MOV		M,A
-	INX		H
-	INX		D
-	DCR		C
-	JNZ		WarmByteMove
-
+	LXI		SP,CCPEntry -1
+	LXI		HL,BootControl					; point at the disk control table
+	SHLD	DiskCommandBlock
+	
 	LXI		H,DiskControlByte
 	MVI		M,080H							; activate the controller
-
-WaitForBootComplete:
+	
+WaitTillDone:
 	MOV		A,M								; Get the control byte
 	ORA		A								; Reset to 0 (Completed operation) ?
-	JNZ		WaitForBootComplete				; if not try again
-
+	JNZ		WaitTillDone					; if not try again
+	
 	LDA		DiskStatusLocation				; after operation what's the status?
 	CPI		080H							; any errors ?
-	JC		WarmBootError					; Yup
-	RET										; else we are done!
+	JNC		EnterCPM						; Nope 	
+											; yes
+;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 WarmBootError:
 	LXI		H,WarmBootErroMessage			; point at error message
 	CALL	DisplayMessage					; sent it. and
 	JMP		WBOOT							; try again.
+	
+;---------------------------------------------------------------------------
+DisplayMessage:
+	MOV		A,M								; get next message byte
+	ORA		A								; terminator (a = 0)?
+	RZ										; Yes, thes return to caller
 
+	MOV		C,A								; prepare for output
+	PUSH	HL								; save message pointer
+	CALL	CONOUT							; go to main console output routine *******
+	POP		H
+	INX		H 								; point at next character
+	JMP		DisplayMessage					; loop till done
+	
 WarmBootErroMessage:
 	DB		CR,LF
 	DB		'Warm Boot -'
 	DB		' Retrying.'
 	DB		CR,LF
 	DB		EndOfMessage
-;---------------------------------------------------------------------------
+
 ;--------------------BOOT-----------------------------
 
 						; entered directly from the BIOS JMP vector
 						; Control transfered by the CP/M bootstrap loader
-						; initial state will be determined by the PROM
-
-
+						; Sets up Page Zero
 ;---------------End of Cold Boot Initialization Code--------------
 
 BOOT:
@@ -1056,17 +1084,5 @@ EnterCPM:
 	LDA		Pg0CurentDisk					; DefaultDisk  Transfer current default disk to
 	MOV		C,A								; Console Command Processor
 	JMP		CCPEntry						; transfer to CCP
-
-DisplayMessage:
-	MOV		A,M								; get next message byte
-	ORA		A								; terminator (a = 0)?
-	RZ										; Yes, thes return to caller
-
-	MOV		C,A								; prepare for output
-	PUSH	HL								; save message pointer
-	CALL	CONOUT							; go to main console output routine *******
-	POP		H
-	INX		H 								; point at next character
-	JMP		DisplayMessage					; loop till done
 
 ;-------------------------------------------------
