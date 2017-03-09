@@ -4,30 +4,30 @@
 PERIOD			EQU		'.'		; Period
 
 LF				EQU		0AH			; Line Feed
-;CTRL_K			EQU		0BH			; VT - Vertical tab
-;CTRL_L			EQU		0CH			; FF - Form feed
+;CTRLK			EQU		0BH			; VT - Vertical tab
+;CTRLL			EQU		0CH			; FF - Form feed
 CR				EQU		0DH			; Carriage Return
 SPACE			EQU		20H			; Space
-ASCII_OFFSET	EQU		30H			; base to make binary decimal number ascii
+ASCIIOFFSET	EQU		30H			; base to make binary decimal number ascii
 
-ASCII_A			EQU		'A'			; upper A
-ASCII_H			EQU		'H'			; upper H
-ASCII_M			EQU		'M'			; upper M
-ASCII_R			EQU		'R'			; upper R
+ASCIIA			EQU		'A'			; upper A
+ASCIIH			EQU		'H'			; upper H
+ASCIIM			EQU		'M'			; upper M
+ASCIIR			EQU		'R'			; upper R
 
 
-SYS_RESET		EQU		000H	; System reset		
-SYS_CONOUT		EQU		002H	; Console out , char in E		
-SYS_GET_IOB		EQU		007H	; get IOByte , Acc returns IOByte		
-SYS_STRING_OUT	EQU		009H	; Print String, DE points at $ terminated String		
-SYS_GET_VER		EQU		00CH	; get version number, HL returns Version		
-SYS_GET_LOGINV	EQU		018H	; get logged in Vector, HL returns Vector (Acc =L)		
-SYS_GET_CUR_DRV	EQU		019H	; get Current Drive, Acc returns with current Drive		
-SYS_GET_ALLOC	EQU		01BH	; get allocation , HL returns vector address		
-;SYS_GET_VER	EQU		00CH	; get version number, HL returns Version		
+SYSRESET		EQU		000H	; System reset		
+SYSCONOUT		EQU		002H	; Console out , char in E		
+SYSGETIOB		EQU		007H	; get IOByte , Acc returns IOByte		
+SYSSTRINGOUT	EQU		009H	; Print String, DE points at $ terminated String		
+SYSGETVER		EQU		00CH	; get version number, HL returns Version		
+SYSGETLOGINV	EQU		018H	; get logged in Vector, HL returns Vector (Acc =L)		
+SYSGETCURDRV	EQU		019H	; get Current Drive, Acc returns with current Drive		
+SYSGETALLOC	EQU		01BH	; get allocation , HL returns vector address		
+;SYSGETVER	EQU		00CH	; get version number, HL returns Version		
 
-MASK_HI_NIBBLE	EQU		0F0H	; mask for high nibble		
-MASK_LO_NIBBLE	EQU		00FH	; mask for low  nibble		
+MASKHINIBBLE	EQU		0F0H	; mask for high nibble		
+MASKLONIBBLE	EQU		00FH	; mask for low  nibble		
 
 true			EQU		0ffffh	; true EQUate.
 
@@ -52,7 +52,7 @@ start:			; Actual program start
 	SHLD	OLDSP		; Save it
 	LXI		SP,STACK	; Point to our stack
 
-	MVI		C,SYS_GET_VER	; get CP/M, MP/M version.
+	MVI		C,SYSGETVER	; get CP/M, MP/M version.
 	CALL	BDOS
 	MOV		A,H			; see if MP/M.
 	STA		mpmFlag		; save it.
@@ -65,18 +65,18 @@ start:			; Actual program start
 	LXI		D,MSG0
 	CALL	displayString
 	LDA		cpmVersion		; get cpm version.
-	ANI		MASK_HI_NIBBLE	; leave upper nibble.
+	ANI		MASKHINIBBLE	; leave upper nibble.
 	RAR						; rotate right four times.
 	RAR	
 	RAR
 	RAR						; to put it in low nibble; 
-	ADI		ASCII_OFFSET	; add ascii offset.
+	ADI		ASCIIOFFSET	; add ascii offset.
 	CALL	charDisplay		; output first number.
 	MVI		A,PERIOD		; now the seprator.
 	CALL	charDisplay		; out put it.
 	LDA		cpmVersion		; now the lower version number.
-	ANI		MASK_LO_NIBBLE	; Leave Low nibble.
-	ADI		ASCII_OFFSET	; add ascii offset.
+	ANI		MASKLONIBBLE	; Leave Low nibble.
+	ADI		ASCIIOFFSET	; add ascii offset.
 	CALL	charDisplay		; go print it.
 	LXI		D,MSG19			; trailing end of message.
 	CALL	displayString
@@ -102,11 +102,11 @@ memProfile:
 
 RAM:
 	MOV		M,B		; Replace original byte
-	MVI		B,ASCII_M	; set for display of M for RAM
+	MVI		B,ASCIIM	; set for display of M for RAM
 	JMP		SHWBY	; go do the display
 
 ROM:
-	MVI		B,ASCII_R	; set for display of R for ROM
+	MVI		B,ASCIIR	; set for display of R for ROM
 	JMP		SHWBY
 
 missing:
@@ -145,17 +145,17 @@ SHWBY:
 	LHLD	netTPA			;
 	DAD		D
 	SHLD	startCCP		; Store CCP= -TPAstart(100H) of netTPA
-	MVI		C,SYS_GET_IOB
+	MVI		C,SYSGETIOB
 	CALL	BDOS
 	STA		IOBYT		; Store the I/O byte
 
 
 	LDA		cpmVersion		; if 00, before 2.0 else 2x
-	ANI		MASK_HI_NIBBLE	; see if 1.x version.
+	ANI		MASKHINIBBLE	; see if 1.x version.
 	JZ		osDisplay		; skip if not at least rel 2.0 of cp/m
 
 ;mpmaloc:
-	MVI		C,SYS_GET_ALLOC
+	MVI		C,SYSGETALLOC
 	CALL	BDOS
 	SHLD	allocVector
 
@@ -203,9 +203,9 @@ osDisplay:
 
 	LXI		D,MSG17
 	CALL	displayString
-	MVI		C,SYS_GET_CUR_DRV
+	MVI		C,SYSGETCURDRV
 	CALL	BDOS
-	ADI		ASCII_A				; adjust for ascii output 0=A,1=B...
+	ADI		ASCIIA				; adjust for ascii output 0=A,1=B...
 	STA		currentDrive
 	CALL	charDisplay			; send to display to finish message 18
 	MVI		A,PERIOD
@@ -220,15 +220,15 @@ osDisplay:
 	CALL	displayString
 	LHLD	allocVector
 	CALL	displayHL
-	MVI		A,ASCII_H		; show that address is Hex
+	load		A,ASCIIH		; show that address is Hex
 	CALL	charDisplay
 	CALL	displayCRLF
 
 ; Find out which drives are logged in and print them
 
-	MVI		C,SYS_GET_LOGINV
+	MVI		C,SYSGETLOGINV
 	CALL	BDOS
-	ANI		MASK_LO_NIBBLE		; leave low nibble. Assumes Number of drives LE 8
+	ANI		MASKLONIBBLE		; leave low nibble. Assumes Number of drives LE 8
 	STA		activeDrives		; save bitmap of logged in drives lsb = A.. ...msb = H
 	LXI		D,MSG4				; current logged in drives -
 	CALL	displayString
@@ -257,7 +257,7 @@ osDisplay:
 
 	MVI	C,RONLY
 	CALL	BDOS
-	ANI	MASK_LO_NIBBLE		; leave low nibble.
+	ANI	MASKLONIBBLE		; leave low nibble.
 	STA	activeDrives
 	LXI	D,MSG14
 	CALL	displayString
@@ -311,7 +311,7 @@ osDisplay:
 	
 	
 ; end the program
-	MVI		C,SYS_RESET		; system reset
+	MVI		C,SYSRESET		; system reset
 	CALL	BDOS
 
 ;---------------------------------------------------------
@@ -319,7 +319,7 @@ osDisplay:
 ; DE points to $ terminated string to display
 ;
 displayString:
-	MVI		C,SYS_STRING_OUT
+	MVI		C,SYSSTRINGOUT
 	CALL	BDOS
 	RET
 
@@ -328,7 +328,7 @@ charDisplay:				; Character output
 	PUSH	D
 	PUSH	H
 	MOV		E,A
-	MVI		C,SYS_CONOUT
+	MVI		C,SYSCONOUT
 	CALL	BDOS
 	POP		H
 	POP		D
@@ -353,8 +353,8 @@ displayAcc:
 	CALL	displayAcc1		; Put it out
 	MOV		A,C				; restore original value
 displayAcc1:
-	ANI		MASK_LO_NIBBLE	; leave low nibble.
-	ADI		ASCII_OFFSET	; get ascii EQUivalent
+	ANI		MASKLONIBBLE	; leave low nibble.
+	ADI		ASCIIOFFSET	; get ascii EQUivalent
 	CPI		03AH			; 0-9?
 	JC		OUTCH			; skip if decimal digit
 	ADI		07H				;   else make it a letter
