@@ -943,7 +943,7 @@ public class ASM {
 	}// main
 
 	private void appClose() {
-		Preferences myPrefs = Preferences.userNodeForPackage(ASM.class);
+		Preferences myPrefs = Preferences.userNodeForPackage(ASM.class).node(this.getClass().getSimpleName());
 		Dimension dim = frmAsmAssembler.getSize();
 		myPrefs.putInt("Height", dim.height);
 		myPrefs.putInt("Width", dim.width);
@@ -964,7 +964,7 @@ public class ASM {
 	}// appClose
 
 	private void appInit() {
-		Preferences myPrefs = Preferences.userNodeForPackage(ASM.class);
+		Preferences myPrefs = Preferences.userNodeForPackage(ASM.class).node(this.getClass().getSimpleName());
 		frmAsmAssembler.setLocation(myPrefs.getInt("LocX", 100), myPrefs.getInt("LocY", 100));
 		frmAsmAssembler.setSize(myPrefs.getInt("Width", 700), myPrefs.getInt("Height", 600));
 		splitPane.setDividerLocation(myPrefs.getInt("Divider", 200));
