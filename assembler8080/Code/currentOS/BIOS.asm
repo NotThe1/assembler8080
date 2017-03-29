@@ -60,10 +60,10 @@ TTYDataPort					EQU		0ECH
 TTYOutputReady				EQU		01H		; Status Mask
 TTYInputReady				EQU		02H		; Status Mask
 
-TerminalStatusPort			EQU		02H
-TerminalDataPort			EQU		01H
-TerminalOutputReady			EQU		80H		; Status Mask - ready for output
-TerminalInputReady			EQU		07FH	; Status Mask - bytes yet to have been read
+CRT_StatusPort			EQU		02H
+CRT_DataPort			EQU		01H
+CRT_OutputReady			EQU		80H		; Status Mask - ready for output
+CRT_InputReady			EQU		07FH	; Status Mask - bytes yet to have been read
 
 CommunicationStatusPort		EQU		0EDH
 CommunicationDataPort		EQU		0ECH
@@ -75,11 +75,11 @@ TTYTable:
 	DB		TTYDataPort
 	DB		TTYOutputReady
 	DB		TTYInputReady
-TerminalTable:
-	DB		TerminalStatusPort
-	DB		TerminalDataPort
-	DB		TerminalOutputReady
-	DB		TerminalInputReady
+CRT_Table:
+	DB		CRT_StatusPort
+	DB		CRT_DataPort
+	DB		CRT_OutputReady
+	DB		CRT_InputReady
 CommunicationTable:
 	DB		CommunicationStatusPort
 	DB		CommunicationDataPort
@@ -95,9 +95,8 @@ CommunicationTable:
 ; according to the values in bits 1, 0 in A.
 
 SelectRoutine:
-	RLC										; Shift select values into bits 2,1 in order to do word arithmetic
-SelectRoutine21:							; entry point if bits already in 2,1
-	ANI		06H								; isolate bits 2 and 1
+	ANI		03H								; Keep low 2 bits
+	ADD		A								; double for word size add
 	XTHL									; HL-> first word of address after CALL instruction
 	MOV		E,A								; Add on selection value to address table base
 	MVI		D,00H
@@ -112,8 +111,8 @@ SelectRoutine21:							; entry point if bits already in 2,1
 TTYInStatus:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		InputStatus						; use of JMP, InputStatus will execute thr RETurn
-TerminalInStatus:
-	LXI		H,TerminalTable					; HL-> control table
+CRT_InStatus:
+	LXI		H,CRT_Table					; HL-> control table
 	JMP		InputStatus						; use of JMP, InputStatus will execute thr RETurn
 CommunicationInStatus:
 	LXI		H,CommunicationTable			; HL-> control table
@@ -125,8 +124,8 @@ DummyInStatus:
 TTYOutStatus:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		OutputStatus					; use of JMP, OutputStatus will execute thr RETurn
-TerminalOutStatus:
-	LXI		H,TerminalTable					; HL-> control table
+CRT_OutStatus:
+	LXI		H,CRT_Table					; HL-> control table
 	JMP		OutputStatus					; use of JMP, OutputStatus will execute thr RETurn
 CommunicationOutStatus:
 	LXI		H,CommunicationTable			; HL-> control table
@@ -139,8 +138,8 @@ DummyOutStatus:
 TTYInput:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		InputData						; use of JMP, InputStatus will execute thr RETurn
-TerminalInput:
-	LXI		H,TerminalTable					; HL-> control table
+CRT_Input:
+	LXI		H,CRT_Table					; HL-> control table
 	CALL	InputData						; ** special **
 	ANI		07FH							; Strip off high order bit
 	RET
@@ -204,8 +203,8 @@ OutputDataPort:
 TTYOutput:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
-TerminalOutput:
-	LXI		H,TerminalTable					 ;HL-> control table
+CRT_Output:
+	LXI		H,CRT_Table					 ;HL-> control table
 	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
 CommunicationOutput:
 	LXI		H,CommunicationTable			; HL-> control table
@@ -231,7 +230,7 @@ GetConsoleStatus:
 	LDA		IOBYTE							; Get IO redirection byte
 	CALL	SelectRoutine					; these routines return to the caller of GetConsoleStatus
 	DW		TTYInStatus						; 00  <- IOBYTE bits 1,0
-	DW		TerminalInStatus				; 01
+	DW		CRT_InStatus				; 01
 	DW		CommunicationInStatus			; 10
 	DW		DummyInStatus					; 11
 
@@ -249,7 +248,7 @@ CONIN:
 	CALL 	SelectRoutine
 ; Vectors to device routines
 	DW		TTYInput						; 00 <- IOBYTE bits 1,0
-	DW		TerminalInput					; 01
+	DW		CRT_Input					; 01
 	DW		CommunicationInput				; 10
 	DW		DummyInput						; 11
 
@@ -263,7 +262,7 @@ CONOUT:
 	CALL 	SelectRoutine
 ; Vectors to device routines
 	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		TerminalOutput					; 01
+	DW		CRT_Output					; 01
 	DW		CommunicationOutput				; 10
 	DW		DummyOutput						; 11
 
@@ -288,9 +287,14 @@ GetListStatus:
 	RLC										; move bits 7,6
 	RLC										; to 1,0
 	CALL	SelectRoutine
-	DW		TTYOutStatus					; 00 <- IOBYTE bits 1,0
-	DW		TerminalOutStatus				; 01
-	DW		CommunicationOutStatus			; 10
+;	DW		TTYOutStatus					; 00 <- IOBYTE bits 1,0
+;	DW		CRT_OutStatus				; 01
+;	DW		CommunicationOutStatus			; 10
+
+	DW		DummyOutStatus					; 00 <- IOBYTE bits 1,0
+	DW		DummyOutStatus					; 01
+	DW		DummyOutStatus					; 10
+
 	DW		DummyOutStatus					; 11
 ;---------------------------------------------------------------------------
 ;	List output  BIOS 05
@@ -302,7 +306,7 @@ LIST:
 	RLC										; to 1,0
 	CALL	SelectRoutine
 	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		TerminalOutput					; 01
+	DW		CRT_Output					; 01
 	DW		CommunicationOutput				; 10
 	DW		DummyOutput						; 11
 
@@ -313,14 +317,15 @@ LIST:
 PUNCH:				; Punch output
 
 	LDA		IOBYTE
-	RLC										; move bits 5,4
-	RLC
-	RLC										; to 1,0
+	RRC
+	RRC
+	RRC										; move bits 5,4
+	RRC										; to 1,0
 	CALL	SelectRoutine
 	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
 	DW		DummyOutput						; 01
 	DW		CommunicationOutput				; 10
-	DW		TerminalOutput					; 11
+	DW		CRT_Output					; 11
 
 ;---------------------------------------------------------------------------
 ;	Reader input  BIOS 07	- not tested
@@ -328,12 +333,13 @@ PUNCH:				; Punch output
 ; inputs data into the A register
 READER:				; Reader Input
 	LDA		IOBYTE
-	RLC										; move bits 3,2  to 1,0
+	RRC
+	RRC										; move bits 3,2  to 1,0
 	CALL	SelectRoutine
 	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
 	DW		DummyOutput						; 01
 	DW		CommunicationOutput				; 10
-	DW		TerminalOutput					; 11
+	DW		CRT_Output					; 11
 
 ;---------------------------------------------------------------------------
 ;---------------------------------------------------------------------------
@@ -771,7 +777,7 @@ DiskError:
 ;;Floppy5DD	EQU	1 						; 5 1/4" mini floppy
 ;;Floppy8	EQU	2 						; 8"  floppy (SS SD)
 ;;HardDisk	EQU	2						; hard disk
-NumberOfLogicalDisks	EQU 4			; max number of disk in this system
+;NumberOfLogicalDisks	EQU 4			; max number of disk in this system
 
 
 ;**************************************************************************************************
