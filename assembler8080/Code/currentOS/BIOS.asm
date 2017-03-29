@@ -60,15 +60,21 @@ TTYDataPort					EQU		0ECH
 TTYOutputReady				EQU		01H		; Status Mask
 TTYInputReady				EQU		02H		; Status Mask
 
-CRT_StatusPort			EQU		02H
-CRT_DataPort			EQU		01H
-CRT_OutputReady			EQU		80H		; Status Mask - ready for output
-CRT_InputReady			EQU		07FH	; Status Mask - bytes yet to have been read
+CRT_StatusPort				EQU		02H
+CRT_DataPort				EQU		01H
+CRT_OutputReady				EQU		80H		; Status Mask - ready for output
+CRT_InputReady				EQU		07FH	; Status Mask - bytes yet to have been read
 
 CommunicationStatusPort		EQU		0EDH
 CommunicationDataPort		EQU		0ECH
 CommunicationOutputReady	EQU		01H		; Status Mask
 CommunicationInputReady		EQU		02H		; Status Mask
+
+PrinterStatusPort			EQU		011H
+PrinterDataPort				EQU		010H
+PrinterOutputReady			EQU		080H	; Status Mask - ready for output
+PrinterInputReady			EQU		07FH	; Status Mask - not used
+
 
 TTYTable:
 	DB		TTYStatusPort
@@ -85,6 +91,12 @@ CommunicationTable:
 	DB		CommunicationDataPort
 	DB		CommunicationOutputReady
 	DB		CommunicationInputReady
+PrinterTable:
+	DB		PrinterStatusPort
+	DB		PrinterDataPort
+	DB		PrinterOutputReady
+	DB		PrinterInputReady
+	
 
 ;----------------------------------------------------------------------
 
@@ -230,7 +242,7 @@ GetConsoleStatus:
 	LDA		IOBYTE							; Get IO redirection byte
 	CALL	SelectRoutine					; these routines return to the caller of GetConsoleStatus
 	DW		TTYInStatus						; 00  <- IOBYTE bits 1,0
-	DW		CRT_InStatus				; 01
+	DW		CRT_InStatus					; 01
 	DW		CommunicationInStatus			; 10
 	DW		DummyInStatus					; 11
 
@@ -288,11 +300,11 @@ GetListStatus:
 	RLC										; to 1,0
 	CALL	SelectRoutine
 ;	DW		TTYOutStatus					; 00 <- IOBYTE bits 1,0
-;	DW		CRT_OutStatus				; 01
+;	DW		CRT_OutStatus					; 01
 ;	DW		CommunicationOutStatus			; 10
 
 	DW		DummyOutStatus					; 00 <- IOBYTE bits 1,0
-	DW		DummyOutStatus					; 01
+	DW		DummyOutStatus					; 01		CRT_InStatus
 	DW		DummyOutStatus					; 10
 
 	DW		DummyOutStatus					; 11
@@ -306,7 +318,7 @@ LIST:
 	RLC										; to 1,0
 	CALL	SelectRoutine
 	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		CRT_Output					; 01
+	DW		CRT_Output						; 01
 	DW		CommunicationOutput				; 10
 	DW		DummyOutput						; 11
 
