@@ -1,2 +1,3 @@
-*.list
-*.mem
+/*.list
+/*.mem
+/*.hex
