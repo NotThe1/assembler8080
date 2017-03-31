@@ -1,5 +1,6 @@
 ; BDOS.asm
 
+; 2017-03-31 added vector for BDOS Call 5 -ListOut
 ; 2017-03-02 Refactored the CP/M Suite
 ; 2017-02-12 fixed allocate 16 bit problem
 ; 2014-01-16 extended from part of newOS (newBDOS)
@@ -113,9 +114,9 @@ functionTable:
 	DW		bcBoot							; Function  0 - System Reset
 	DW		vConsoleIn						; Function  1 - Console Input
 	DW		vConsoleOut						; Function  2 - Console Output
-	DW		DUMMY							; Function  3 - Reader Input
-	DW		DUMMY							; Function  4 - Punch Output
-	DW		DUMMY							; Function  5 - List Output
+	DW		vReaderIn						; Function  3 - Reader Input
+	DW		vPunchOut	; Not Implemented	  Function  4 - Punch Output
+	DW		vListOut	; Not Implemented	  Function  5 - List Output
 	DW		vDirectConIO					; Function  6 - Direct Console I/O
 	DW		vGetIOBYTE						; Function  7 - Get I/O Byte
 	DW		vSetIOBYTE						; Function  8 - Set I/O Byte
@@ -148,10 +149,10 @@ diskf	EQU	($-functionTable)/2				; disk functions
 	DW		vWriteRandom					; Function 22 - Write Random
 	DW		vComputeFileSize				; Function 23 - Compute File Size
 	DW		vSetRandomRecord				; Function 24 - Set Random Record
-	DW		DUMMY							; Function 25 - Reset Drive
+	DW		vResetDrive	; Not Implemented	  Function 25 - Reset Drive
 	DW		DUMMY							; Function 26 - Access Drive (not supported)
 	DW		DUMMY							; Function 27 - Free Drive (not supported)
-	DW		DUMMY							; Function 28 - Write random w/Fill
+	DW		vWriteRandom0Fill; Not Implemented	  Function 28 - Write random w/Fill
 functionCount	EQU	($-functionTable)/2 	; Number of  functions
 
 DUMMY:
@@ -159,14 +160,31 @@ DUMMY:
 ;*****************************************************************
 ;**************** IOByte device I/O ******************************
 ;*****************************************************************
-;return console character with echo
+;return CON: character with echo
 vConsoleIn:									; func1 (01 - 01) Console In
 	CALL	ConsoleInWithEcho
-	JMP		StoreARet
+	STA		statusBDOSReturn
+	RET					
 ;----------
-; write console character with TAB expansion
+; write CON: character with TAB expansion
 vConsoleOut:								; func2 (02 - 02) Console Out
 	CALL	TabOut
+	RET
+;----------
+; Read next character from RDR: (Paper Tape Reader)
+vReaderIn:									; func3 (03 - 03) Reader Input
+; Not Yet Implemented   **************
+	STA		statusBDOSReturn
+	RET	
+;----------
+; send char in E directly to PTP: (Paper Tape Punch)
+vPunchOut:									; func4 (04 - 04) Punch Output
+; Not Yet Implemented   **************
+	RET
+;----------
+; send char in E directly to LST:
+vListOut:									; func5 (05 - 05) List Output
+	CALL	bcList							; direct call to BIOS
 	RET
 ;----------
 ;direct console i/o - read if 0ffh
@@ -181,12 +199,14 @@ fDirectConIn:
 	ORA		A
 	JZ		RetDiskMon						; skip, return 00 if not ready
 	CALL	bcConin							; character is ready, get it to A
-	JMP		StoreARet
+	STA		statusBDOSReturn
+	RET	
 ;----------
 ;return io byte
 vGetIOBYTE:									; func7 (07 - 07) get IOBYTE
 	LDA		IOBYTE							; get the byte
-	JMP		StoreARet						; store A and return
+	STA		statusBDOSReturn
+	RET	
 ;----------
 ;set i/o byte
 vSetIOBYTE:									; func8 (08 - 08)	set IOBYTE
@@ -212,8 +232,8 @@ vReadString:								; func10 (10 - 0A)	read String from console
 ;check console status
 vGetConsoleStatus:							; func11 (11 - 01)	read Dollar terminated String from console
 	CALL	ConBreak
-	JMP		StoreARet
-
+	STA		statusBDOSReturn
+	RET	
 ;----------
 ;get/set user code
 ; IN - (E) = FF its a get else user Number(0-15)
@@ -268,6 +288,21 @@ vComputeFileSize:							; func35 (35 - 23) Compute File Size
 ;OUT - Random Record Field is set
 vSetRandomRecord:							; func36 (36 - 24) Set random Record
 	JMP		SetRandomRecord
+;*****************************************************************
+;Reset Drive
+;IN  - (DE) Drive Vector
+;OUT - (A) 00
+vResetDrive:								; func37 (37 - 25) Reset Drive
+; Not Yet Implemented   **************
+	RET
+;*****************************************************************
+;*****************************************************************
+;Write Random With Zero Fill
+;IN  - (DE) FCB address
+;OUT - (A) Return Code		see Function 34
+vWriteRandom0Fill:								; func40 (40 - 28) Reset Drive
+; Not Yet Implemented   **************
+	RET
 ;*****************************************************************
 ;******************< Random I/O Stuff ****************************
 ;*****************************************************************
@@ -506,12 +541,6 @@ GetRandomRecordPosition:				; compute$rr
 ;*****************************************************************
 
 
-; store A and return
-StoreARet:
-	STA		statusBDOSReturn
-	RET
-
-;----------------
 ;read to paramDE address (max length, current length, buffer)
 ReadString:
 	LDA		columnPosition

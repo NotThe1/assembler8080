@@ -1,9 +1,8 @@
 ; BIOS.asm
-;2017-02-08
-; all disk drives are 3.5 DH disks (1.44MB)
-;
-;
+
+; 2017-03-31 Added List out functionality for List Device
 ; 2017-03-02 Refactored the CP/M Suite
+; 2017-02-08 All disk drives are 3.5 DH disks (1.44MB)
 ; 2014-01-16
 ; 2014-03-14  :  Frank Martyn
 
@@ -72,7 +71,7 @@ CommunicationInputReady		EQU		02H		; Status Mask
 
 PrinterStatusPort			EQU		011H
 PrinterDataPort				EQU		010H
-PrinterOutputReady			EQU		080H	; Status Mask - ready for output
+PrinterOutputReady			EQU		0FFH	; Status Mask - ready for output
 PrinterInputReady			EQU		07FH	; Status Mask - not used
 
 
@@ -120,11 +119,14 @@ SelectRoutine:
 	XTHL									; top of stack -> routine
 	RET										; transfer control to the selected routine
 ;----------------------routines called by SelectRoutine----------------------------
+;----------------------------------------------------------------------------------
+
+; ------------ Status In
 TTYInStatus:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		InputStatus						; use of JMP, InputStatus will execute thr RETurn
 CRT_InStatus:
-	LXI		H,CRT_Table					; HL-> control table
+	LXI		H,CRT_Table						; HL-> control table
 	JMP		InputStatus						; use of JMP, InputStatus will execute thr RETurn
 CommunicationInStatus:
 	LXI		H,CommunicationTable			; HL-> control table
@@ -132,26 +134,30 @@ CommunicationInStatus:
 DummyInStatus:
 	MVI		A,0FFH							; Dummy always indicates data ready
 	RET
-
+	
+; ------------ Status Out
 TTYOutStatus:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		OutputStatus					; use of JMP, OutputStatus will execute thr RETurn
 CRT_OutStatus:
-	LXI		H,CRT_Table					; HL-> control table
+	LXI		H,CRT_Table						; HL-> control table
 	JMP		OutputStatus					; use of JMP, OutputStatus will execute thr RETurn
 CommunicationOutStatus:
 	LXI		H,CommunicationTable			; HL-> control table
 	JMP		OutputStatus					; use of JMP, OutputStatus will execute thr RETurn
+PrinterStatus:
+	LXI		H,PrinterTable					; HL-> control table
+	JMP		InputStatus						; use of JMP, InputStatus will execute thr RETurn	
 DummyOutStatus:
 	MVI		A,0FFH							; Dummy always indicates ready to output data
 	RET
-
-;--------------------------------------------------------------------------------
+	
+; ------------ Data In
 TTYInput:
 	LXI		H,TTYTable						; HL-> control table
 	JMP		InputData						; use of JMP, InputStatus will execute thr RETurn
 CRT_Input:
-	LXI		H,CRT_Table					; HL-> control table
+	LXI		H,CRT_Table						; HL-> control table
 	CALL	InputData						; ** special **
 	ANI		07FH							; Strip off high order bit
 	RET
@@ -161,6 +167,23 @@ CommunicationInput:
 DummyInput:
 	MVI		A,END_OF_FILE					; Dummy always returns EOF
 	RET
+
+; ------------ Data Out	
+TTYOutput:
+	LXI		H,TTYTable						; HL-> control table
+	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
+CRT_Output:
+	LXI		H,CRT_Table						 ;HL-> control table
+	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
+CommunicationOutput:
+	LXI		H,CommunicationTable			; HL-> control table
+	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
+PrinterOutput:
+	LXI		H,PrinterTable					; HL-> control table
+	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
+DummyOutput:
+	RET										; Dummy always discards the data
+;-----------------------------------		----------------------------------------
 ;---------------------------------------------------------------------------
 InputStatus:								; return- A = 00H no incoming data
 	MOV		A,M								; get status port
@@ -212,18 +235,7 @@ OutputDataPort:
 	DB		00H								; <- set from above
 	RET
 ;---------------------------------------------------------------------------
-TTYOutput:
-	LXI		H,TTYTable						; HL-> control table
-	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
-CRT_Output:
-	LXI		H,CRT_Table					 ;HL-> control table
-	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
-CommunicationOutput:
-	LXI		H,CommunicationTable			; HL-> control table
-	JMP		OutputData						; use of JMP, InputStatus will execute thr RETurn
-DummyOutput:
-	RET										; Dummy always discards the data
-;-----------------------------------		----------------------------------------
+
 
 ;---------------------------------------------------------------------------
 ;	Console Status  BIOS 02
@@ -240,11 +252,12 @@ CONST:
 ;---------------------------------------------------------------------------
 GetConsoleStatus:
 	LDA		IOBYTE							; Get IO redirection byte
-	CALL	SelectRoutine					; these routines return to the caller of GetConsoleStatus
-	DW		TTYInStatus						; 00  <- IOBYTE bits 1,0
-	DW		CRT_InStatus					; 01
-	DW		CommunicationInStatus			; 10
-	DW		DummyInStatus					; 11
+	CALL	SelectRoutine
+	
+	DW		TTYInStatus						; 00 TTY
+	DW		CRT_InStatus					; 01 CRT
+	DW		CommunicationInStatus			; 10 BAT
+	DW		DummyInStatus					; 11 UC1
 
 ;---------------------------------------------------------------------------
 ;	Console In  BIOS 03
@@ -258,11 +271,11 @@ GetConsoleStatus:
 CONIN:
 	LDA		IOBYTE							; get i/o redirection byte
 	CALL 	SelectRoutine
-; Vectors to device routines
-	DW		TTYInput						; 00 <- IOBYTE bits 1,0
-	DW		CRT_Input					; 01
-	DW		CommunicationInput				; 10
-	DW		DummyInput						; 11
+
+	DW		TTYInput						; 00 TTY
+	DW		CRT_Input						; 01 CRT
+	DW		CommunicationInput				; 10 BAT
+	DW		DummyInput						; 11 UC1
 
 ;---------------------------------------------------------------------------
 ;	Console Out  BIOS 04
@@ -272,11 +285,11 @@ CONIN:
 CONOUT:
 	LDA		IOBYTE							; get i/o redirection byte
 	CALL 	SelectRoutine
-; Vectors to device routines
-	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		CRT_Output					; 01
-	DW		CommunicationOutput				; 10
-	DW		DummyOutput						; 11
+
+	DW		TTYOutput						; 00 TTY
+	DW		CRT_Output						; 01 CRT
+	DW		CommunicationOutput				; 10 BAT
+	DW		DummyOutput						; 11 UC1
 
 ;---------------------------------------------------------------------------
 ;	List Status  BIOS 0F
@@ -299,15 +312,11 @@ GetListStatus:
 	RLC										; move bits 7,6
 	RLC										; to 1,0
 	CALL	SelectRoutine
-;	DW		TTYOutStatus					; 00 <- IOBYTE bits 1,0
-;	DW		CRT_OutStatus					; 01
-;	DW		CommunicationOutStatus			; 10
 
-	DW		DummyOutStatus					; 00 <- IOBYTE bits 1,0
-	DW		DummyOutStatus					; 01		CRT_InStatus
-	DW		DummyOutStatus					; 10
-
-	DW		DummyOutStatus					; 11
+	DW		TTYOutStatus					; 00 TTY
+	DW		CRT_OutStatus					; 01 CRT
+	DW		PrinterStatus					; 10 LPT
+	DW		DummyOutStatus					; 11 UL1
 ;---------------------------------------------------------------------------
 ;	List output  BIOS 05
 ; entered directly from the BIOS JMP Vector
@@ -317,10 +326,11 @@ LIST:
 	RLC										; move bits 7,6
 	RLC										; to 1,0
 	CALL	SelectRoutine
-	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		CRT_Output						; 01
-	DW		CommunicationOutput				; 10
-	DW		DummyOutput						; 11
+	
+	DW		TTYOutput						; 00 TTY
+	DW		CRT_Output						; 01 CRT
+	DW		PrinterOutput					; 10 LPT
+	DW		DummyOutput						; 11 UL1
 
 ;---------------------------------------------------------------------------
 ;	Punch output  BIOS 06	- not tested
@@ -334,10 +344,11 @@ PUNCH:				; Punch output
 	RRC										; move bits 5,4
 	RRC										; to 1,0
 	CALL	SelectRoutine
-	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		DummyOutput						; 01
-	DW		CommunicationOutput				; 10
-	DW		CRT_Output					; 11
+	
+	DW		TTYOutput						; 00 TTY
+	DW		DummyOutput						; 01 PTP
+	DW		CommunicationOutput				; 10 UP1
+	DW		CRT_Output						; 11 UP2
 
 ;---------------------------------------------------------------------------
 ;	Reader input  BIOS 07	- not tested
@@ -348,10 +359,11 @@ READER:				; Reader Input
 	RRC
 	RRC										; move bits 3,2  to 1,0
 	CALL	SelectRoutine
-	DW		TTYOutput						; 00 <- IOBYTE bits 1,0
-	DW		DummyOutput						; 01
-	DW		CommunicationOutput				; 10
-	DW		CRT_Output					; 11
+	
+	DW		TTYOutput						; 00 TTY
+	DW		DummyOutput						; 01 PTR
+	DW		CommunicationOutput				; 10 UR1
+	DW		CRT_Output						; 11 UR2
 
 ;---------------------------------------------------------------------------
 ;---------------------------------------------------------------------------

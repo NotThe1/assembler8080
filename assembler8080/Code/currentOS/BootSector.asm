@@ -83,7 +83,7 @@ BootMessage:
 	DB		' loader'
 	DB		CR,LF,
 	DB		'Build '
-	DB		'1.01  : 1.0 - 1.0 - 1.1'
+	DB		'1.10  : 1.0 - 1.1 - 1.2'
 	DB		CR,LF,EndOfMessage
 
 SendBootMessage:
