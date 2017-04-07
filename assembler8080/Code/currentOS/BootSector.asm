@@ -1,15 +1,20 @@
 ; BootSector.asm
 
+; 2017-04-07 Added equates for message IO : BOOT_CON_ADDRESS
+;				 , and default IOBYTE : IOBYTE_DEFAULT
 ; 2017-03-02 Refactored the CP/M Suite
 
 	$Include ./stdHeader.asm
 	$Include ./osHeader.asm
 	$Include ./diskHeader.asm
+	
+BOOT_CON_ADDRESS	EQU	0ECH				; tty data address
+IOBYTE_DEFAULT		EQU	080H				; LST:=LPT, rest all = TTY:
 
 
-WarmBootEntry	EQU		BIOSStart + 3
+WarmBootEntry		EQU		BIOSStart + 3
 
-		ORG    TPA
+					ORG    TPA
 Start:
 	LXI		SP,Start-1						; stack goes down from here
 	CALL	SendBootMessage					; display boot message
@@ -65,7 +70,7 @@ BootControl:
 Page0Image:
 	JMP		WarmBootEntry					; warm start
 ;IOBYTE:
-	DB		01H								; IOBYTE- Console is assigned the CRT device
+	DB		IOBYTE_DEFAULT					; IOBYTE- 
 DefaultDisk:
 	DB		00H								; Current default drive (A)
 	JMP	BDOSEntry							; jump to BDOS entry
@@ -92,7 +97,7 @@ SendMessage1:
 	MOV		A,M
 	ORA		A
 	RZ
-	OUT		01
+	OUT		BOOT_CON_ADDRESS				; Console address
 	INX		H
 	JMP		SendMessage1
 
