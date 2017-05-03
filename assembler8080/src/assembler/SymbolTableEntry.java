@@ -8,82 +8,85 @@ public class SymbolTableEntry {
 	private int value;
 	private int symbolType;
 	private int symbolScope;
-//	private boolean absolute;
+	// private boolean absolute;
 	private Integer definedLineNumber;
 	private ArrayList<Integer> referencedLineNumbers;
-	
 
 	public SymbolTableEntry() {
-		// TODO Auto-generated constructor stub
-	}//Constructor - SymbolTable
-	
-	public SymbolTableEntry(String name,int value,int definedLineNumber,int symbolType){
+	}// Constructor - SymbolTable
+
+	public SymbolTableEntry(String name, int value, int definedLineNumber, int symbolType) {
 		this.name = name;
 		this.value = value;
-		this.symbolType=symbolType;
-		this.definedLineNumber= definedLineNumber;
+		this.symbolType = symbolType;
+		this.definedLineNumber = definedLineNumber;
 		this.referencedLineNumbers = new ArrayList<Integer>();
-		
-	}//Constructor - SymbolTable - used when defining a new symbol   **SET
-	
-	public SymbolTableEntry(String name,int referencedLineNumber,int symbolType){
+
+	}// Constructor - SymbolTable - used when defining a new symbol **SET
+
+	public SymbolTableEntry(String name, int referencedLineNumber, int symbolType) {
 		this.name = name;
-		if(this.referencedLineNumbers == null){
+		if (this.referencedLineNumbers == null) {
 			this.referencedLineNumbers = new ArrayList<Integer>();
 		}
 		this.referencedLineNumbers.add(referencedLineNumber);
-		
-	}//Constructor - SymbolTable - used when referencing a new symbol
+
+	}// Constructor - SymbolTable - used when referencing a new symbol
 
 	String getName() {
 		return name;
-	}//getName
+	}// getName
+
 	void setName(String name) {
 		this.name = name;
-	}//setName
+	}// setName
 
 	int getValue() {
 		return value;
-	}//getValue
+	}// getValue
+
 	void setValue(int value) {
 		this.value = value;
-	}//setValue
+	}// setValue
 
 	int getSymbolType() {
 		return symbolType;
-	}//getSymbolType
+	}// getSymbolType
+
 	void setSymbolType(int symbolType) {
 		this.symbolType = symbolType;
-	}//setSymbolType
+	}// setSymbolType
 
 	int getSymbolScope() {
 		return symbolScope;
-	}//getSymbolScope
+	}// getSymbolScope
+
 	void setSymbolScope(int symbolScope) {
 		this.symbolScope = symbolScope;
-	}//setSymbolScope
+	}// setSymbolScope
 
 	Integer getDefinedLineNumber() {
 		return definedLineNumber;
-	}//getDefinedLineNumber
+	}// getDefinedLineNumber
+
 	void setDefinedLineNumber(Integer definedLineNumber) {
 		this.definedLineNumber = definedLineNumber;
-	}//setDefinedLineNumber
+	}// setDefinedLineNumber
 
 	ArrayList<Integer> getReferencedLineNumbers() {
 		ArrayList<Integer> lineNumbers = (ArrayList<Integer>) this.referencedLineNumbers.clone();
 		Collections.sort(lineNumbers);
 		return lineNumbers;
-	}//getReferencedLineNumbers
-	
-	Integer getReferencedLineNumberSize(){
-		return referencedLineNumbers.size();
-	}//getReferencedLineNumberSize
-	
-	void addReferenceLineNumber(int lineNumber){
-		if(!referencedLineNumbers.contains(lineNumber)){
-			referencedLineNumbers.add(lineNumber);
-		}//do not want duplicate references
-	}//addReferenceLineNumber
+	}// getReferencedLineNumbers
 
-}//class SymbolTable
+	Integer getReferencedLineNumberSize() {
+		return referencedLineNumbers.size();
+	}// getReferencedLineNumberSize
+
+	void addReferenceLineNumber(int lineNumber) {
+		if (!referencedLineNumbers.contains(lineNumber)) {
+			referencedLineNumbers.add(lineNumber);
+		} // do not want duplicate references
+	}// addReferenceLineNumber
+
+}// class SymbolTable
